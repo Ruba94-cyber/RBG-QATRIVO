@@ -18,6 +18,11 @@ on any private companion application or private repository.
 - Select a template and record Passed, Failed, or Blocked.
 - Review recent execution results and notes.
 - Export test cases, ordered steps, requirements/coverage and defects to CSV using a native save dialog, with quoting and spreadsheet-formula safeguards.
+- Paste test steps (action and expected result) straight from a spreadsheet; the paste is atomic, so an invalid row rejects everything.
+- Search test cases by text (title, description, steps, linked requirement) and filter by latest outcome.
+- Live dashboard numbers: pass rate, execution progress, requirement coverage and open defects by severity.
+- Export a self-contained, printable HTML report (no scripts, no external resources).
+- Back up the workspace to a ZIP archive that can be restored into an empty folder only.
 - Persist data locally as JSON in a dedicated `TestLoom` user profile.
 - Preserve a previous JSON version as `workspace.json.bak` when updating.
 - Recover explicitly from a validated `.bak` if the primary JSON becomes corrupted, preserving the damaged bytes in `workspace.json.corrupt-*`.

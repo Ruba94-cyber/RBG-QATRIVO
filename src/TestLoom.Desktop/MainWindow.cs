@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Input.Platform;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -41,6 +42,10 @@ public sealed class MainWindow : Window
     private readonly Button _addTest = new() { Content = "Add test case" };
     private readonly ListBox _caseList = new() { Height = 250 };
     private readonly CheckBox _showArchived = new() { Content = "Show archived tests" };
+    private readonly TextBox _search = new() { Watermark = "Search tests (title, steps, requirement…)" };
+    private readonly ComboBox _outcomeFilter = new() { ItemsSource = new[] { "Any outcome", "Not run", "Passed", "Failed", "Blocked" }, SelectedIndex = 0 };
+    private readonly Button _exportHtml = new() { Content = "Export report (HTML)" };
+    private readonly Button _backup = new() { Content = "Back up workspace (ZIP)" };
     private readonly TextBox _editTitle = new() { Watermark = "Selected test title" };
     private readonly TextBox _editDescription = new()
     {
@@ -57,6 +62,7 @@ public sealed class MainWindow : Window
     private readonly TextBox _newStepAction = new() { Watermark = "Step action" };
     private readonly TextBox _newStepExpected = new() { Watermark = "Expected result" };
     private readonly Button _addStep = new() { Content = "Add step" };
+    private readonly Button _pasteSteps = new() { Content = "Paste steps from clipboard" };
     private readonly TextBox _editStepAction = new() { Watermark = "Selected step action" };
     private readonly TextBox _editStepExpected = new() { Watermark = "Selected step expected result" };
     private readonly Button _saveStep = new() { Content = "Save selected step" };
@@ -136,12 +142,18 @@ public sealed class MainWindow : Window
         _addTest.Click += (_, _) => AddTestCase();
         _caseList.SelectionChanged += (_, _) => RenderSelection();
         _showArchived.IsCheckedChanged += (_, _) => Refresh();
+        _search.TextChanged += (_, _) => Refresh();
+        _outcomeFilter.SelectionChanged += (_, _) => Refresh();
+        _exportHtml.Click += async (_, _) => await ExportFileAsync("Export report", "testloom-report.html", "html", "HTML report",
+            () => WorkspaceHtmlReport.Generate(_workspace!), "Report exported.");
+        _backup.Click += async (_, _) => await BackupAsync();
         _saveEdits.Click += (_, _) => SaveSelectedTest();
         _existingTestRequirement.SelectionChanged += (_, _) => RefreshLinkButtons();
         _linkRequirement.Click += (_, _) => ChangeSelectedTestRequirement(link: true);
         _unlinkRequirement.Click += (_, _) => ChangeSelectedTestRequirement(link: false);
         _stepList.SelectionChanged += (_, _) => UpdateStepActions();
         _addStep.Click += (_, _) => AddStep();
+        _pasteSteps.Click += async (_, _) => await PasteStepsAsync();
         _saveStep.Click += (_, _) => SaveSelectedStep();
         _removeStep.Click += (_, _) => RemoveSelectedStep();
         _moveStepUp.Click += (_, _) => MoveSelectedStep(-1);
@@ -214,6 +226,8 @@ public sealed class MainWindow : Window
 
         var runPanel = new StackPanel { Spacing = 8 };
         runPanel.Children.Add(SectionHeading("Tests and execution history"));
+        runPanel.Children.Add(_search);
+        runPanel.Children.Add(_outcomeFilter);
         runPanel.Children.Add(_showArchived);
         runPanel.Children.Add(_caseList);
         runPanel.Children.Add(_caseDetails);
@@ -241,6 +255,7 @@ public sealed class MainWindow : Window
         runPanel.Children.Add(_newStepExpected);
         var stepActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         stepActions.Children.Add(_addStep);
+        stepActions.Children.Add(_pasteSteps);
         stepActions.Children.Add(_removeStep);
         stepActions.Children.Add(_moveStepUp);
         stepActions.Children.Add(_moveStepDown);
@@ -284,6 +299,8 @@ public sealed class MainWindow : Window
         exportButtons.Children.Add(_exportRequirements);
         exportButtons.Children.Add(_exportSteps);
         exportButtons.Children.Add(_exportDefects);
+        exportButtons.Children.Add(_exportHtml);
+        exportButtons.Children.Add(_backup);
         reportActions.Children.Add(exportButtons);
         body.Children.Add(reportActions);
 
@@ -614,6 +631,37 @@ public sealed class MainWindow : Window
         }
     }
 
+    private async Task PasteStepsAsync()
+    {
+        if (_workspace is null || _caseList.SelectedItem is not WorkspaceTestCase test || test.Archived) return;
+        var clipboard = GetTopLevel(this)?.Clipboard;
+        var text = clipboard is null ? null : await clipboard.TryGetTextAsync();
+        var result = StepPasteParser.Parse(text);
+        if (!result.Success)
+        {
+            SetStatus($"Paste rejected ({result.Error}, row {result.RowNumber}); nothing was added.");
+            return;
+        }
+        if (result.Steps.Count == 0)
+        {
+            SetStatus("The clipboard has no steps. Copy two spreadsheet columns: action and expected result.");
+            return;
+        }
+        var added = result.Steps.Select(x => new WorkspaceTestStep { Action = x.Action, ExpectedResult = x.ExpectedResult }).ToList();
+        test.Steps.AddRange(added);
+        try
+        {
+            _store.Save(_workspace);
+            SetStatus($"{added.Count} steps pasted and saved.");
+            Refresh();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            foreach (var step in added) test.Steps.Remove(step);
+            SetStatus("Steps could not be saved: " + ex.Message);
+        }
+    }
+
     private void AddStep()
     {
         if (_workspace is null || _caseList.SelectedItem is not WorkspaceTestCase test ||
@@ -921,6 +969,54 @@ public sealed class MainWindow : Window
         }
     }
 
+    private async Task ExportFileAsync(string title, string fileName, string extension, string typeName,
+        Func<string> content, string doneMessage)
+    {
+        if (_workspace is null) return;
+        try
+        {
+            if (!StorageProvider.CanSave) { SetStatus("File saving is unavailable on this desktop."); return; }
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = title, SuggestedFileName = fileName, DefaultExtension = extension,
+                FileTypeChoices = new[] { new FilePickerFileType(typeName) { Patterns = new[] { "*." + extension } } },
+                ShowOverwritePrompt = true
+            });
+            if (file is null) return;
+            await using var writer = new StreamWriter(await file.OpenWriteAsync(), new UTF8Encoding(false));
+            await writer.WriteAsync(content());
+            await writer.FlushAsync();
+            SetStatus(doneMessage);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException)
+        {
+            SetStatus("Export failed: " + ex.Message);
+        }
+    }
+
+    private async Task BackupAsync()
+    {
+        if (_workspace is null) return;
+        try
+        {
+            if (!StorageProvider.CanSave) { SetStatus("File saving is unavailable on this desktop."); return; }
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Back up workspace", SuggestedFileName = "testloom-backup.zip", DefaultExtension = "zip",
+                FileTypeChoices = new[] { new FilePickerFileType("ZIP backup") { Patterns = new[] { "*.zip" } } },
+                ShowOverwritePrompt = true
+            });
+            var path = file?.TryGetLocalPath();
+            if (path is null) return;
+            WorkspaceBackup.Create(_store, path);
+            SetStatus("Workspace backed up.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException)
+        {
+            SetStatus("Backup failed: " + ex.Message);
+        }
+    }
+
     private IReadOnlyList<string> AvailableTemplates() =>
         _workspace is null ? Array.Empty<string>() :
         new[] { "Custom test" }.Concat(
@@ -944,6 +1040,8 @@ public sealed class MainWindow : Window
         _exportRequirements.IsEnabled = active;
         _exportSteps.IsEnabled = active;
         _exportDefects.IsEnabled = active;
+        _exportHtml.IsEnabled = active;
+        _backup.IsEnabled = active;
         _defectKey.IsEnabled = active;
         _defectTitle.IsEnabled = active;
         _defectDescription.IsEnabled = active;
@@ -960,7 +1058,7 @@ public sealed class MainWindow : Window
         _addTest.IsEnabled = active;
 
         _workspaceSummary.Text = active
-            ? $"{_workspace!.Name} · {_workspace.TestCases.Count} tests · {TestLoomWorkspacePresets.Find(_workspace.PresetId)?.DisplayName}"
+            ? $"{_workspace!.Name} · {TestLoomWorkspacePresets.Find(_workspace.PresetId)?.DisplayName}{Environment.NewLine}{WorkspaceStatistics.Calculate(_workspace).Summary}"
             : (_recoveryBlockedBySchema
                 ? "This workspace needs a compatible TestLoom version. Previous data is unchanged."
                 : _initialLoadFailed
@@ -993,9 +1091,9 @@ public sealed class MainWindow : Window
 
         var selectedId = (_caseList.SelectedItem as WorkspaceTestCase)?.Id;
         _caseList.ItemsSource = null;
-        _caseList.ItemsSource = _workspace?.TestCases
-            .Where(test => !test.Archived || _showArchived.IsChecked == true).ToArray()
-            ?? Array.Empty<WorkspaceTestCase>();
+        _caseList.ItemsSource = _workspace is null ? Array.Empty<WorkspaceTestCase>()
+            : TestCaseFilter.Apply(_workspace, new TestCaseFilter(
+                _search.Text, (OutcomeFilter)Math.Max(0, _outcomeFilter.SelectedIndex), _showArchived.IsChecked == true));
         if (selectedId.HasValue)
             _caseList.SelectedItem = _workspace?.TestCases.FirstOrDefault(t => t.Id == selectedId.Value);
         RenderSelection();
@@ -1031,6 +1129,7 @@ public sealed class MainWindow : Window
         _newStepAction.IsEnabled = canExecute;
         _newStepExpected.IsEnabled = canExecute;
         _addStep.IsEnabled = canExecute;
+        _pasteSteps.IsEnabled = canExecute;
         UpdateStepActions();
         _caseDetails.Text = selected is null
             ? "Select a test case to review its history or record an execution."
