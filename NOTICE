@@ -1,0 +1,26 @@
+TestLoom
+Required Notice: Copyright (c) 2026 Paolo Rubagotti
+
+TestLoom is licensed under the PolyForm Shield License 1.0.0 (see the LICENSE file or
+https://polyformproject.org/licenses/shield/1.0.0). Anyone who receives a copy of any part of
+TestLoom from you must also receive the LICENSE file (or its URL) and the Required Notice line above.
+
+Credits and attribution
+-----------------------
+If you use or redistribute TestLoom, keep this NOTICE file and credit the author, for example:
+"Based on TestLoom by Paolo Rubagotti".
+
+Origin
+------
+TestLoom is a generalized adaptation of a more specific private application developed and used by
+its author. It keeps the general ideas (test cases, requirements, defects, local recoverable storage)
+and leaves out everything specific to that context.
+
+Name and icon
+-------------
+The name "TestLoom" and the TestLoom icon are not licensed for use as the name or branding of another
+product. The PolyForm Shield License grants no trademark rights.
+
+Third-party software
+--------------------
+TestLoom uses third-party packages under their own licenses. See THIRD-PARTY-NOTICES.md.

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>TestLoom</AssemblyName>
+    <Product>TestLoom</Product>
+    <Version>0.1.0</Version>
+    <SelfContained>false</SelfContained>
+    <ApplicationIcon>Assets\testloom.ico</ApplicationIcon>
+    <Copyright>Copyright (c) 2026 Paolo Rubagotti</Copyright>
+    <Description>TestLoom - standalone desktop test management (early technical preview)</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\testloom-256.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TestLoom.Core\TestLoom.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TestLoom.Core/TestLoom.Core.csproj" />
+    <Project Path="src/TestLoom.Core.Tests/TestLoom.Core.Tests.csproj" />
+    <Project Path="src/TestLoom.Core.Smoke/TestLoom.Core.Smoke.csproj" />
+    <Project Path="src/TestLoom.Desktop/TestLoom.Desktop.csproj" />
+  </Folder>
+</Solution>
