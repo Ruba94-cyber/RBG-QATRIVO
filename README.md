@@ -84,7 +84,8 @@ separately; their data files are not interchangeable unless an import is explici
 
 TestLoom is source-available under the [PolyForm Shield License 1.0.0](LICENSE). In short: you may use, modify and
 share it, including inside a company, but you may not use it to provide a product that competes with TestLoom.
-The license text is authoritative; this summary is not legal advice.
+The license text is authoritative; this summary is not legal advice. For a commercial license or questions about
+attribution, contact paolo.ruba.1913@gmail.com.
 
 ## Credits and attribution
 

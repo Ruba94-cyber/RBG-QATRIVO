@@ -6,7 +6,7 @@ features and does not collect telemetry.
 ## Reporting a vulnerability
 
 Please do not open a public issue for a security problem. Use the private vulnerability reporting of this repository
-(Security tab) or contact the author privately, and include the version, the steps to reproduce and, if possible,
+(Security tab) or write privately to paolo.ruba.1913@gmail.com, and include the version, the steps to reproduce and, if possible,
 a synthetic workspace file that shows the problem. Never attach real or confidential data.
 
 ## Scope

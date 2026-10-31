@@ -16,6 +16,7 @@ internal static class AboutInfo
     public const string License =
         "Source-available under the PolyForm Shield License 1.0.0 (see the LICENSE file or https://polyformproject.org/licenses/shield/1.0.0).";
     public const string Credits = "If you use or redistribute TestLoom, keep the LICENSE and NOTICE files and credit the author: \"Based on TestLoom by Paolo Rubagotti\".";
+    public const string Contact = "Contact: paolo.ruba.1913@gmail.com";
     public const string NameAndIcon = "The name TestLoom and its icon are not licensed for use as the name or branding of another product.";
 
     /// <summary>Never throws: a missing resource must not prevent the application from starting.</summary>
@@ -44,6 +45,7 @@ internal static class AboutInfo
         panel.Children.Add(Line(RequiredNotice, 13, FontWeight.SemiBold));
         panel.Children.Add(Line(Credits));
         panel.Children.Add(Line(NameAndIcon));
+        panel.Children.Add(Line(Contact));
         var close = new Button { Content = "Close", HorizontalAlignment = HorizontalAlignment.Right };
         panel.Children.Add(close);
         var window = new Window

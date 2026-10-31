@@ -23,5 +23,5 @@ shared development checkout. Any new sample data must be entirely synthetic.
 
 TestLoom is source-available under the PolyForm Shield License 1.0.0 (see LICENSE and NOTICE). Until a contributor
 agreement is published in this repository, code contributions are not accepted; issues, bug reports with synthetic data
-and suggestions are welcome. Do not submit code or data you do not have the right to share, and never include real,
+and suggestions are welcome. Contact: paolo.ruba.1913@gmail.com. Do not submit code or data you do not have the right to share, and never include real,
 confidential or personal data in an issue or a pull request.
