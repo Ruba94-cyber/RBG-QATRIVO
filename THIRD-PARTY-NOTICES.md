@@ -39,6 +39,7 @@ tree (NuGet metadata); it is a notice, not legal advice. Re-generate it whenever
 
 | Package | Version | License | Authors |
 |---|---|---|---|
+| [Avalonia.Headless](https://avaloniaui.net/) | 12.1.2 | MIT | Avalonia Team |
 | [Microsoft.CodeCoverage](https://github.com/microsoft/vstest) | 17.14.1 | MIT | Microsoft |
 | [Microsoft.NET.Test.Sdk](https://github.com/microsoft/vstest) | 17.14.1 | MIT | Microsoft |
 | [Microsoft.TestPlatform.ObjectModel](https://github.com/microsoft/vstest) | 17.14.1 | MIT | Microsoft |

@@ -8,15 +8,26 @@ on any private companion application or private repository.
 
 ## What works in this first independent edition
 
-- Five initial workspace profiles: Software QA, Hardware, Manufacturing,
-  Laboratory, and Blank.
-- Domain-neutral suggested test templates and editable descriptions.
+- A first-run selector: pick the language (English or Italian) and one of five presets (Software QA, Hardware,
+  Manufacturing, Laboratory, Blank), name the workspace and optionally start with example content. The preset sets the
+  vocabulary and the first test templates; nothing is written until you confirm.
+- Editable test templates: sections of named fields, optionally required before a run can be recorded; template fields
+  are filled in on each test.
+- Priority, owner and tags on every test; filter by priority, tag or plan; duplicate a test.
+- Test plans (campaigns / protocols): group tests and follow executed, passed, failed and blocked counts per plan.
 - Add and edit test cases; archive and restore cases without deleting history.
 - Add, edit, remove and reorder structured test steps with action and expected result.
 - Track defects/nonconformities with a stable ID and optional test-case link; edit their title, description, severity and lifecycle status.
 - Create and edit requirements without changing stable requirement IDs; link or unlink them on existing tests, and monitor traceability coverage.
-- Select a template and record Passed, Failed, or Blocked.
-- Review recent execution results and notes.
+- Record Passed, Failed, or Blocked, or run the test step by step: the overall result is derived from the steps
+  (any failed step fails the run, any blocked step blocks it, it passes only when every step passed).
+- Each run can record tester, environment, version/build and duration, and carry evidence files (copied into the
+  workspace, SHA-256 checked, included in backups).
+- Review recent execution results, notes and evidence integrity.
+- Import requirements and tests from CSV (comma or semicolon separated; all-or-nothing, duplicates skipped).
+- Export a requirement-by-test traceability matrix to CSV.
+- An audit trail of changes (who, what, when), capped in size, shown in its own tab.
+- English and Italian user interface, switchable at any time.
 - Export test cases, ordered steps, requirements/coverage and defects to CSV using a native save dialog, with quoting and spreadsheet-formula safeguards.
 - Paste test steps (action and expected result) straight from a spreadsheet; the paste is atomic, so an invalid row rejects everything.
 - Search test cases by text (title, description, steps, linked requirement) and filter by latest outcome.
@@ -32,8 +43,7 @@ on any private companion application or private repository.
 - Reject linked local workspace, primary JSON, backup and lock-file paths; these paths must be regular local directories/files.
 - Validate unique requirement and defect IDs, test-step identifiers and references to existing tests/requirements.
 
-**Not yet supported:** advanced requirements, evidence
-attachments, rich reports, multiple workspaces, role management, multi-user collaboration,
+**Not yet supported:** advanced requirements, rich reports, multiple workspaces, role management, multi-user collaboration,
 network shares, distributed locking, or feature parity with mature test-management suites.
 Backup recovery is an explicit action, not automatic. This version is not production-ready. It intentionally supports local, single-user
 workspaces only: the local writer lock and conflict checks reduce accidental lost updates but do not
@@ -57,6 +67,7 @@ Run the self-contained test suite and core smoke verification:
 ```sh
 dotnet test src/TestLoom.Core.Tests/TestLoom.Core.Tests.csproj -c Release
 dotnet run --project src/TestLoom.Core.Smoke/TestLoom.Core.Smoke.csproj -c Release
+dotnet test src/TestLoom.Desktop.Tests/TestLoom.Desktop.Tests.csproj -c Release
 ```
 
 Data is stored in the operating system's LocalApplicationData folder under
@@ -68,6 +79,7 @@ never discovers or imports another application's data.
 - `src/TestLoom.Core/` — independent models, presets, field utilities and storage.
 - `src/TestLoom.Desktop/` — independent Avalonia desktop application.
 - `src/TestLoom.Core.Tests/` — independent xUnit suite for the reusable core.
+- `src/TestLoom.Desktop.Tests/` — headless UI tests of the desktop shell.
 - `src/TestLoom.Core.Smoke/` — dependency-free smoke verification.
 - `TestLoom.slnx` — self-contained solution.
 

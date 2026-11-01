@@ -348,6 +348,91 @@ public sealed class WorkspaceStore
                 (defect.TestCaseId.HasValue && !identifiers.Contains(defect.TestCaseId.Value)))
                 throw new InvalidDataException("Invalid or duplicate defect, or unknown linked test.");
         }
+        ValidateExtensions(document, identifiers);
+    }
+
+    public const int MaxAuditEntries = 5000;
+
+    private static void ValidateExtensions(WorkspaceDocument document, HashSet<Guid> testIds)
+    {
+        if (document.Language is not ("en" or "it"))
+            throw new InvalidDataException("Unsupported workspace language.");
+        if (document.DefaultTester is null || document.DefaultTester.Length > 120)
+            throw new InvalidDataException("Invalid default tester.");
+        if (document.Templates is null || document.Plans is null || document.Audit is null)
+            throw new InvalidDataException("Workspace collections cannot be null.");
+
+        var templateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var templateIds = new HashSet<Guid>();
+        foreach (var template in document.Templates)
+        {
+            if (template is null || template.Id == Guid.Empty || !templateIds.Add(template.Id) ||
+                string.IsNullOrWhiteSpace(template.Name) || template.Name.Length > 120 ||
+                template.Icon is null || template.Icon.Length > 16 ||
+                template.Sections is null || template.Sections.Count > 50 ||
+                !templateNames.Add(template.Name.Trim()))
+                throw new InvalidDataException("Invalid or duplicate template.");
+            foreach (var section in template.Sections)
+            {
+                if (section is null || string.IsNullOrWhiteSpace(section.Name) || section.Name.Length > 120 ||
+                    section.Fields is null || section.Fields.Count > 100)
+                    throw new InvalidDataException("Invalid template section.");
+                foreach (var field in section.Fields)
+                    if (field is null || string.IsNullOrWhiteSpace(field.Name) || field.Name.Length > 120)
+                        throw new InvalidDataException("Invalid template field.");
+            }
+        }
+
+        var planIds = new HashSet<Guid>();
+        foreach (var plan in document.Plans)
+        {
+            if (plan is null || plan.Id == Guid.Empty || !planIds.Add(plan.Id) ||
+                string.IsNullOrWhiteSpace(plan.Name) || plan.Name.Length > 150 ||
+                plan.Description is null || plan.Description.Length > 5000 ||
+                plan.TestIds is null || plan.TestIds.Count > 5000 ||
+                plan.TestIds.Distinct().Count() != plan.TestIds.Count ||
+                plan.TestIds.Any(id => !testIds.Contains(id)))
+                throw new InvalidDataException("Invalid or duplicate test plan, or unknown test in plan.");
+        }
+
+        if (document.Audit.Count > MaxAuditEntries)
+            throw new InvalidDataException("The audit log is too large.");
+        foreach (var entry in document.Audit)
+            if (entry is null || entry.Actor is null || entry.Action is null || entry.Subject is null || entry.Detail is null ||
+                entry.Actor.Length > 120 || entry.Action.Length > 60 || entry.Subject.Length > 250 || entry.Detail.Length > 2000)
+                throw new InvalidDataException("Invalid audit entry.");
+
+        foreach (var test in document.TestCases)
+        {
+            if (!Enum.IsDefined(test.Priority) || test.Owner is null || test.Owner.Length > 120 ||
+                test.Tags is null || test.Tags.Count > 50 ||
+                test.Tags.Any(t => string.IsNullOrWhiteSpace(t) || t.Length > 40) ||
+                test.FieldValues is null || test.FieldValues.Count > 500 ||
+                test.FieldValues.Any(kv => string.IsNullOrWhiteSpace(kv.Key) || kv.Key.Length > 250 ||
+                                           kv.Value is null || kv.Value.Length > 20000))
+                throw new InvalidDataException("Invalid test metadata.");
+
+            foreach (var execution in test.Executions)
+            {
+                if (execution.Tester is null || execution.Tester.Length > 120 ||
+                    execution.Environment is null || execution.Environment.Length > 250 ||
+                    execution.BuildVersion is null || execution.BuildVersion.Length > 120 ||
+                    execution.Notes is null || execution.Notes.Length > 20000 ||
+                    execution.DurationSeconds < 0 || execution.DurationSeconds > 31_536_000 ||
+                    execution.StepResults is null || execution.Evidence is null ||
+                    execution.StepResults.Count > 1000 || execution.Evidence.Count > 50)
+                    throw new InvalidDataException("Invalid execution details.");
+                var seenSteps = new HashSet<Guid>();
+                foreach (var result in execution.StepResults)
+                    if (result is null || !Enum.IsDefined(result.Result) || result.Note is null || result.Note.Length > 2000 ||
+                        !seenSteps.Add(result.StepId))
+                        throw new InvalidDataException("Invalid step result.");
+                var evidenceIds = new HashSet<Guid>();
+                foreach (var evidence in execution.Evidence)
+                    if (!EvidenceStore.IsValid(evidence) || !evidenceIds.Add(evidence.Id))
+                        throw new InvalidDataException("Invalid evidence attachment.");
+            }
+        }
     }
 }
 

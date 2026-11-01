@@ -14,7 +14,7 @@ namespace TestLoom.Desktop;
 /// supports only LOCAL workspaces: no private extensions, shared data mounts
 /// or migration from another product.
 /// </summary>
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
     private readonly WorkspaceStore _store;
     private WorkspaceDocument? _workspace;
@@ -95,7 +95,9 @@ public sealed class MainWindow : Window
     private readonly Button _saveDefectDetails = new() { Content = "Save defect details" };
     private readonly Button _exportDefects = new() { Content = "Export defects (CSV)" };
 
-    public MainWindow()
+    public MainWindow() : this(null) { }
+
+    public MainWindow(string? profileDirectory)
     {
         Title = "TestLoom · Test management";
         Icon = AboutInfo.LoadIcon();
@@ -105,7 +107,7 @@ public sealed class MainWindow : Window
         MinHeight = 600;
 
         // Deliberately independent of any other application's local profile.
-        var baseDirectory = EditionStoragePaths.ConfigDirectory(
+        var baseDirectory = profileDirectory ?? EditionStoragePaths.ConfigDirectory(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "TestLoom");
         _store = new WorkspaceStore(baseDirectory);
@@ -171,154 +173,12 @@ public sealed class MainWindow : Window
         _saveDefectDetails.Click += (_, _) => SaveDefectDetails();
         _exportDefects.Click += async (_, _) => await ExportCsvAsync(requirements: false, defects: true);
 
+        InitializeFeatures();
         Content = CreateInterface();
+        CaptureTexts();
         Refresh();
-    }
-
-    private Control CreateInterface()
-    {
-        var body = new StackPanel { Spacing = 16, Margin = new Thickness(26) };
-
-        body.Children.Add(new TextBlock
-        {
-            Text = "TestLoom",
-            FontSize = 32,
-            FontWeight = FontWeight.Bold
-        });
-        body.Children.Add(new TextBlock
-        {
-            Text = "An independent workspace for planning, running and recording tests.",
-            Opacity = 0.8
-        });
-
-        var workspacePanel = new StackPanel { Spacing = 8 };
-        workspacePanel.Children.Add(SectionHeading("Workspace"));
-        workspacePanel.Children.Add(_workspaceSummary);
-        workspacePanel.Children.Add(_workspaceName);
-        workspacePanel.Children.Add(_presetPicker);
-        workspacePanel.Children.Add(_createWorkspace);
-        workspacePanel.Children.Add(_about);
-        workspacePanel.Children.Add(_reloadWorkspace);
-        workspacePanel.Children.Add(_recoverWorkspace);
-        body.Children.Add(workspacePanel);
-
-        var requirementPanel = new StackPanel { Spacing = 8 };
-        requirementPanel.Children.Add(SectionHeading("Requirements & traceability"));
-        requirementPanel.Children.Add(_coverageSummary);
-        requirementPanel.Children.Add(_requirementKey);
-        requirementPanel.Children.Add(_requirementTitle);
-        requirementPanel.Children.Add(_addRequirement);
-        requirementPanel.Children.Add(_requirementList);
-        requirementPanel.Children.Add(_editRequirementKey);
-        requirementPanel.Children.Add(_editRequirementTitle);
-        requirementPanel.Children.Add(_saveRequirementEdits);
-        body.Children.Add(requirementPanel);
-
-        var testPanel = new StackPanel { Spacing = 8 };
-        testPanel.Children.Add(SectionHeading("New test case"));
-        testPanel.Children.Add(_testTitle);
-        testPanel.Children.Add(_testDescription);
-        testPanel.Children.Add(_testTemplate);
-        testPanel.Children.Add(new TextBlock { Text = "Link to requirement (optional)" });
-        testPanel.Children.Add(_testRequirement);
-        testPanel.Children.Add(_addTest);
-        body.Children.Add(testPanel);
-
-        var runPanel = new StackPanel { Spacing = 8 };
-        runPanel.Children.Add(SectionHeading("Tests and execution history"));
-        runPanel.Children.Add(_search);
-        runPanel.Children.Add(_outcomeFilter);
-        runPanel.Children.Add(_showArchived);
-        runPanel.Children.Add(_caseList);
-        runPanel.Children.Add(_caseDetails);
-        runPanel.Children.Add(_editTitle);
-        runPanel.Children.Add(_editDescription);
-        var editActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        editActions.Children.Add(_saveEdits);
-        editActions.Children.Add(_archiveToggle);
-        runPanel.Children.Add(editActions);
-        runPanel.Children.Add(SectionHeading("Requirement links for selected test"));
-        runPanel.Children.Add(new TextBlock {
-            Text = "Select a requirement to add or remove its link without changing the test history."
-        });
-        runPanel.Children.Add(_existingTestRequirement);
-        var linkButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        linkButtons.Children.Add(_linkRequirement);
-        linkButtons.Children.Add(_unlinkRequirement);
-        runPanel.Children.Add(linkButtons);
-        runPanel.Children.Add(SectionHeading("Ordered test steps"));
-        runPanel.Children.Add(_stepList);
-        runPanel.Children.Add(_editStepAction);
-        runPanel.Children.Add(_editStepExpected);
-        runPanel.Children.Add(_saveStep);
-        runPanel.Children.Add(_newStepAction);
-        runPanel.Children.Add(_newStepExpected);
-        var stepActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        stepActions.Children.Add(_addStep);
-        stepActions.Children.Add(_pasteSteps);
-        stepActions.Children.Add(_removeStep);
-        stepActions.Children.Add(_moveStepUp);
-        stepActions.Children.Add(_moveStepDown);
-        runPanel.Children.Add(stepActions);
-        runPanel.Children.Add(_runNotes);
-        var runButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        runButtons.Children.Add(_pass);
-        runButtons.Children.Add(_fail);
-        runButtons.Children.Add(_block);
-        runPanel.Children.Add(runButtons);
-        body.Children.Add(runPanel);
-
-        var defectPanel = new StackPanel { Spacing = 8 };
-        defectPanel.Children.Add(SectionHeading("Defects & nonconformities"));
-        defectPanel.Children.Add(new TextBlock {
-            Text = "Optionally select a test case above to link a new defect."
-        });
-        defectPanel.Children.Add(_defectKey);
-        defectPanel.Children.Add(_defectTitle);
-        defectPanel.Children.Add(_defectDescription);
-        defectPanel.Children.Add(new TextBlock { Text = "Severity" });
-        defectPanel.Children.Add(_defectSeverity);
-        defectPanel.Children.Add(_addDefect);
-        defectPanel.Children.Add(_defectList);
-        defectPanel.Children.Add(new TextBlock { Text = "Edit selected defect" });
-        defectPanel.Children.Add(_selectedDefectTitle);
-        defectPanel.Children.Add(_selectedDefectDescription);
-        defectPanel.Children.Add(_selectedDefectSeverity);
-        defectPanel.Children.Add(_saveDefectDetails);
-        defectPanel.Children.Add(new TextBlock { Text = "Selected defect status" });
-        defectPanel.Children.Add(_selectedDefectStatus);
-        defectPanel.Children.Add(_saveDefectStatus);
-        body.Children.Add(defectPanel);
-
-        var reportActions = new StackPanel { Spacing = 8 };
-        reportActions.Children.Add(SectionHeading("Exports"));
-        // Four full-label actions must remain visible even at the minimum
-        // supported window width, without clipping or horizontal scrolling.
-        var exportButtons = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
-        exportButtons.Children.Add(_exportTests);
-        exportButtons.Children.Add(_exportRequirements);
-        exportButtons.Children.Add(_exportSteps);
-        exportButtons.Children.Add(_exportDefects);
-        exportButtons.Children.Add(_exportHtml);
-        exportButtons.Children.Add(_backup);
-        reportActions.Children.Add(exportButtons);
-        body.Children.Add(reportActions);
-
-        _status.Margin = new Thickness(0, 8, 0, 0);
-        body.Children.Add(_status);
-        body.Children.Add(new TextBlock
-        {
-            Text = "Local single-user preview · Data stored in a separate TestLoom profile",
-            Opacity = 0.65,
-            FontSize = 12
-        });
-
-        return new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Content = body
-        };
+        ApplyLanguage();
+        Opened += async (_, _) => await OfferFirstRunAsync();
     }
 
     private static TextBlock SectionHeading(string text) =>
@@ -338,11 +198,12 @@ public sealed class MainWindow : Window
         {
             var preset = TestLoomWorkspacePresets.All[_presetPicker.SelectedIndex < 0
                 ? 0 : _presetPicker.SelectedIndex];
-            var workspace = WorkspaceStore.Create(name, preset.Id);
+            var workspace = WorkspaceStarter.Create(name, preset.Id, _uiLanguage, includeSamples: false,
+                tester: _defaultTester.Text);
             _store.Save(workspace);
             _workspace = workspace;
             SetStatus("Workspace created.");
-            Refresh();
+            ApplyLanguage();
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
         {
@@ -503,18 +364,20 @@ public sealed class MainWindow : Window
         var templateNames = AvailableTemplates();
         var template = _testTemplate.SelectedIndex >= 0 &&
                        _testTemplate.SelectedIndex < templateNames.Count
-            ? templateNames[_testTemplate.SelectedIndex] : "Custom test";
+            ? templateNames[_testTemplate.SelectedIndex] : L("Custom test");
 
         var newCase = new WorkspaceTestCase
         {
             Title = title,
             TemplateName = template,
-            Description = _testDescription.Text ?? ""
+            Description = _testDescription.Text ?? "",
+            Priority = (WorkspacePriority)Math.Clamp(_newPriority.SelectedIndex, 0, 3)
         };
         if (_testRequirement.SelectedIndex > 0 &&
             _testRequirement.SelectedIndex <= _workspace.Requirements.Count)
             newCase.RequirementIds.Add(_workspace.Requirements[_testRequirement.SelectedIndex - 1].Id);
         _workspace.TestCases.Add(newCase);
+        Audited("test.created", newCase.Title);
         try
         {
             _store.Save(_workspace);
@@ -528,6 +391,7 @@ public sealed class MainWindow : Window
                                    or InvalidDataException)
         {
             _workspace.TestCases.Remove(newCase);
+            UndoAudit();
             SetStatus("The new test was not saved: " + ex.Message);
         }
     }
@@ -542,11 +406,26 @@ public sealed class MainWindow : Window
             SetStatus("The test title cannot be empty.");
             return;
         }
+        var tags = ParseTags(_editTags.Text);
+        if (tags.Count > 50 || tags.Any(t => t.Length > 40))
+        {
+            SetStatus("Tags can have at most 40 characters each.");
+            return;
+        }
 
         var previousTitle = test.Title;
         var previousDescription = test.Description;
+        var previousPriority = test.Priority;
+        var previousOwner = test.Owner;
+        var previousTags = test.Tags;
+        var previousFields = new Dictionary<string, string>(test.FieldValues);
         test.Title = title;
         test.Description = _editDescription.Text ?? "";
+        test.Priority = (WorkspacePriority)Math.Clamp(_editPriority.SelectedIndex, 0, 3);
+        test.Owner = (_editOwner.Text ?? "").Trim();
+        test.Tags = tags;
+        foreach (var (key, box) in _fieldBoxes) WorkspaceTemplates.SetValue(test, key, box.Text);
+        Audited("test.edited", test.Title);
         try
         {
             _store.Save(_workspace);
@@ -558,6 +437,11 @@ public sealed class MainWindow : Window
         {
             test.Title = previousTitle;
             test.Description = previousDescription;
+            test.Priority = previousPriority;
+            test.Owner = previousOwner;
+            test.Tags = previousTags;
+            test.FieldValues = previousFields;
+            UndoAudit();
             SetStatus("Changes were not saved: " + ex.Message);
         }
     }
@@ -616,6 +500,7 @@ public sealed class MainWindow : Window
         if (_workspace is null || _caseList.SelectedItem is not WorkspaceTestCase test) return;
         var old = test.Archived;
         test.Archived = !old;
+        Audited(test.Archived ? "test.archived" : "test.restored", test.Title);
         try
         {
             _store.Save(_workspace);
@@ -627,6 +512,7 @@ public sealed class MainWindow : Window
                                    or InvalidDataException)
         {
             test.Archived = old;
+            UndoAudit();
             SetStatus("Archive status could not be saved: " + ex.Message);
         }
     }
@@ -639,7 +525,7 @@ public sealed class MainWindow : Window
         var result = StepPasteParser.Parse(text);
         if (!result.Success)
         {
-            SetStatus($"Paste rejected ({result.Error}, row {result.RowNumber}); nothing was added.");
+            SetStatus($"{L("Paste rejected")} ({result.Error}, {L("row")} {result.RowNumber}); {L("nothing was added.")}");
             return;
         }
         if (result.Steps.Count == 0)
@@ -652,7 +538,7 @@ public sealed class MainWindow : Window
         try
         {
             _store.Save(_workspace);
-            SetStatus($"{added.Count} steps pasted and saved.");
+            SetStatus($"{added.Count} {L("steps pasted and saved.")}");
             Refresh();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
@@ -789,22 +675,9 @@ public sealed class MainWindow : Window
     {
         if (_workspace is null || _caseList.SelectedItem is not WorkspaceTestCase test
             || test.Archived) return;
-        var execution = new WorkspaceExecution { Result = result, Notes = _runNotes.Text ?? "" };
-        test.Executions.Add(execution);
-        try
-        {
-            _store.Save(_workspace);
-            _runNotes.Text = "";
-            SetStatus("Execution recorded: " + result);
-            Refresh();
-            _caseList.SelectedItem = test;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
-                                   or InvalidDataException)
-        {
-            test.Executions.Remove(execution);
-            SetStatus("The execution was not saved: " + ex.Message);
-        }
+        var execution = NewExecution(test, result, steps: null);
+        if (execution is null) return;
+        CommitExecution(test, execution);
     }
 
     private void AddDefect()
@@ -832,6 +705,7 @@ public sealed class MainWindow : Window
             TestCaseId = (_caseList.SelectedItem as WorkspaceTestCase)?.Id
         };
         _workspace.Defects.Add(defect);
+        Audited("defect.created", defect.Key, defect.Title);
         try
         {
             _store.Save(_workspace);
@@ -846,6 +720,7 @@ public sealed class MainWindow : Window
                                    or InvalidDataException)
         {
             _workspace.Defects.Remove(defect);
+            UndoAudit();
             SetStatus("Defect was not saved: " + ex.Message);
         }
     }
@@ -1019,10 +894,21 @@ public sealed class MainWindow : Window
 
     private IReadOnlyList<string> AvailableTemplates() =>
         _workspace is null ? Array.Empty<string>() :
-        new[] { "Custom test" }.Concat(
-            TestLoomTemplateBlueprints.Create(_workspace.PresetId).Select(t => t.Name)).ToArray();
+        new[] { L("Custom test") }.Concat(_workspace.Templates.Count > 0
+            ? _workspace.Templates.Select(t => t.Name)
+            : TestLoomTemplateBlueprints.Create(_workspace.PresetId).Select(t => t.Name)).ToArray();
+
+    private bool _refreshing;
 
     private void Refresh()
+    {
+        if (_refreshing) return;
+        _refreshing = true;
+        try { RefreshCore(); }
+        finally { _refreshing = false; }
+    }
+
+    private void RefreshCore()
     {
         var active = _workspace is not null;
         _createWorkspace.IsEnabled = !active && !_initialLoadFailed;
@@ -1058,12 +944,12 @@ public sealed class MainWindow : Window
         _addTest.IsEnabled = active;
 
         _workspaceSummary.Text = active
-            ? $"{_workspace!.Name} · {TestLoomWorkspacePresets.Find(_workspace.PresetId)?.DisplayName}{Environment.NewLine}{WorkspaceStatistics.Calculate(_workspace).Summary}"
+            ? $"{_workspace!.Name} · {TestLoomPresetInfo.Card(_workspace.PresetId, _workspace.Language).DisplayName}{Environment.NewLine}{SummaryText(WorkspaceStatistics.Calculate(_workspace))}"
             : (_recoveryBlockedBySchema
-                ? "This workspace needs a compatible TestLoom version. Previous data is unchanged."
+                ? L("This workspace needs a compatible TestLoom version. Previous data is unchanged.")
                 : _initialLoadFailed
-                    ? "Workspace cannot be read. Use recovery if a validated backup is available."
-                    : "Create a new workspace to begin.");
+                    ? L("Workspace cannot be read. Use recovery if a validated backup is available.")
+                    : L("Create a new workspace to begin."));
         var selectedRequirementId = (_requirementList.SelectedItem as WorkspaceRequirement)?.Id;
         _requirementList.ItemsSource = _workspace?.Requirements.ToArray()
             ?? Array.Empty<WorkspaceRequirement>();
@@ -1071,7 +957,7 @@ public sealed class MainWindow : Window
             _requirementList.SelectedItem = _workspace?.Requirements.FirstOrDefault(
                 r => r.Id == selectedRequirementId.Value);
         RenderRequirementSelection();
-        _testRequirement.ItemsSource = new[] { "No linked requirement" }
+        _testRequirement.ItemsSource = new[] { L("No linked requirement") }
             .Concat(_workspace?.Requirements.Select(x => x.ToString())
                     ?? Enumerable.Empty<string>()).ToArray();
         _testRequirement.SelectedIndex = 0;
@@ -1079,11 +965,11 @@ public sealed class MainWindow : Window
         {
             var coverage = RequirementCoverage.Calculate(_workspace);
             _coverageSummary.Text =
-                $"{coverage.TotalRequirements} total · {coverage.LinkedRequirements} linked to tests · " +
-                $"{coverage.RequirementsWithPassingTest} with at least one passing test";
+                $"{coverage.TotalRequirements} {L("total")} · {coverage.LinkedRequirements} {L("linked to tests")} · " +
+                $"{coverage.RequirementsWithPassingTest} {L("with at least one passing test")}";
         }
         else
-            _coverageSummary.Text = "Create a workspace to manage requirements.";
+            _coverageSummary.Text = L("Create a workspace to manage requirements.");
 
         var templateOptions = AvailableTemplates();
         _testTemplate.ItemsSource = templateOptions;
@@ -1093,10 +979,15 @@ public sealed class MainWindow : Window
         _caseList.ItemsSource = null;
         _caseList.ItemsSource = _workspace is null ? Array.Empty<WorkspaceTestCase>()
             : TestCaseFilter.Apply(_workspace, new TestCaseFilter(
-                _search.Text, (OutcomeFilter)Math.Max(0, _outcomeFilter.SelectedIndex), _showArchived.IsChecked == true));
+                _search.Text, (OutcomeFilter)Math.Max(0, _outcomeFilter.SelectedIndex), _showArchived.IsChecked == true,
+                Priority: _priorityFilter.SelectedIndex > 0 ? (WorkspacePriority)(_priorityFilter.SelectedIndex - 1) : null,
+                Tag: _tagFilter.Text,
+                PlanId: _planFilter.SelectedIndex > 0 && _planFilter.SelectedIndex <= _workspace.Plans.Count
+                    ? _workspace.Plans[_planFilter.SelectedIndex - 1].Id : null));
         if (selectedId.HasValue)
             _caseList.SelectedItem = _workspace?.TestCases.FirstOrDefault(t => t.Id == selectedId.Value);
         RenderSelection();
+        RefreshFeatures();
     }
 
     private void RenderSelection()
@@ -1110,9 +1001,9 @@ public sealed class MainWindow : Window
         _archiveToggle.IsEnabled = enabled;
         _editTitle.Text = selected?.Title ?? "";
         _editDescription.Text = selected?.Description ?? "";
-        _archiveToggle.Content = selected?.Archived == true ? "Restore test" : "Archive test";
+        _archiveToggle.Content = L(selected?.Archived == true ? "Restore test" : "Archive test");
         var canExecute = enabled && selected?.Archived != true;
-        _existingTestRequirement.ItemsSource = new[] { "Select a requirement" }
+        _existingTestRequirement.ItemsSource = new[] { L("Select a requirement") }
             .Concat(_workspace?.Requirements.Select(r => r.ToString())
                     ?? Enumerable.Empty<string>()).ToArray();
         _existingTestRequirement.SelectedIndex = 0;
@@ -1132,16 +1023,26 @@ public sealed class MainWindow : Window
         _pasteSteps.IsEnabled = canExecute;
         UpdateStepActions();
         _caseDetails.Text = selected is null
-            ? "Select a test case to review its history or record an execution."
-            : $"{selected.Title}\nTemplate: {selected.TemplateName}\n{selected.Description}\n" +
-              $"Requirements: {string.Join(", ", _workspace?.Requirements
+            ? L("Select a test case to review its history or record an execution.")
+            : $"{selected.Title}\n{L("Template")}: {selected.TemplateName} · {L("Priority")}: {L(selected.Priority.ToString())}" +
+              (selected.Tags.Count > 0 ? $" · {L("Tags")}: {string.Join(", ", selected.Tags)}" : "") + "\n" +
+              $"{selected.Description}\n" +
+              $"{L("Requirements")}: {string.Join(", ", _workspace?.Requirements
                   .Where(r => selected.RequirementIds.Contains(r.Id))
                   .Select(r => r.Key) ?? Enumerable.Empty<string>())}\n" +
-              $"Executions: {selected.Executions.Count}\n" +
-              (selected.Executions.Count == 0 ? "No executions recorded."
-                  : string.Join("\n", selected.Executions.TakeLast(5)
-                      .Select(e => $"{e.ExecutedUtc:yyyy-MM-dd HH:mm} UTC · {e.Result} · {e.Notes}")));
+              $"{L("Executions")}: {selected.Executions.Count}\n" +
+              (selected.Executions.Count == 0 ? L("No executions recorded.")
+                  : string.Join("\n", selected.Executions.TakeLast(5).Select(e =>
+                      $"{e.ExecutedUtc:yyyy-MM-dd HH:mm} UTC · {L(e.Result.ToString())}" +
+                      (e.Tester.Length > 0 ? " · " + e.Tester : "") +
+                      (e.Environment.Length > 0 ? " · " + e.Environment : "") +
+                      (e.BuildVersion.Length > 0 ? " · " + e.BuildVersion : "") +
+                      (e.DurationSeconds > 0 ? $" · {e.DurationSeconds / 60} min" : "") +
+                      (e.Notes.Length > 0 ? " · " + e.Notes : "") +
+                      (e.Evidence.Count > 0 ? "\n    " + string.Join("  ", e.Evidence.Select(EvidenceLine)) : ""))));
+        RenderFeatureSelection();
+        RenderPlanSelection();
     }
 
-    private void SetStatus(string message) => _status.Text = message;
+    private void SetStatus(string message) => _status.Text = WorkspaceLocalization.TMessage(message, Lang);
 }
