@@ -1,0 +1,256 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:services="using:TestLoom.App.Services"
+             x:Class="TestLoom.App.Views.PolarionLifecycleDashboardView"
+             x:DataType="vm:PolarionLifecycleViewModel"
+             x:Name="Root">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Border Classes="Card" AutomationProperties.AutomationId="Report_Ticketing_Card">
+            <StackPanel Spacing="12">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+                    <StackPanel Grid.Column="0" Spacing="3">
+                        <TextBlock Text="{Binding DashboardTitle}" Classes="SectionTitle"/>
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptNote}"
+                                   Classes="Muted" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptRefresh}" Classes="Secondary"
+                            Command="{Binding AggiornaReportPolarionCommand}" IsEnabled="{Binding !PolarionReportLoading}"
+                            AutomationProperties.AutomationId="Report_Ticketing_Refresh_Button"/>
+                    <Button Grid.Column="2" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptExportExcel}" Classes="Secondary"
+                            Click="OnEsportaReportPolarionExcel" IsEnabled="{Binding PolarionCanExport}"
+                            AutomationProperties.AutomationId="Report_Ticketing_ExportExcel_Button"/>
+                    <Button Grid.Column="3" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptExportCsv}" Classes="Secondary"
+                            Click="OnEsportaReportPolarionCsv" IsEnabled="{Binding PolarionCanExport}"
+                            AutomationProperties.AutomationId="Report_Ticketing_ExportCsv_Button"/>
+                </Grid>
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptLoading}" Classes="Muted" IsVisible="{Binding PolarionReportLoading}"/>
+                <TextBlock Text="{Binding PolarionReportError}" Classes="Muted" TextWrapping="Wrap"/>
+                <Grid ColumnDefinitions="*,*,*,*,*,*" ColumnSpacing="9">
+                    <StackPanel Grid.Column="0"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptTickets}" Classes="Muted"/><TextBlock Text="{Binding PolarionReportCount}" FontSize="22" FontWeight="SemiBold"/></StackPanel>
+                    <StackPanel Grid.Column="1"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptOpen}" Classes="Muted"/><TextBlock Text="{Binding PolarionCountOpen}" FontSize="22" FontWeight="SemiBold"/></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptClosed}" Classes="Muted"/><TextBlock Text="{Binding PolarionCountClosed}" FontSize="22" FontWeight="SemiBold"/></StackPanel>
+                    <StackPanel Grid.Column="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptTesting}" Classes="Muted"/><TextBlock Text="{Binding PolarionCountTesting}" FontSize="22" FontWeight="SemiBold"/></StackPanel>
+                    <StackPanel Grid.Column="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptDetectedClosure}" Classes="Muted"/><TextBlock Text="{Binding PolarionCountObservedClosures}" FontSize="22" FontWeight="SemiBold"/></StackPanel>
+                    <StackPanel Grid.Column="5"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptNotSynced}" Classes="Muted"/><TextBlock Text="{Binding PolarionCountUnknown}" FontSize="22" FontWeight="SemiBold"/></StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="8">
+                    <StackPanel Grid.Column="0" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptSearch}" Classes="Muted"/>
+                        <TextBox Classes="Field" Text="{Binding PolarionReportQuery}" PlaceholderText="TICKET-123, NC, Daily..." AutomationProperties.AutomationId="Report_Ticketing_Query"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptStatus}" Classes="Muted"/>
+                        <ComboBox Classes="Field" ItemsSource="{Binding PolarionReportStatuses}" SelectedItem="{Binding PolarionReportStatus}"
+                                  AutomationProperties.AutomationId="Report_Ticketing_Status_Filter">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <TextBlock><TextBlock.Text><MultiBinding Converter="{x:Static services:PolarionFilterLocalizedConverter.Instance}"><Binding Path="."/><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua"/></MultiBinding></TextBlock.Text></TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptClassification}" Classes="Muted"/>
+                        <ComboBox Classes="Field" ItemsSource="{Binding PolarionReportTypes}" SelectedItem="{Binding PolarionReportType}"
+                                  AutomationProperties.AutomationId="Report_Ticketing_Type_Filter">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <TextBlock><TextBlock.Text><MultiBinding Converter="{x:Static services:PolarionFilterLocalizedConverter.Instance}"><Binding Path="."/><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua"/></MultiBinding></TextBlock.Text></TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="3" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptPriority}" Classes="Muted"/>
+                        <ComboBox Classes="Field" ItemsSource="{Binding PolarionReportPriorities}" SelectedItem="{Binding PolarionReportPriority}"
+                                  AutomationProperties.AutomationId="Report_Ticketing_Priority_Filter">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <TextBlock><TextBlock.Text><MultiBinding Converter="{x:Static services:PolarionFilterLocalizedConverter.Instance}"><Binding Path="."/><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua"/></MultiBinding></TextBlock.Text></TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="8">
+                    <StackPanel Grid.Column="0" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptSeverity}" Classes="Muted"/>
+                        <ComboBox Classes="Field" ItemsSource="{Binding PolarionReportSeverities}" SelectedItem="{Binding PolarionReportSeverity}"
+                                  AutomationProperties.AutomationId="Report_Ticketing_Severity_Filter">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <TextBlock><TextBlock.Text><MultiBinding Converter="{x:Static services:PolarionFilterLocalizedConverter.Instance}"><Binding Path="."/><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua"/></MultiBinding></TextBlock.Text></TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptResolution}" Classes="Muted"/>
+                        <ComboBox Classes="Field" ItemsSource="{Binding PolarionReportResolutions}" SelectedItem="{Binding PolarionReportResolution}"
+                                  AutomationProperties.AutomationId="Report_Ticketing_Resolution_Filter">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <TextBlock><TextBlock.Text><MultiBinding Converter="{x:Static services:PolarionFilterLocalizedConverter.Instance}"><Binding Path="."/><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua"/></MultiBinding></TextBlock.Text></TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptDateDimension}" Classes="Muted"/>
+                        <ComboBox Classes="Field" ItemsSource="{Binding PolarionReportDateDimensions}" SelectedItem="{Binding PolarionReportDateDimension}"
+                                  AutomationProperties.AutomationId="Report_Ticketing_DateDimension_Filter">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <TextBlock><TextBlock.Text><MultiBinding Converter="{x:Static services:PolarionFilterLocalizedConverter.Instance}"><Binding Path="."/><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua"/></MultiBinding></TextBlock.Text></TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="8">
+                    <StackPanel Grid.Column="0" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptRange}" Classes="Muted"/>
+                        <ComboBox Classes="Field" ItemsSource="{Binding PolarionReportRanges}" SelectedItem="{Binding PolarionReportRange}"
+                                  AutomationProperties.AutomationId="Report_Ticketing_Range_Filter">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <TextBlock><TextBlock.Text><MultiBinding Converter="{x:Static services:PolarionFilterLocalizedConverter.Instance}"><Binding Path="."/><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua"/></MultiBinding></TextBlock.Text></TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptVehicle}" Classes="Muted"/>
+                        <ComboBox Classes="Field" ItemsSource="{Binding PolarionReportVehicles}" SelectedItem="{Binding PolarionReportVehicle}"
+                                  AutomationProperties.AutomationId="Report_Ticketing_Vehicle_Filter">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <TextBlock><TextBlock.Text><MultiBinding Converter="{x:Static services:PolarionFilterLocalizedConverter.Instance}"><Binding Path="."/><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua"/></MultiBinding></TextBlock.Text></TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptDateFrom}" Classes="Muted"/>
+                        <TextBox Classes="Field" Text="{Binding PolarionReportFrom}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptDatePlaceholder}"
+                                 AutomationProperties.AutomationId="Report_Ticketing_CreatedFrom"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="3" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptDateTo}" Classes="Muted"/>
+                        <TextBox Classes="Field" Text="{Binding PolarionReportTo}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptDatePlaceholder}"
+                                 AutomationProperties.AutomationId="Report_Ticketing_CreatedTo"/>
+                    </StackPanel>
+                </Grid>
+                <TextBlock Text="{Binding PolarionDateFilterError}" Classes="Muted" TextWrapping="Wrap"/>
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <CheckBox Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptIncludeArchived}"
+                              IsChecked="{Binding PolarionReportIncludeArchived}"
+                              AutomationProperties.AutomationId="Report_Ticketing_IncludeArchived"/>
+                    <CheckBox Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptOnlyObserved}"
+                              IsChecked="{Binding PolarionReportOnlyClosed}"
+                              AutomationProperties.AutomationId="Report_Ticketing_OnlyObservedClosure"/>
+                    <TextBlock Text="{Binding PolarionReportSummary}" Classes="Muted" VerticalAlignment="Center"/>
+                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptOpenSelected}" Classes="Link"
+                            Command="{Binding ApriPolarionReportCommand}" CommandParameter="{Binding PolarionReportSelectedRow}"
+                            AutomationProperties.AutomationId="Report_Ticketing_OpenSelected"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptMonthlyHelp}" Classes="Muted" VerticalAlignment="Center"/>
+                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptClearDate}" Classes="Link"
+                            Command="{Binding AzzeraDatePolarionCommand}"
+                            AutomationProperties.AutomationId="Report_Ticketing_ResetDates"/>
+                </StackPanel>
+                <Expander Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptMonthlyTitle}" IsExpanded="False">
+                    <ItemsControl ItemsSource="{Binding PolarionMonthlyTrends}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:CompileBindings="False">
+                                <Grid ColumnDefinitions="90,*,*,*" Margin="0,3" ColumnSpacing="12">
+                                    <TextBlock Grid.Column="0" Text="{Binding Period}" FontWeight="SemiBold"/>
+                                    <Button Grid.Column="1" Content="{Binding CreatedLabel}"
+                                            Classes="Link" HorizontalAlignment="Left"
+                                            Command="{Binding #Root.DataContext.FiltraMeseAperturaCommand}" CommandParameter="{Binding Period}"/>
+                                    <Button Grid.Column="2" Content="{Binding TestingLabel}"
+                                            Classes="Link" HorizontalAlignment="Left"
+                                            Command="{Binding #Root.DataContext.FiltraMeseTestingCommand}" CommandParameter="{Binding Period}"/>
+                                    <Button Grid.Column="3" Content="{Binding ClosedLabel}"
+                                            Classes="Link" HorizontalAlignment="Left"
+                                            Command="{Binding #Root.DataContext.FiltraMeseChiusuraCommand}" CommandParameter="{Binding Period}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
+                <Expander Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptDistributionTitle}" IsExpanded="True">
+                    <ItemsControl ItemsSource="{Binding PolarionStatusDistribution}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:CompileBindings="False">
+                                <Grid ColumnDefinitions="150,*,60" Margin="0,2" ColumnSpacing="10">
+                                    <Button Grid.Column="0" Content="{Binding Status}" Classes="Link" HorizontalAlignment="Left"
+                                            Command="{Binding #Root.DataContext.FiltraStatoPolarionCommand}"
+                                            CommandParameter="{Binding Status}"/>
+                                    <ProgressBar Grid.Column="1" Minimum="0" Maximum="{Binding #Root.DataContext.PolarionMaxDistribution}"
+                                                 Value="{Binding Count}" Height="12" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Count}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptBaselineClosed}" Classes="Muted"/>
+                    <TextBlock Text="{Binding PolarionCountBaselineClosed}" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptReopened}" Classes="Muted"/>
+                    <TextBlock Text="{Binding PolarionCountReopened}" FontWeight="SemiBold"/>
+                </StackPanel>
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptUpperBoundHelp}" Classes="Muted" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptRowHelp}"
+                           Classes="Muted" TextWrapping="Wrap"/>
+                <DataGrid services:TableLayoutPreferences.TableId="ticketing-lifecycle" ItemsSource="{Binding PolarionReportRows}" SelectedItem="{Binding PolarionReportSelectedRow}"
+                          Height="330" AutoGenerateColumns="False" IsReadOnly="True"
+                          CanUserSortColumns="True" CanUserResizeColumns="True"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                          AutomationProperties.AutomationId="Report_Ticketing_DataGrid">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColEsta}" Binding="{Binding TicketId}" Width="112"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColTitle}" Binding="{Binding Title}" Width="185"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColRecord}" Binding="{Binding Records}" Width="155"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColArchive}" Binding="{Binding ArchiveText}" Width="75"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColRanges}" Binding="{Binding Ranges}" Width="125"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColVehicles}" Binding="{Binding Vehicles}" Width="155"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColStatus}" Binding="{Binding Status}" Width="95"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColResolution}" Binding="{Binding Resolution}" Width="100"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColPriority}" Binding="{Binding Priority}" Width="65"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColOpened}" Binding="{Binding CreatedText}" Width="145"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptTesting}" Binding="{Binding TestingText}" Width="245"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColClosure}" Binding="{Binding ClosedText}" Width="245"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColReopening}" Binding="{Binding ReopenedText}" Width="205"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColToTesting}" Binding="{Binding TestingUpperBoundText}" Width="215"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColToClosed}" Binding="{Binding ClosureUpperBoundText}" Width="215"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColTransitions}" Binding="{Binding ObservedTransitionsText}" Width="230"/>
+                        <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptColQuality}" Binding="{Binding DataQuality}" Width="155"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <Expander Header="{Binding PolarionTimelineTitle}" IsExpanded="True">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptTimelineHelp}"
+                                   Classes="Muted" TextWrapping="Wrap"/>
+                        <ItemsControl ItemsSource="{Binding PolarionReportTimeline}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <Grid ColumnDefinitions="160,220,*" Margin="0,3" ColumnSpacing="10">
+                                        <TextBlock Grid.Column="0" Text="{Binding DateText}" Classes="Muted"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Event}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding Provenance}" Classes="Muted" TextWrapping="Wrap"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Expander>
+            </StackPanel>
+        </Border>
+
+
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TestLoom.App.Views.OrdinaValoriWindow"
+        Width="520" Height="640" MinWidth="380" MinHeight="360" CanResize="True"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="20">
+        <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+            <TextBlock x:Name="TitoloText" FontSize="16" FontWeight="Bold" TextWrapping="Wrap" />
+            <TextBlock x:Name="SottotitoloText" Classes="Muted" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <Border Grid.Column="0" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="4">
+                <ListBox x:Name="Lista" AutomationProperties.AutomationId="OrdinaValori_Lista"
+                         SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Top">
+                <Button x:Name="SuButton" Classes="Secondary" Content="▲" MinWidth="56" MinHeight="48"
+                        AutomationProperties.AutomationId="OrdinaValori_Su_Button" />
+                <Button x:Name="GiuButton" Classes="Secondary" Content="▼" MinWidth="56" MinHeight="48"
+                        AutomationProperties.AutomationId="OrdinaValori_Giu_Button" />
+            </StackPanel>
+        </Grid>
+
+        <Button x:Name="RipristinaButton" Grid.Row="2" Classes="Secondary" Margin="0,12,0,0" HorizontalAlignment="Left" MinHeight="44"
+                AutomationProperties.AutomationId="OrdinaValori_Ripristina_Button" />
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,14,0,0">
+            <Button x:Name="AnnullaButton" Classes="Secondary" MinHeight="44" MinWidth="96"
+                    AutomationProperties.AutomationId="OrdinaValori_Annulla_Button" />
+            <Button x:Name="OkButton" Classes="Primary" MinHeight="44" MinWidth="96"
+                    AutomationProperties.AutomationId="OrdinaValori_Ok_Button" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,649 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:models="using:TestLoom.App.Models"
+             xmlns:local="using:TestLoom.App"
+             xmlns:services="using:TestLoom.App.Services"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="TestLoom.App.Views.NonConformitaView"
+             x:DataType="vm:NonConformitaViewModel" x:Name="Root">
+    <!-- Layout 6.6.1: margini dal token PagePadding. L'area schede (AreaSchede) prende lo spazio residuo: la tabella delle
+         anomalie e' in riga * con altezza minima dal token; le altezze delle due schede le assegna il code-behind
+         (AggiornaRiepilogo), cosi' con una sola scheda visibile essa usa tutto lo spazio. Nessuna ScrollViewer esterna. -->
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="{DynamicResource PagePadding}">
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcTitolo}" Classes="PageTitle" AutomationProperties.AutomationId="Anomalie_Title_Text" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Spacing="6">
+            <TextBlock Text="{Binding Messaggio}" Foreground="{DynamicResource SuccessBrush}" IsVisible="{Binding HaMessaggio}" Margin="0,8,0,0" />
+            <Border Classes="Banner BannerErrore" IsVisible="{Binding HaMessaggioErrore}" Margin="0,8,0,0">
+                <TextBlock Text="{Binding MessaggioErrore}" TextWrapping="Wrap" AutomationProperties.AutomationId="Anomalie_MessaggioErrore_Text" />
+            </Border>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Spacing="8">
+            <!-- Le segnalazioni provvisorie si classificano ora nel Test prima della chiusura. Questa
+                 pagina resta volutamente la vista aggregata delle sole anomalie operative. -->
+            <Border x:Name="CardSegnalazioni" Classes="Card" IsVisible="False">
+                <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SegnalazioniTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SegnalazioniSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Classes="Badge" Background="{DynamicResource WarningBackgroundBrush}">
+                            <!-- Totale dell'intero elenco, non della sola pagina visibile (Segnalazioni.Count arriva al massimo a 100). -->
+                            <TextBlock AutomationProperties.AutomationId="Anomalie_Segnalazioni_Totale_Text">
+                                <TextBlock.Text>
+                                    <MultiBinding Converter="{x:Static local:LocalizedCountConverter.Instance}" ConverterParameter="SegnalazioniDaValutareFmt">
+                                        <Binding Path="TotaleSegnalazioni" />
+                                        <Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua" />
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                        </Border>
+                    </Grid>
+                    <!-- Virtualizzata con altezza massima dal converter (6.6.1): non cresce oltre la finestra. -->
+                    <ListBox x:Name="ListaSegnalazioni" ItemsSource="{Binding Segnalazioni}" AutomationProperties.AutomationId="Anomalie_Segnalazioni_Lista_ListBox" Background="Transparent" BorderThickness="0" Padding="0"
+                             MaxHeight="{Binding #Root.Bounds.Height, Converter={x:Static local:AltezzaResiduaConverter.Instance}, ConverterParameter=260|120}">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.Styles>
+                            <Style Selector="ListBoxItem">
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="MinHeight" Value="0" />
+                                <Setter Property="Focusable" Value="False" />
+                                <Setter Property="Background" Value="Transparent" />
+                            </Style>
+                            <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+                                <Setter Property="Background" Value="Transparent" />
+                            </Style>
+                            <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                <Setter Property="Background" Value="Transparent" />
+                            </Style>
+                        </ListBox.Styles>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SegnalazioneRiga">
+                                <Border Background="{DynamicResource SurfaceMutedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,8">
+                                    <Grid ColumnDefinitions="1.2*,2*,1.4*" ColumnSpacing="12">
+                                        <StackPanel Grid.Column="0" Spacing="3">
+                                            <TextBlock Text="{Binding TestId}" FontWeight="Bold" />
+                                            <TextBlock Text="{Binding Reiterazione}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Contesto}" Classes="Muted" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="{Binding Risultato}" TextWrapping="Wrap" />
+                                        <StackPanel Grid.Column="2" Spacing="6" IsEnabled="{Binding #Root.((vm:NonConformitaViewModel)DataContext).PuoModificare}">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                <ComboBox Grid.Column="0" Classes="Field" ItemsSource="{Binding #Root.((vm:NonConformitaViewModel)DataContext).SeveritaDisponibili}" SelectedItem="{Binding Severita}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SeveritaObbligatoria}"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+                                                <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ConfermaAnomaliaBtn}" Classes="Primary" Command="{Binding #Root.((vm:NonConformitaViewModel)DataContext).ClassificaSegnalazioneSicuroCommand}" CommandParameter="{Binding}" />
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                <TextBox Grid.Column="0" Classes="Field" Text="{Binding MotivazioneEsclusione}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MotivoEsclusionePlaceholder}" />
+                                                <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EscludiBtn}" Classes="Secondary" Command="{Binding #Root.((vm:NonConformitaViewModel)DataContext).EscludiSegnalazioneSicuroCommand}" CommandParameter="{Binding}" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <!-- Paginazione sotto la lista (stesso schema di Anomalie e CR): la vista riceve solo la pagina corrente. -->
+                    <Grid x:Name="PaginazioneSegnalazioni" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,4,0,0" ColumnSpacing="8" IsVisible="{Binding HaSegnalazioni}">
+                        <Button Grid.Column="0" Content="⏮" Classes="Secondary" Command="{Binding PrimaPaginaSegnalazioniCommand}" AutomationProperties.AutomationId="Anomalie_Segnalazioni_PrimaPagina_Button" IsEnabled="{Binding PuoPaginaSegnalazioniPrecedente}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPrimaPaginaTip}" />
+                        <Button Grid.Column="1" Content="‹" Classes="Secondary" Command="{Binding PaginaSegnalazioniPrecedenteCommand}" AutomationProperties.AutomationId="Anomalie_Segnalazioni_PaginaPrecedente_Button" IsEnabled="{Binding PuoPaginaSegnalazioniPrecedente}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaPrecedenteTip}" />
+                        <TextBlock Grid.Column="2" AutomationProperties.AutomationId="Anomalie_PaginazioneSegnalazioni_Text" Text="{Binding TestoPaginazioneSegnalazioni}" Classes="Muted" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        <Button Grid.Column="3" Content="›" Classes="Secondary" Command="{Binding PaginaSegnalazioniSuccessivaCommand}" AutomationProperties.AutomationId="Anomalie_Segnalazioni_PaginaSuccessiva_Button" IsEnabled="{Binding PuoPaginaSegnalazioniSuccessiva}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaSuccessivaTip}" />
+                    </Grid>
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NessunaSegnalazione}" Classes="Muted" IsVisible="{Binding !HaSegnalazioni}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Filtro Tipo condiviso tra Anomalie e Change Request (feedback utente 2026-08-21, punto
+                 11): stessa pagina, non due viste separate. -->
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ToggleButton Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTipoEntrambi}" IsChecked="{Binding SchedaEntrambi, Mode=OneWay}" Command="{Binding MostraEntrambiCommand}" AutomationProperties.AutomationId="Anomalie_SchedaTutte_Toggle" />
+                    <ToggleButton Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NavAnomalie}" IsChecked="{Binding SchedaAnomalie, Mode=OneWay}" Command="{Binding MostraSoloAnomalieCommand}" AutomationProperties.AutomationId="Anomalie_SchedaAnomalie_Toggle" />
+                    <ToggleButton Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ChangeRequestTitolo}" IsChecked="{Binding SchedaChangeRequest, Mode=OneWay}" Command="{Binding MostraSoloChangeRequestCommand}" AutomationProperties.AutomationId="Anomalie_SchedaChangeRequest_Toggle" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8" IsVisible="{Binding PuoModificare}">
+                    <!-- Punto di ingresso per una NC senza Test (feedback utente 2026-09-08): una
+                         segnalazione dalla rete assistenziale puo' arrivare prima ancora che qualcuno
+                         esegua un Test per riprodurla. -->
+                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovaSegnalazioneRete}" Classes="Secondary" Command="{Binding CreaSegnalazioneReteCommand}" AutomationProperties.AutomationId="Anomalie_NuovaSegnalazioneRete_Button" />
+                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovaChangeRequestBtn}" Classes="Secondary" Command="{Binding CreaChangeRequestCommand}" AutomationProperties.AutomationId="Anomalie_NuovaChangeRequest_Button" />
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+
+        <!-- Area schede: anomalie, maniglia (SplitterSchede) e change request. Con entrambe aperte il rapporto e' quello trascinato
+             dall'operatore (salvato per operatore). Le altezze minime le misura il code-behind (AdattaMinimi). Altrimenti la scheda visibile prende tutto. -->
+        <Grid x:Name="AreaSchede" Grid.Row="3" RowDefinitions="*,Auto,*" Margin="0,12,0,0">
+            <Border x:Name="CardAnomalie" Grid.Row="0" Classes="Card" services:Spotlight.TargetId="anomaly-workflow" IsVisible="{Binding MostraAnomalie}">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieConfermateTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieConfermateSottotitolo}" Classes="Muted FullTextTip" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RimuoviFiltriLink}" Classes="Link" Command="{Binding ReimpostaFiltriCommand}" IsVisible="{Binding HaFiltriAttivi}" AutomationProperties.AutomationId="Anomalie_RimuoviFiltri_Button" />
+                            <Button Content="Analisi TICKET NC" Classes="Secondary" Click="OnApriAnalisiEstaNc" AutomationProperties.AutomationId="Anomalie_EstaAnalytics_Button" />
+                             <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EsportaExcelBtn}" Classes="Secondary" Click="OnEsportaExcel" IsEnabled="{Binding !EsportazioneInCorso}" AutomationProperties.AutomationId="Anomalie_EsportaExcel_Button" />
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" Classes="Secondary" Command="{Binding AnnullaEsportazioneCommand}" IsVisible="{Binding EsportazioneInCorso}" AutomationProperties.AutomationId="NC_AnnullaEsportazione_Button" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Riga di ricerca: ricerca, pannello filtri, viste salvate. Sulla stessa riga quando c'e' spazio. -->
+                    <Grid x:Name="RigaRicercaNc" Grid.Row="1" ColumnDefinitions="3*,Auto,Auto,2*,Auto,Auto" ColumnSpacing="8" Margin="0,4,0,0">
+                        <TextBox Grid.Column="0" MinWidth="200" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_FiltroTesto_Input" services:ScorciatoieTastiera.CampoFiltroPrincipale="True" Classes="Field" Text="{Binding FiltroTesto}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CercaNcPlaceholder}" />
+                        <Button x:Name="BottoneFiltriNc" Grid.Column="1" Classes="Secondary" VerticalAlignment="Center" Click="OnApriChiudiFiltriNc" AutomationProperties.AutomationId="Anomalie_ToggleFiltri_Button" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListFiltriBtn}" />
+                        <TextBlock Grid.Column="2" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=VisteSalvateLabel}" Classes="Muted" VerticalAlignment="Center" FontSize="13" />
+                        <ComboBox Grid.Column="3" MinWidth="160" VerticalAlignment="Center" Classes="Field" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="Anomalie_VisteSalvate_Combo" ItemsSource="{Binding VisteSalvate}" SelectedItem="{Binding VistaSelezionata}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=VisteSalvatePlaceholder}">
+                            <ComboBox.ItemTemplate><DataTemplate x:DataType="models:VistaSalvataFiltri"><TextBlock Text="{Binding Nome}" /></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Grid.Column="4" VerticalAlignment="Center" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SalvaVistaBtn}" Classes="Secondary" Command="{Binding SalvaVistaCorrenteCommand}" IsEnabled="{Binding HaFiltriAttivi}" AutomationProperties.AutomationId="Anomalie_SalvaVista_Button" />
+                        <Button Grid.Column="5" VerticalAlignment="Center" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EliminaVistaBtn}" Classes="Secondary" Command="{Binding EliminaVistaSelezionataCommand}" IsVisible="{Binding VistaSelezionata, Converter={x:Static conv:ObjectConverters.IsNotNull}}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EliminaVistaTooltip}" AutomationProperties.AutomationId="Anomalie_EliminaVista_Button" />
+                    </Grid>
+
+                    <ProgressBar Grid.Row="2" IsIndeterminate="True" Height="3" Margin="0,6,0,0" IsVisible="{Binding InCaricamento}" AutomationProperties.AutomationId="Anomalie_Caricamento_Progress" />
+
+                    <!-- Riepilogo a chip (pannello chiuso): ogni chip annulla solo il proprio filtro. Riempito dal code-behind. -->
+                    <ItemsControl Grid.Row="3" x:Name="ChipFiltriNc" Margin="0,6,0,0" AutomationProperties.AutomationId="Anomalie_ChipFiltri_ItemsControl">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ChipFiltroLista">
+                                <Border Classes="Chip" Margin="0,0,6,6">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="{Binding Etichetta}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="360" ToolTip.Tip="{Binding Etichetta}" />
+                                        <Button Classes="Link" Content="✕" Padding="4,0" FontSize="12" Command="{Binding RimuoviCommand}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListChipRimuoviTip}" AutomationProperties.AutomationId="Anomalie_ChipRimuovi_Button" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Pannello filtri (aperto di default): filtri base su una riga, poi "Altri filtri" comprimibile. -->
+                    <ScrollViewer x:Name="ScorrimentoFiltriNc" Grid.Row="4" Margin="0,4,0,0" VerticalScrollBarVisibility="Auto" MaxHeight="{Binding #Root.Bounds.Height, Converter={x:Static local:AltezzaResiduaConverter.Instance}, ConverterParameter=520|60}"><StackPanel x:Name="PannelloFiltriNc" Spacing="8">
+                        <UniformGrid x:Name="GrigliaFiltriNcBase" Columns="{Binding #GrigliaFiltriNcBase.Bounds.Width, Converter={x:Static local:ColonneDaLarghezzaConverter.Instance}, ConverterParameter=190|4}">
+                            <StackPanel Margin="0,0,10,6" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieFiltroAssegnatario}" FontSize="13" FontWeight="SemiBold" />
+                                <Button AutomationProperties.AutomationId="Anomalie_FiltroAssegnatario_Button" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroAssegnatario.TestoRiepilogo}" Tag="{Binding FiltroAssegnatario}" Click="OnApriFiltroMultiSelect" />
+                                <ToggleButton Classes="Secondary" HorizontalAlignment="Stretch" IsChecked="{Binding FiltroAssegnatiAMeAttivo, Mode=TwoWay}" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AssegnatiAMeBtn}" AutomationProperties.AutomationId="Anomalie_FiltroAssegnatiAMe_ToggleButton" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColStatoAnomalia}" FontSize="13" FontWeight="SemiBold" />
+                                <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding StatiNonConformita}" SelectedItem="{Binding FiltroStato}" AutomationProperties.AutomationId="Anomalie_FiltroStato_Combo" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TuttiGliStati}"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaPlaceholder}" FontSize="13" FontWeight="SemiBold" />
+                                <TextBox AutomationProperties.AutomationId="Anomalie_FiltroTicket_Input" Classes="Field" Text="{Binding FiltroTicket}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaPlaceholder}" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroPresenzaTicketEsta}" FontSize="13" FontWeight="SemiBold" />
+                                <ComboBox AutomationProperties.AutomationId="Anomalie_FiltroTicketEsta_Combo" Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding OpzioniFiltroTicketEsta}" SelectedItem="{Binding FiltroTicketEsta}">
+                                    <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:FiltroTicketEstaLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <Expander IsExpanded="{Binding FiltriEspansi, Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="Anomalie_Filtri_Expander">
+                            <Expander.Header><TextBlock Text="{Binding RiepilogoFiltri}" FontWeight="SemiBold" AutomationProperties.AutomationId="Anomalie_Filtri_Riepilogo_Text" /></Expander.Header>
+                            <StackPanel Spacing="8" Margin="0,8,0,0">
+                                <!-- Veicolo/Gamma/componente, priorita', gravita', stato anomalia, funzionalita' e date: filtri avanzati (6.5.0), tutti in AND. -->
+                                <UniformGrid x:Name="GrigliaFiltriNcAvanzati" Columns="{Binding #GrigliaFiltriNcAvanzati.Bounds.Width, Converter={x:Static local:ColonneDaLarghezzaConverter.Instance}, ConverterParameter=190|8}">
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GammaVeicolareLabel}" FontSize="13" FontWeight="SemiBold" /><Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroGamma.TestoRiepilogo}" Tag="{Binding FiltroGamma}" Click="OnApriFiltroMultiSelect" AutomationProperties.AutomationId="Anomalie_FiltroGamma_Button" /></StackPanel>
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SottoveicoloLabel}" FontSize="13" FontWeight="SemiBold" /><Button AutomationProperties.AutomationId="Anomalie_FiltroVeicolo_Button" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroVeicolo.TestoRiepilogo}" Tag="{Binding FiltroVeicolo}" Click="OnApriFiltroMultiSelect" /></StackPanel>
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColEcu}" FontSize="13" FontWeight="SemiBold" /><Button AutomationProperties.AutomationId="Anomalie_FiltroComponente_Button" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroEcu.TestoRiepilogo}" Tag="{Binding FiltroEcu}" Click="OnApriFiltroMultiSelect" /></StackPanel>
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieFiltroPriorita}" FontSize="13" FontWeight="SemiBold" /><Button AutomationProperties.AutomationId="Anomalie_FiltroPriorita_Button" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroPriorita.TestoRiepilogo}" Tag="{Binding FiltroPriorita}" Click="OnApriFiltroMultiSelect" /></StackPanel>
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieFiltroGravita}" FontSize="13" FontWeight="SemiBold" /><Button AutomationProperties.AutomationId="Anomalie_FiltroGravita_Button" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroGravita.TestoRiepilogo}" Tag="{Binding FiltroGravita}" Click="OnApriFiltroMultiSelect" /></StackPanel>
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieFiltroStatoAnomalia}" FontSize="13" FontWeight="SemiBold" /><Button AutomationProperties.AutomationId="Anomalie_FiltroStatoAnomalia_Button" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroStatoAnomalia.TestoRiepilogo}" Tag="{Binding FiltroStatoAnomalia}" Click="OnApriFiltroMultiSelect" /></StackPanel>
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieFiltroFunzionalita}" FontSize="13" FontWeight="SemiBold" /><Button AutomationProperties.AutomationId="Anomalie_FiltroFunzionalita_Button" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroFunzionalita.TestoRiepilogo}" Tag="{Binding FiltroFunzionalita}" Click="OnApriFiltroMultiSelect" /></StackPanel>
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataAperturaDa}" FontSize="13" FontWeight="SemiBold" /><CalendarDatePicker x:Name="NcDataAperturaDa" Classes="Field" Width="170" HorizontalAlignment="Left" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" TextConverter="{x:Static local:DataFiltroTestoConverter.Instance}" SelectedDate="{Binding FiltroDataAperturaDa, Converter={x:Static local:DataOffsetDataConverter.Instance}}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataAperturaDa}" AutomationProperties.AutomationId="Anomalie_DataAperturaDa_Input" /></StackPanel>
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataAperturaA}" FontSize="13" FontWeight="SemiBold" /><CalendarDatePicker x:Name="NcDataAperturaA" Classes="Field" Width="170" HorizontalAlignment="Left" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" TextConverter="{x:Static local:DataFiltroTestoConverter.Instance}" SelectedDate="{Binding FiltroDataAperturaA, Converter={x:Static local:DataOffsetDataConverter.Instance}}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataAperturaA}" AutomationProperties.AutomationId="Anomalie_DataAperturaA_Input" /></StackPanel>
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataChiusuraDa}" FontSize="13" FontWeight="SemiBold" /><CalendarDatePicker x:Name="NcDataChiusuraDa" Classes="Field" Width="170" HorizontalAlignment="Left" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" TextConverter="{x:Static local:DataFiltroTestoConverter.Instance}" SelectedDate="{Binding FiltroDataChiusuraDa, Converter={x:Static local:DataOffsetDataConverter.Instance}}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataChiusuraDa}" AutomationProperties.AutomationId="Anomalie_DataChiusuraDa_Input" /></StackPanel>
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataChiusuraA}" FontSize="13" FontWeight="SemiBold" /><CalendarDatePicker x:Name="NcDataChiusuraA" Classes="Field" Width="170" HorizontalAlignment="Left" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" TextConverter="{x:Static local:DataFiltroTestoConverter.Instance}" SelectedDate="{Binding FiltroDataChiusuraA, Converter={x:Static local:DataOffsetDataConverter.Instance}}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataChiusuraA}" AutomationProperties.AutomationId="Anomalie_DataChiusuraA_Input" /></StackPanel>
+                                    <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDurataMinima}" FontSize="13" FontWeight="SemiBold"/><StackPanel Orientation="Horizontal" Spacing="6"><TextBox Classes="Field" Width="80" Text="{Binding FiltroDurataMinimaGiorni}" AutomationProperties.AutomationId="Anomalie_DurataMinima_Input"/><ComboBox Width="130" ItemsSource="{Binding UnitaDurataDisponibili}" SelectedItem="{Binding FiltroUnitaDurata}" AutomationProperties.AutomationId="Anomalie_UnitaDurata_Input"><ComboBox.ItemTemplate><DataTemplate><TextBlock><TextBlock.Text><MultiBinding Converter="{x:Static services:UnitaDurataEtichettaConverter.Instance}"><Binding Path="."/><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua"/></MultiBinding></TextBlock.Text></TextBlock></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel><TextBlock IsVisible="{Binding DurataMinimaNonValida}" Foreground="{DynamicResource DangerBrush}" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDurataMinimaNonValida}"/></StackPanel>
+                                </UniformGrid>
+                                <TextBlock IsVisible="{Binding HaDataNonValida}" FontSize="12" Foreground="{DynamicResource DangerBrush}" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroDataNonValida}" AutomationProperties.AutomationId="Anomalie_DataNonValida_Text" />
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Griglia a colonne (6.5.0): ordinamento per colonna sull'intero risultato filtrato (evento Sorting inoltrato al
+                         ViewModel, che interroga l'indice SQLite), colonne mostrabili/nascondibili e riordinabili con tasto destro
+                         sull'intestazione (TableLayoutPreferences, id 'anomalie'). Le intestazioni sono stringhe (il menu colonne usa
+                         Header.ToString()); la freccia di ordinamento la scrive il code-behind (AggiornaIntestazioni). Righe virtualizzate
+                         in riga *: MinHeight 160, che e' il massimo senza sovrapposizione con la CR aperta a 1280x672 (il token AltezzaMinimaTabella,
+                         200, coprirebbe la paginazione). Test: LayoutAnomalieCasoPeggioreHeadlessTests. Colonna azioni compatta: pulsanti a icona con
+                         tooltip, sempre dentro la griglia. -->
+                    <DataGrid Grid.Row="5" x:Name="AnomalieGrid" services:TableLayoutPreferences.TableId="anomalie" ItemsSource="{Binding Righe}"
+                              MinHeight="160" Margin="0,4,0,0"
+                              AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True" CanUserResizeColumns="True" CanUserReorderColumns="True"
+                              SelectionMode="Single" GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                              Sorting="OnOrdinaColonna" Loaded="OnGrigliaCaricata"
+                              AutomationProperties.AutomationId="Anomalie_Righe_DataGrid">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn services:TableLayoutPreferences.OrdineIniziale="0" Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColId}" SortMemberPath="Id" CanUserSort="True" Width="140" MinWidth="130">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:NcRiga">
+                                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="4,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Nc.Id}" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Nc.Id}" />
+                                            <Border Classes="Badge" Padding="4,3" Background="{DynamicResource SuccessBackgroundBrush}" VerticalAlignment="Center" IsVisible="{Binding Nc.DaSegnalazioneRete}">
+                                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcDaReteBadge}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcDaReteBadge}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColTestCollegato}" Binding="{Binding TestCaseIdVisualizzato}" SortMemberPath="TestCollegato" CanUserSort="True" Width="Auto" MinWidth="90" services:TableLayoutPreferences.BassaPriorita="True" />
+                            <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColStatoAnomalia}" SortMemberPath="Stato" CanUserSort="True" Binding="{Binding StatoWorkflowTesto}" Width="Auto" MinWidth="110" />
+                            <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColVeicoliAssociati}" SortMemberPath="Veicolo" CanUserSort="True" Width="150" MinWidth="100" services:TableLayoutPreferences.BassaPriorita="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:NcRiga">
+                                        <TextBlock Text="{Binding VeicoliTesto}" Margin="6,0" VerticalAlignment="Center" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding VeicoliElencoTooltip}" AutomationProperties.AutomationId="Anomalie_Nc_RigaVeicoli_Text" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColPriorita}" SortMemberPath="Priorita" CanUserSort="True" Binding="{Binding PrioritaTesto}" Width="Auto" MinWidth="120" />
+                            <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColGravita}" SortMemberPath="Gravita" CanUserSort="True" Binding="{Binding GravitaTesto}" Width="Auto" MinWidth="115" />
+                            <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColAssegnatario}" SortMemberPath="Assegnatario" CanUserSort="True" Binding="{Binding AssegnatarioTesto}" Width="Auto" MinWidth="195" services:TableLayoutPreferences.BassaPriorita="True" />
+                            <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColApertura}" SortMemberPath="Apertura" CanUserSort="True" Binding="{Binding DataAperturaTesto}" Width="Auto" MinWidth="92" services:TableLayoutPreferences.BassaPriorita="True" />
+                            <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColChiusura}" SortMemberPath="Chiusura" CanUserSort="True" Binding="{Binding DataChiusuraTesto}" Width="Auto" MinWidth="92" services:TableLayoutPreferences.BassaPriorita="True" />
+                            <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDescrizioneBreve}" SortMemberPath="DescrizioneBreve" CanUserSort="True" Width="200" MinWidth="140">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:NcRiga">
+                                        <TextBlock x:Name="DescrizioneBreveNc" Text="{Binding DescrizioneBreveVisualizzata}" Margin="6,0" VerticalAlignment="Center" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis">
+                                            <ToolTip.Tip>
+                                                <TextBlock Text="{Binding #DescrizioneBreveNc.Text}" MaxWidth="480" TextWrapping="Wrap" TextTrimming="None" />
+                                            </ToolTip.Tip>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDescrizioneLunga}" SortMemberPath="Descrizione" CanUserSort="True" Width="260" MinWidth="160">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:NcRiga">
+                                        <TextBlock x:Name="DescrizioneLungaNc" Text="{Binding Nc.Descrizione}" Margin="6,0" VerticalAlignment="Center" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis">
+                                            <ToolTip.Tip>
+                                                <TextBlock Text="{Binding #DescrizioneLungaNc.Text}" MaxWidth="480" TextWrapping="Wrap" TextTrimming="None" />
+                                            </ToolTip.Tip>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <!-- Ticket TICKET: apertura diretta del ticket dalla tabella, quindi NON a bassa priorita' (visibile anche in Compatto). -->
+                            <DataGridTemplateColumn services:TableLayoutPreferences.OrdineIniziale="2" Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColTicketNc}" SortMemberPath="Ticket" CanUserSort="True" Width="110" MinWidth="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:NcRiga">
+                                        <StackPanel Spacing="2" VerticalAlignment="Center">
+                                            <ItemsControl ItemsSource="{Binding Nc.CollegamentiPolarion}" IsVisible="{Binding HaTicketPolarionNc}">
+                                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel ItemSpacing="2" LineSpacing="2" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="models:CollegamentoPolarion">
+                                                        <Button Classes="Link" Content="{Binding Codice}" Tag="{Binding}" Click="OnApriTicketPolarion"
+                                                                IsEnabled="{Binding Url, Converter={x:Static local:UrlWebValidoConverter.Instance}}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock Text="{Binding TicketTesto}" IsVisible="{Binding !HaTicketPolarionNc}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Stato TICKET" CanUserSort="False" Width="170" MinWidth="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:NcRiga">
+                                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" ToolTip.ShowDelay="500">
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="status">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                            <ToolTip.Tip>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </ToolTip.Tip>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Aperto TICKET" CanUserSort="False" Width="160" MinWidth="110" services:TableLayoutPreferences.BassaPriorita="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:NcRiga">
+                                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" ToolTip.ShowDelay="500">
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="created">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                            <ToolTip.Tip>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </ToolTip.Tip>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Testing TICKET · rilevato" CanUserSort="False" Width="230" MinWidth="110" services:TableLayoutPreferences.BassaPriorita="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:NcRiga">
+                                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" ToolTip.ShowDelay="500">
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="testing">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                            <ToolTip.Tip>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </ToolTip.Tip>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Closed TICKET · rilevato" CanUserSort="False" Width="230" MinWidth="110" services:TableLayoutPreferences.BassaPriorita="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:NcRiga">
+                                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" ToolTip.ShowDelay="500">
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="closed">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                            <ToolTip.Tip>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </ToolTip.Tip>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn services:TableLayoutPreferences.OrdineIniziale="1" Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColonnaAzioni}" CanUserSort="False" Width="310" MinWidth="280">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:NcRiga">
+                                        <!-- Due azioni principali: dettaglio e modifica rapida. Il dettaglio consente di entrare in modifica completa. -->
+                                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriChangeRequestBtn}" Classes="Secondary" FontSize="12" Padding="5,0" MinWidth="60" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaDettaglioSolaLetturaTip}" Click="OnApriDettaglioSolaLettura" AutomationProperties.AutomationId="Anomalie_Riga_Dettaglio_Button" />
+                                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaRapidaAzione}" Classes="Primary" FontSize="12" Padding="5,0" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaRapidaAzione}" Click="OnModificaRapidaNc" AutomationProperties.AutomationId="Anomalie_Riga_ModificaRapida_Button" />
+                                             <Button Content="TICKET ⏱" Classes="Secondary" FontSize="11" Padding="5,0" IsVisible="{Binding HaTicketPolarionNc}" Click="OnApriTimelineEstaNc" ToolTip.Tip="Timeline e report TICKET collegati alla NC" AutomationProperties.AutomationId="Anomalie_EstaTimeline_Button" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Paginazione SOTTO la tabella (feedback utente 2026-09-17, volumi 100k: senza limite la lista materializzava
+                         tutte le righe). Stesso schema della Lista Test. -->
+                    <Grid x:Name="PaginazioneNc" Grid.Row="6" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,4,0,0" ColumnSpacing="8">
+                        <Button Grid.Column="0" Content="⏮" Classes="Secondary" Command="{Binding PrimaPaginaRigheCommand}" AutomationProperties.AutomationId="Anomalie_PrimaPagina_Button" IsEnabled="{Binding PuoPaginaRighePrecedente}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPrimaPaginaTip}" />
+                        <Button Grid.Column="1" Content="‹" Classes="Secondary" Command="{Binding PaginaRighePrecedenteCommand}" AutomationProperties.AutomationId="Anomalie_PaginaPrecedente_Button" IsEnabled="{Binding PuoPaginaRighePrecedente}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaPrecedenteTip}" />
+                        <TextBlock Grid.Column="2" AutomationProperties.AutomationId="Anomalie_Paginazione_Text" Text="{Binding TestoPaginazioneRighe}" Classes="Muted" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        <Button Grid.Column="3" Content="›" Classes="Secondary" Command="{Binding PaginaRigheSuccessivaCommand}" AutomationProperties.AutomationId="Anomalie_PaginaSuccessiva_Button" IsEnabled="{Binding PuoPaginaRigheSuccessiva}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaSuccessivaTip}" />
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- Change Request (feedback utente 2026-08-21, punto 11): stesso motore TestTemplate/TestCase delle Anomalie, sulla
+                 stessa pagina, filtrata per tipo. La lista riempie la sua riga; con le anomalie visibili prende il resto
+                 dell'area dopo il minimo delle anomalie. -->
+            <GridSplitter x:Name="SplitterSchede" Grid.Row="1" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" Height="12" Background="{DynamicResource BorderSubtleBrush}" IsVisible="False" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SchedeSplitterTip}" AutomationProperties.AutomationId="Anomalie_Schede_Splitter" />
+            <Border x:Name="CardChangeRequest" Grid.Row="2" Classes="Card" IsVisible="{Binding MostraChangeRequest}">
+                <Grid RowDefinitions="Auto,Auto,*,Auto">
+                    <!-- Intestazione comprimibile (6.6.1): in Compatto la scheda CR parte chiusa, cosi' le anomalie hanno lo spazio. -->
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <Button Grid.Column="0" Classes="Link" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnApriChiudiCr" AutomationProperties.AutomationId="Anomalie_Cr_Toggle">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock x:Name="FrecciaCr" Classes="SectionTitle" Text="▾" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ChangeRequestTitolo}" Classes="SectionTitle" />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="1" Content="Analisi TICKET CR" Classes="Secondary" VerticalAlignment="Center" Click="OnApriAnalisiEstaCr" AutomationProperties.AutomationId="Anomalie_Cr_EstaAnalytics_Button" />
+                     <Button x:Name="BottoneEspandiCr" Grid.Column="2" Classes="Link" Padding="6,2" VerticalAlignment="Center" IsVisible="False" Click="OnEspandiAnomalie" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEspandiTip}" AutomationProperties.AutomationId="Anomalie_Cr_Espandi_Button" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEspandiBtn}" />
+                </Grid>
+                    <Grid x:Name="FiltriCr" Grid.Row="1" RowDefinitions="Auto,Auto" ColumnDefinitions="2*,*,Auto,Auto" ColumnSpacing="8" Margin="0,6,0,6">
+                        <TextBox Grid.Row="0" Classes="Field" VerticalAlignment="Center" Text="{Binding FiltroTesto}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcCercaCrPlaceholder}" AutomationProperties.AutomationId="Anomalie_Cr_FiltroTesto_Input" />
+                        <ComboBox Grid.Row="0" Grid.Column="1" Classes="Field" ItemsSource="{Binding StatiChangeRequest}" SelectedItem="{Binding FiltroStatoCr}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcTuttiStatiCrPlaceholder}" AutomationProperties.AutomationId="Anomalie_Cr_FiltroStato_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+                        <Button Grid.Row="0" Grid.Column="2" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RimuoviFiltriLink}" Classes="Link" Command="{Binding ReimpostaFiltriCommand}" IsVisible="{Binding HaFiltriCrAttivi}" AutomationProperties.AutomationId="Anomalie_Cr_RimuoviFiltri_Button" />
+                      <Expander Grid.Row="0" Grid.Column="3" IsExpanded="{Binding FiltriCrEspansi, Mode=TwoWay}" AutomationProperties.AutomationId="Anomalie_Cr_Filtri_Expander">
+                        <Expander.Header><TextBlock Text="{Binding RiepilogoFiltriCr}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="180" AutomationProperties.AutomationId="Anomalie_Cr_Filtri_Riepilogo_Text" /></Expander.Header>
+                      </Expander>
+                      <ScrollViewer Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,6,0,0" MaxHeight="190" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding FiltriCrEspansi}" AutomationProperties.AutomationId="Anomalie_Cr_Filtri_Scroll">
+                        <StackPanel Spacing="8" Margin="0,2,0,0">
+                          <UniformGrid x:Name="GrigliaFiltriCr" Columns="{Binding #GrigliaFiltriCr.Bounds.Width, Converter={x:Static local:ColonneDaLarghezzaConverter.Instance}, ConverterParameter=200|8}">
+                            <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieFiltroAssegnatario}" FontSize="13" FontWeight="SemiBold" /><Button AutomationProperties.AutomationId="Anomalie_Cr_FiltroAssegnatario_Button" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroAssegnatario.TestoRiepilogo}" Tag="{Binding FiltroAssegnatario}" Click="OnApriFiltroMultiSelect" /><ToggleButton Classes="Secondary" HorizontalAlignment="Stretch" IsChecked="{Binding FiltroAssegnatiAMeAttivo, Mode=TwoWay}" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AssegnatiAMeBtn}" AutomationProperties.AutomationId="Anomalie_Cr_FiltroAssegnatiAMe_ToggleButton" /></StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroCreatoDa}" FontSize="13" FontWeight="SemiBold" /><Button AutomationProperties.AutomationId="Anomalie_Cr_FiltroCreatore_Button" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroCreatoreCr.TestoRiepilogo}" Tag="{Binding FiltroCreatoreCr}" Click="OnApriFiltroMultiSelect" /><ToggleButton Classes="Secondary" HorizontalAlignment="Stretch" IsChecked="{Binding FiltroCreatiDaMeCrAttivo, Mode=TwoWay}" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CreatiDaMeBtn}" AutomationProperties.AutomationId="Anomalie_Cr_FiltroCreatiDaMe_ToggleButton" /></StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaPlaceholder}" FontSize="13" FontWeight="SemiBold" /><TextBox Classes="Field" Text="{Binding FiltroTicket}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaPlaceholder}" AutomationProperties.AutomationId="Anomalie_Cr_FiltroTicket_Input" /></StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GammaVeicolareLabel}" FontSize="13" FontWeight="SemiBold" /><Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroGamma.TestoRiepilogo}" Tag="{Binding FiltroGamma}" Click="OnApriFiltroMultiSelect" AutomationProperties.AutomationId="Anomalie_Cr_FiltroGamma_Button" /></StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SottoveicoloLabel}" FontSize="13" FontWeight="SemiBold" /><Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroVeicolo.TestoRiepilogo}" Tag="{Binding FiltroVeicolo}" Click="OnApriFiltroMultiSelect" AutomationProperties.AutomationId="Anomalie_Cr_FiltroVeicolo_Button" /></StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColEcu}" FontSize="13" FontWeight="SemiBold" /><Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroEcu.TestoRiepilogo}" Tag="{Binding FiltroEcu}" Click="OnApriFiltroMultiSelect" AutomationProperties.AutomationId="Anomalie_Cr_FiltroComponente_Button" /></StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieFiltroFunzionalita}" FontSize="13" FontWeight="SemiBold" /><Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroFunzionalita.TestoRiepilogo}" Tag="{Binding FiltroFunzionalita}" Click="OnApriFiltroMultiSelect" AutomationProperties.AutomationId="Anomalie_Cr_FiltroFunzionalita_Button" /></StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataAperturaDa}" FontSize="13" FontWeight="SemiBold" /><CalendarDatePicker x:Name="CrDataAperturaDa" Classes="Field" Width="170" HorizontalAlignment="Left" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" TextConverter="{x:Static local:DataFiltroTestoConverter.Instance}" SelectedDate="{Binding FiltroDataAperturaDa, Converter={x:Static local:DataOffsetDataConverter.Instance}}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataAperturaDa}" AutomationProperties.AutomationId="Anomalie_Cr_DataAperturaDa_Input" /></StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataAperturaA}" FontSize="13" FontWeight="SemiBold" /><CalendarDatePicker x:Name="CrDataAperturaA" Classes="Field" Width="170" HorizontalAlignment="Left" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" TextConverter="{x:Static local:DataFiltroTestoConverter.Instance}" SelectedDate="{Binding FiltroDataAperturaA, Converter={x:Static local:DataOffsetDataConverter.Instance}}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataAperturaA}" AutomationProperties.AutomationId="Anomalie_Cr_DataAperturaA_Input" /></StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataChiusuraDa}" FontSize="13" FontWeight="SemiBold" /><CalendarDatePicker x:Name="CrDataChiusuraDa" Classes="Field" Width="170" HorizontalAlignment="Left" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" TextConverter="{x:Static local:DataFiltroTestoConverter.Instance}" SelectedDate="{Binding FiltroDataChiusuraDa, Converter={x:Static local:DataOffsetDataConverter.Instance}}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataChiusuraDa}" AutomationProperties.AutomationId="Anomalie_Cr_DataChiusuraDa_Input" /></StackPanel>
+                            <StackPanel Margin="0,0,10,6" Spacing="4"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataChiusuraA}" FontSize="13" FontWeight="SemiBold" /><CalendarDatePicker x:Name="CrDataChiusuraA" Classes="Field" Width="170" HorizontalAlignment="Left" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" TextConverter="{x:Static local:DataFiltroTestoConverter.Instance}" SelectedDate="{Binding FiltroDataChiusuraA, Converter={x:Static local:DataOffsetDataConverter.Instance}}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomalieDataChiusuraA}" AutomationProperties.AutomationId="Anomalie_Cr_DataChiusuraA_Input" /></StackPanel>
+                          </UniformGrid>
+                          <TextBlock IsVisible="{Binding HaDataNonValida}" FontSize="12" Foreground="{DynamicResource DangerBrush}" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroDataNonValida}" AutomationProperties.AutomationId="Anomalie_Cr_DataNonValida_Text" />
+                        </StackPanel>
+                      </ScrollViewer>
+                    </Grid>
+                    <!-- Tabella CR con lo stesso layout personalizzabile delle altre griglie: ordine e larghezze sono salvati per operatore. -->
+                            <DataGrid x:Name="ListaCr" services:TableLayoutPreferences.TableId="change-requests" Grid.Row="2" MinHeight="52" Margin="0,0,0,4" ItemsSource="{Binding ChangeRequests}"
+                              AutomationProperties.AutomationId="Anomalie_Cr_Lista_ListBox"
+                              AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True" CanUserResizeColumns="True" CanUserReorderColumns="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" SelectionMode="Single" Background="Transparent"
+                              Sorting="OnOrdinaColonnaCr" Loaded="OnGrigliaCrCaricata">
+                        <DataGrid.Styles>
+                            <Style Selector="DataGridColumnHeader">
+                                <Setter Property="Padding" Value="8,3" />
+                            </Style>
+                            <Style Selector="DataGridCell">
+                                <Setter Property="Padding" Value="8,0" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                            <Style Selector="DataGridRow">
+                                <Setter Property="MinHeight" Value="52" />
+                            </Style>
+                        </DataGrid.Styles>
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn services:TableLayoutPreferences.OrdineIniziale="0" Header="ID" SortMemberPath="Id" CanUserSort="True" Width="100" MinWidth="75">
+                                <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaId_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding Id}" FontWeight="Bold" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaId_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Titolo" SortMemberPath="Titolo" CanUserSort="True" Width="*" MinWidth="160">
+                                <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaTitolo_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding Titolo}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Titolo}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaTitolo_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Descrizione breve" SortMemberPath="DescrizioneBreve" CanUserSort="True" Width="200" MinWidth="140">
+                                <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDescrizioneBreve}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaDescrizioneBreve_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding DescrizioneBreve}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding DescrizioneBreve}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaDescrizioneBreve_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Descrizione" SortMemberPath="Descrizione" CanUserSort="True" Width="240" MinWidth="160">
+                                <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDescrizioneLunga}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaDescrizione_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding Descrizione}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Descrizione}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaDescrizione_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn services:TableLayoutPreferences.OrdineIniziale="2" Header="Ticket" SortMemberPath="Ticket" CanUserSort="True" Width="180" MinWidth="110">
+                                <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaTicket_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="models:ChangeRequest">
+                                        <ItemsControl ItemsSource="{Binding TicketCollegati}" IsVisible="{Binding TicketCollegati.Count}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaTicket_Panel">
+                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel ItemSpacing="3" LineSpacing="2" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="models:TicketRif">
+                                                    <StackPanel Orientation="Horizontal" Spacing="2">
+                                                        <Button Classes="Link" Content="{Binding Riferimento}" Tag="{Binding}" Click="OnApriTicketChangeRequest" IsVisible="{Binding Url, Converter={x:Static local:UrlWebValidoConverter.Instance}}" AutomationProperties.AutomationId="Anomalie_Cr_EstaLink_Button" />
+                                                        <TextBlock Text="{Binding Riferimento}" Classes="Muted" FontSize="12" IsVisible="{Binding Url, Converter={x:Static local:UrlWebNonValidoConverter.Instance}}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Stato" SortMemberPath="Stato" CanUserSort="True" Width="120" MinWidth="90">
+                                <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaStato_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding Stato, Converter={x:Static local:WorkflowLabelConverter.Instance}}" VerticalAlignment="Center" Classes="Muted" AutomationProperties.AutomationId="Anomalie_Cr_RigaStato_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Veicoli" SortMemberPath="Veicolo" CanUserSort="True" Width="150" MinWidth="100" services:TableLayoutPreferences.BassaPriorita="True">
+                                <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaVeicoli_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding VeicoliImpattati, Converter={x:Static local:VeicoliSommarioConverter.Instance}}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding VeicoliImpattati, Converter={x:Static local:VeicoliElencoConverter.Instance}}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaVeicoli_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Apertura" SortMemberPath="Apertura" CanUserSort="True" Width="Auto" MinWidth="92" services:TableLayoutPreferences.BassaPriorita="True">
+                                <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaApertura_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding DataCreazione, Converter={x:Static local:DataFiltroTestoConverter.Instance}}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaApertura_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Implementazione" SortMemberPath="Implementazione" CanUserSort="True" Width="Auto" MinWidth="110" services:TableLayoutPreferences.BassaPriorita="True">
+                                <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaImplementazione_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding ImplementataIl, Converter={x:Static local:DataFiltroTestoConverter.Instance}}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaImplementazione_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Chiusura" SortMemberPath="Chiusura" CanUserSort="True" Width="Auto" MinWidth="92" services:TableLayoutPreferences.BassaPriorita="True">
+                                <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaChiusura_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding ChiusaIl, Converter={x:Static local:DataFiltroTestoConverter.Instance}}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaChiusura_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Stato TICKET" CanUserSort="False" Width="170" MinWidth="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="models:ChangeRequest">
+                                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" ToolTip.ShowDelay="500">
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="status">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                            <ToolTip.Tip>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </ToolTip.Tip>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Aperto TICKET" CanUserSort="False" Width="160" MinWidth="110" services:TableLayoutPreferences.BassaPriorita="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="models:ChangeRequest">
+                                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" ToolTip.ShowDelay="500">
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="created">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                            <ToolTip.Tip>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </ToolTip.Tip>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Testing TICKET · rilevato" CanUserSort="False" Width="230" MinWidth="110" services:TableLayoutPreferences.BassaPriorita="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="models:ChangeRequest">
+                                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" ToolTip.ShowDelay="500">
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="testing">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                            <ToolTip.Tip>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </ToolTip.Tip>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Closed TICKET · rilevato" CanUserSort="False" Width="230" MinWidth="110" services:TableLayoutPreferences.BassaPriorita="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="models:ChangeRequest">
+                                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" ToolTip.ShowDelay="500">
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="closed">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                            <ToolTip.Tip>
+                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding>
+                                            </ToolTip.Tip>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn services:TableLayoutPreferences.OrdineIniziale="1" Header="Azioni" Width="310" MinWidth="280">
+                                <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaAzioni_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="models:ChangeRequest">
+                                        <Grid>
+                                          <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriChangeRequestBtn}" Classes="Secondary" FontSize="12" Padding="5,0" MinWidth="60" Command="{Binding #Root.((vm:NonConformitaViewModel)DataContext).ApriChangeRequestCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_Apri_Button" />
+                                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaRapidaAzione}" Classes="Primary" FontSize="12" Padding="5,0" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaRapidaAzione}" AutomationProperties.Name="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaRapidaAzione}" Click="OnModificaRapidaChangeRequest" AutomationProperties.AutomationId="Anomalie_Cr_ModificaRapida_Button" />
+                                             <Button Content="TICKET ⏱" Classes="Secondary" FontSize="11" Padding="5,0" IsVisible="{Binding TicketCollegati.Count}" Click="OnApriTimelineEstaCr" ToolTip.Tip="Timeline e report TICKET collegati alla CR" AutomationProperties.AutomationId="Anomalie_Cr_EstaTimeline_Button" />
+                                          </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock x:Name="VuotoCr" Grid.Row="2" IsHitTestVisible="False" VerticalAlignment="Center" HorizontalAlignment="Center"
+                               Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NessunaChangeRequest}"
+                                Classes="Muted" />
+                    <!-- Paginazione (stesso schema di Righe/Anomalie sopra, correzione prestazioni 2026-09-24). -->
+                    <Grid x:Name="PaginazioneCr" Grid.Row="3" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,4,0,0" ColumnSpacing="8">
+                        <Button Grid.Column="0" Content="⏮" Classes="Secondary" Command="{Binding PrimaPaginaCrCommand}" AutomationProperties.AutomationId="Anomalie_Cr_PrimaPagina_Button" IsEnabled="{Binding PuoPaginaCrPrecedente}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPrimaPaginaTip}" />
+                        <Button Grid.Column="1" Content="‹" Classes="Secondary" Command="{Binding PaginaCrPrecedenteCommand}" AutomationProperties.AutomationId="Anomalie_Cr_PaginaPrecedente_Button" IsEnabled="{Binding PuoPaginaCrPrecedente}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaPrecedenteTip}" />
+                        <TextBlock Grid.Column="2" AutomationProperties.AutomationId="Anomalie_PaginazioneCr_Text" Text="{Binding TestoPaginazioneCr}" Classes="Muted" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        <Button Grid.Column="3" Content="›" Classes="Secondary" Command="{Binding PaginaCrSuccessivaCommand}" AutomationProperties.AutomationId="Anomalie_Cr_PaginaSuccessiva_Button" IsEnabled="{Binding PuoPaginaCrSuccessiva}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaSuccessivaTip}" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

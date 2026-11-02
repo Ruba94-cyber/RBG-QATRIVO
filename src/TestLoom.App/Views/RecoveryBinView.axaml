@@ -1,0 +1,134 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:local="using:TestLoom.App"
+             xmlns:services="using:TestLoom.App.Services"
+             x:Class="TestLoom.App.Views.RecoveryBinView"
+             x:DataType="vm:RecoveryBinViewModel"
+             x:Name="Root">
+    <Grid>
+        <ScrollViewer Padding="{DynamicResource PagePadding}" IsVisible="{Binding EMaster}">
+            <StackPanel Spacing="16" MaxWidth="{DynamicResource MaxLarghezzaPagina}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Titolo}" Classes="PageTitle" AutomationProperties.AutomationId="Recovery_Title_Text" />
+                        <TextBlock Text="{Binding Sottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Content="{Binding AggiornaTesto}"
+                            Classes="Secondary"
+                            VerticalAlignment="Top"
+                            Command="{Binding AggiornaCommand}" AutomationProperties.AutomationId="Recovery_Aggiorna_Button" />
+                </Grid>
+
+                <Border Classes="Card">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding RiepilogoTesto}" FontWeight="SemiBold" />
+                        <CheckBox Content="{Binding MostraRipristinatiTesto}"
+                                  IsChecked="{Binding MostraGiaRipristinati}" />
+                        <TextBlock Text="{Binding NotaRetention}" Classes="Muted" FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="Card" IsVisible="{Binding !PuoScrivere}">
+                    <TextBlock Text="{Binding SolaLetturaTesto}" Foreground="#B45309" TextWrapping="Wrap" />
+                </Border>
+
+                <!-- Lettura in background (app reale): finche' gira l'elenco e' ancora vuoto, quindi niente "nessun elemento". -->
+                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding CaricamentoInCorso}" AutomationProperties.AutomationId="Recovery_Caricamento_Indicatore">
+                    <ProgressBar Width="80" Height="4" IsIndeterminate="True" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AggiornamentoInCorso}" Classes="Muted" FontSize="12" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding NessunElementoTesto}"
+                           Classes="Muted"
+                           AutomationProperties.AutomationId="Recovery_NessunElemento_Text"
+                           IsVisible="{Binding MostraNessunElemento}" />
+
+                <!-- Elenco virtualizzato con altezza massima dal converter, come la lista Segnalazioni in Anomalie: la pagina scorre sopra la lista. -->
+                <ListBox ItemsSource="{Binding Elementi}"
+                         IsVisible="{Binding HaElementi}"
+                         AutomationProperties.AutomationId="Recovery_Elenco_ListBox"
+                         Background="Transparent" BorderThickness="0" Padding="0"
+                         MaxHeight="{Binding #Root.Bounds.Height, Converter={x:Static local:AltezzaResiduaConverter.Instance}, ConverterParameter=260|120}">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0" />
+                            <Setter Property="MinHeight" Value="0" />
+                            <Setter Property="Focusable" Value="False" />
+                            <Setter Property="Background" Value="Transparent" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="Background" Value="Transparent" />
+                        </Style>
+                        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                            <Setter Property="Background" Value="Transparent" />
+                        </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:RecoveryBinEntryViewModel">
+                            <Border Classes="Card" Margin="0,0,0,8">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                                    <StackPanel Spacing="4">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="{Binding Categoria}" FontWeight="SemiBold" FontSize="14" />
+                                            <TextBlock Text="{Binding Stato}" Classes="Muted" FontSize="12" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding PercorsoOriginale}"
+                                                   Classes="FullTextTip"
+                                                   FontFamily="Consolas"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   ToolTip.Tip="{Binding PercorsoOriginale}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <TextBlock Text="{Binding EliminatoIl}" Classes="Muted" FontSize="11" />
+                                            <TextBlock Text="{Binding EliminatoDa}" Classes="Muted" FontSize="11" />
+                                            <TextBlock Text="{Binding Dispositivo}" Classes="Muted" FontSize="11" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <Button Content="{Binding RipristinaTesto}"
+                                                Classes="Secondary"
+                                                IsEnabled="{Binding PuoRipristinare}"
+                                                Command="{Binding #Root.((vm:RecoveryBinViewModel)DataContext).RipristinaCommand}"
+                                                CommandParameter="{Binding}"
+                                                AutomationProperties.AutomationId="Recovery_Ripristina_Button" />
+                                        <!-- Elimina definitivamente l'envelope di recovery (feedback utente 2026-09-18:
+                                             "nulla si elimina mai definitivamente" — nessuna retention automatica di
+                                             proposito, questa è l'azione Master esplicita e separata che la completa). -->
+                                        <Button Content="{Binding PurgaTesto}"
+                                                Classes="Link"
+                                                Foreground="#DC2626"
+                                                IsEnabled="{Binding PuoPurgare}"
+                                                Command="{Binding #Root.((vm:RecoveryBinViewModel)DataContext).PurgaCommand}"
+                                                CommandParameter="{Binding}"
+                                                AutomationProperties.AutomationId="Recovery_Purga_Button" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <ProgressBar Width="180"
+                             IsIndeterminate="True"
+                             IsVisible="{Binding RipristinoInCorso}"
+                             HorizontalAlignment="Left" />
+                <TextBlock Text="{Binding Messaggio}" Foreground="#166534" IsVisible="{Binding HaMessaggio}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding MessaggioErrore}" Foreground="#DC2626" IsVisible="{Binding HaMessaggioErrore}" TextWrapping="Wrap" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <TextBlock Text="{Binding SoloMasterTesto}"
+                   Classes="Muted"
+                   Margin="{DynamicResource PagePadding}"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding !EMaster}" />
+    </Grid>
+</UserControl>

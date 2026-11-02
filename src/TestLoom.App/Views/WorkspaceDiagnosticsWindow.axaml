@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:services="using:TestLoom.App.Services"
+        x:Class="TestLoom.App.Views.WorkspaceDiagnosticsWindow"
+        Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CentroIntegritaFinestraTitolo}"
+        Width="780" Height="590" MinWidth="600" MinHeight="400"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CentroIntegritaLocaleTitolo}"
+                   FontWeight="SemiBold" FontSize="20"
+                   AutomationProperties.AutomationId="Integrity_Title_Text" />
+        <TextBlock x:Name="StatusText" Grid.Row="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CentroIntegritaRaccoltaInCorso}"
+                   TextWrapping="Wrap" AutomationProperties.AutomationId="Integrity_Status_Text" />
+        <TextBox x:Name="DetailsText" Grid.Row="2" IsReadOnly="True"
+                 AcceptsReturn="True" TextWrapping="Wrap"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 AutomationProperties.AutomationId="Integrity_Details_TextBox" />
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button x:Name="RefreshButton" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CentroIntegritaAggiornaBtn}"
+                    Click="OnRefresh"
+                    AutomationProperties.AutomationId="Integrity_Refresh_Button" />
+            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Chiudi}" Click="OnClose"
+                    AutomationProperties.AutomationId="Integrity_Close_Button" />
+        </StackPanel>
+    </Grid>
+</Window>

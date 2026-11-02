@@ -1,0 +1,127 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:models="using:TestLoom.App.Models"
+             xmlns:services="using:TestLoom.App.Services"
+             xmlns:local="using:TestLoom.App"
+             x:Class="TestLoom.App.Views.CampoSistemaDefinizioneView"
+             x:DataType="vm:CampoSistemaDefinizioneViewModel"
+             x:Name="Root">
+<Grid RowDefinitions="Auto,Auto,Auto,*" Margin="{DynamicResource PagePadding}" IsEnabled="{Binding InterazioneEditorAbilitata}">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{Binding Titolo}" Classes="PageTitle" />
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CampoSistemaSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+            </StackPanel>
+            <WrapPanel Grid.Column="1" Classes="AzioniPagina" MaxWidth="560">
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Modifica}" Classes="Secondary" Command="{Binding IniziaModificaCommand}" IsVisible="{Binding MostraModifica}" AutomationProperties.AutomationId="CampoSist_Modifica_Button" />
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoGenerico}" Classes="Secondary" Command="{Binding NuovoCommand}" IsVisible="{Binding InModifica}" AutomationProperties.AutomationId="CampoSist_Nuovo_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoTooltipCtrlN}" />
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" Classes="Secondary" Command="{Binding AnnullaCommand}" IsVisible="{Binding InModifica}" AutomationProperties.AutomationId="CampoSist_Annulla_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnnullaTooltipEsc}" />
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Salva}" Classes="Primary" Command="{Binding SalvaCommand}" IsVisible="{Binding InModifica}" AutomationProperties.AutomationId="CampoSist_Salva_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SalvaTooltipCtrlS}" />
+            </WrapPanel>
+        </Grid>
+
+        <!-- Banner lock/errore/esito: sempre visibili, fuori dall'area scorrevole (un errore di Salva non deve finire fuori vista). -->
+        <StackPanel Grid.Row="1">
+            <Border Classes="Banner BannerAvviso" IsVisible="{Binding AvvisoLockNonConfermato}" Margin="0,12,0,0">
+                <TextBlock Text="{Binding AvvisoLockNonConfermatoTesto}" TextWrapping="Wrap" />
+            </Border>
+            <Border Classes="Banner BannerAvviso" IsVisible="{Binding LockDetenutoDaAltri}" Margin="0,12,0,0">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding LockInfoTesto, StringFormat='🔒 {0}'}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ForzaSbloccoBtn}" Classes="Link" Command="{Binding ForzaSbloccoCommand}" />
+                </Grid>
+            </Border>
+
+            <Border Classes="Banner BannerErrore" IsVisible="{Binding HaMessaggioErrore}" Margin="0,12,0,0">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{Binding MessaggioErrore}" TextWrapping="Wrap" />
+                    <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RiprovaIndice}" Classes="Link" Command="{Binding RiprovaRilascioLockCommand}" IsVisible="{Binding RilascioLockInAttesa}" AutomationProperties.AutomationId="CampoSistema_RiprovaRilascioLock_Button" />
+                </Grid>
+            </Border>
+
+            <Border Classes="Banner BannerSuccesso" IsVisible="{Binding HaMessaggio}" Margin="0,12,0,0">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Classes="BannerSuccessoTesto" Text="{Binding Messaggio}" />
+                    <Button Grid.Column="1" Classes="BannerChiudi" Content="✕" Command="{Binding CancellaMessaggioCommand}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ChiudiMessaggioTip}" AutomationProperties.Name="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ChiudiMessaggioTip}" />
+                </Grid>
+            </Border>
+        </StackPanel>
+
+
+        <DataGrid x:Name="GridPrincipale" services:TableLayoutPreferences.TableId="system-fields" CanUserResizeColumns="True" Grid.Row="3" MinHeight="200" Margin="0,16,0,0" ItemsSource="{Binding ItemsAttivi}" IsReadOnly="{Binding !InModifica}"
+                  SelectedItem="{Binding ElementoSelezionato}" LoadingRow="OnLoadingRow"
+                  AutoGenerateColumns="False" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CampoSistemaColEtichetta}" Binding="{Binding Etichetta}" Width="1.4*" MinWidth="120" />
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CampoSistemaColChiave}" Binding="{Binding Chiave}" Width="*" MinWidth="240" IsReadOnly="True" />
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CampoSistemaColRuolo}" Binding="{Binding Ruolo}" Width="*" MinWidth="100" IsReadOnly="True" />
+                <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CampoSistemaColTipo}" Width="1.2*" MinWidth="100">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="models:CampoSistemaDefinizione">
+                            <ComboBox ItemsSource="{Binding #Root.((vm:CampoSistemaDefinizioneViewModel)DataContext).Tipi}" SelectedItem="{Binding Tipo}" SelectionChanged="OnTipoCambiato" HorizontalAlignment="Stretch" Margin="2"
+                                      IsEnabled="{Binding #Root.((vm:CampoSistemaDefinizioneViewModel)DataContext).InModifica}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate><TextBlock Text="{Binding Converter={x:Static local:TipoCampoStrumentoLabelConverter.Instance}}" /></DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <!-- Template e non DataGridCheckBoxColumn: la colonna checkbox mostra un presenter di sola lettura fuori dalla
+                     modifica, quindi la spunta non è un controllo reale finché non si entra in modifica di cella. Qui la CheckBox
+                     è sempre presente e legata a InModifica come il Tipo. -->
+                <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CampoSistemaColUsabileFiltro}" Width="110">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="models:CampoSistemaDefinizione">
+                            <CheckBox IsChecked="{Binding UsabileComeFiltro, Mode=TwoWay}" HorizontalAlignment="Center" Margin="2"
+                                      IsEnabled="{Binding #Root.((vm:CampoSistemaDefinizioneViewModel)DataContext).InModifica}"
+                                      AutomationProperties.AutomationId="{Binding Chiave, StringFormat='CampoSist_Filtro_{0}'}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColUltimaModifica}" Binding="{Binding UltimaModifica, Mode=OneWay, StringFormat={}{0:dd/MM/yy HH:mm}}" Width="140" MinWidth="140" IsReadOnly="True" />
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDa}" Binding="{Binding ModificatoDa}" Width="120" MinWidth="120" IsReadOnly="True" />
+                <!-- Colonna azioni di riga: "Opzioni" (solo per Tipo=Lista, abilitato solo in modifica) sta sopra "Archivia".
+                     Niente colonna dedicata: la griglia del catalogo non ha spazio orizzontale in più (vedi test di layout 1280x672). -->
+                <DataGridTemplateColumn Width="90">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="models:CampoSistemaDefinizione">
+                            <StackPanel VerticalAlignment="Center">
+                                <Button Classes="Link"
+                                        IsVisible="{Binding Tipo, Converter={x:Static local:TipoCampoEqualsConverter.Instance}, ConverterParameter=Lista}"
+                                        IsEnabled="{Binding #Root.((vm:CampoSistemaDefinizioneViewModel)DataContext).InModifica}"
+                                        Click="OnModificaOpzioniCampo" Tag="{Binding}"
+                                        AutomationProperties.AutomationId="{Binding Chiave, StringFormat='CampoSist_Opzioni_{0}'}">
+                                    <Button.Content>
+                                        <!-- La lingua e' il secondo binding: cambiandola il testo si rivaluta (P4 9). -->
+                                        <MultiBinding Converter="{x:Static local:OpzioniListaLabelConverter.Instance}">
+                                            <Binding Path="OpzioniLista" />
+                                            <Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua" />
+                                        </MultiBinding>
+                                    </Button.Content>
+                                </Button>
+                                <!-- Unità di misura per Tipo=Numero: campo corto, nella stessa colonna azioni (la griglia non ha spazio per una colonna in più). -->
+                                <TextBox Text="{Binding UnitaMisura, Mode=TwoWay}" FontSize="12" Margin="0,2,0,2"
+                                         PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=UnitaMisuraPlaceholder}"
+                                         IsVisible="{Binding Tipo, Converter={x:Static local:TipoCampoEqualsConverter.Instance}, ConverterParameter=Numero}"
+                                         IsEnabled="{Binding #Root.((vm:CampoSistemaDefinizioneViewModel)DataContext).InModifica}"
+                                         AutomationProperties.AutomationId="{Binding Chiave, StringFormat='CampoSist_Unita_{0}'}" />
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ArchiviaBtn}" Classes="Link"
+                                        IsEnabled="{Binding #Root.((vm:CampoSistemaDefinizioneViewModel)DataContext).InModifica}"
+                                        Command="{Binding #Root.((vm:CampoSistemaDefinizioneViewModel)DataContext).ArchiviaCommand}" CommandParameter="{Binding}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Stato vuoto: sovrapposto alla griglia, non intercetta i click. -->
+        <StackPanel Grid.Row="3" Classes="ElencoVuotoOverlay" Margin="0,40,0,0">
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ElencoVuoto}" Classes="Muted" HorizontalAlignment="Center" IsVisible="{Binding MostraElencoVuoto}" AutomationProperties.AutomationId="CampoSist_ElencoVuoto_Text" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ElencoVuotoFiltrato}" Classes="Muted" HorizontalAlignment="Center" IsVisible="{Binding MostraElencoVuotoFiltrato}" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ElencoVuotoSuggerimento}" Classes="Muted" HorizontalAlignment="Center" IsVisible="{Binding MostraSuggerimentoElencoVuoto}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

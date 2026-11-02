@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TestLoom.App.Views.MergeConflittoDialog"
+        Width="900" Height="650" MinWidth="700" MinHeight="480"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="12">
+        <TextBlock x:Name="IstruzioniText" TextWrapping="Wrap" />
+        <ScrollViewer Grid.Row="1">
+            <StackPanel x:Name="CampiPanel" Spacing="12" />
+        </ScrollViewer>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <Button x:Name="AnnullaButton" Classes="Secondary" AutomationProperties.AutomationId="MergeConflitto_Annulla_Button" />
+            <Button x:Name="ConfermaButton" Classes="Primary" AutomationProperties.AutomationId="MergeConflitto_Conferma_Button" />
+        </StackPanel>
+    </Grid>
+</Window>

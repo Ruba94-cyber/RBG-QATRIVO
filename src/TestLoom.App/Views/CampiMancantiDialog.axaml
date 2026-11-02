@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:TestLoom.App.Services"
+        x:Class="TestLoom.App.Views.CampiMancantiDialog"
+        Width="440" Height="420" MinWidth="360" MinHeight="280" CanResize="True"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+        <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,14">
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CampiMancantiTitolo}" FontSize="16" FontWeight="Bold" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CampiMancantiSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel x:Name="ElencoPanel" Spacing="6" />
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button x:Name="ChiudiButton" Classes="Primary" AutomationProperties.AutomationId="MissingFields_Close_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Chiudi}" />
+        </StackPanel>
+    </Grid>
+</Window>

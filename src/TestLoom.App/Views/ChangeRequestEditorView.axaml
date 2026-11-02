@@ -1,0 +1,192 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:services="using:TestLoom.App.Services"
+             xmlns:vm="using:TestLoom.App.ViewModels" xmlns:models="using:TestLoom.App.Models" xmlns:local="using:TestLoom.App"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="TestLoom.App.Views.ChangeRequestEditorView" x:DataType="vm:ChangeRequestEditorViewModel" x:Name="Root">
+  <Grid RowDefinitions="Auto,*">
+    <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1" Padding="20,12">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto"><StackPanel><TextBlock Text="{Binding TitoloPagina}" FontSize="{DynamicResource TitoloPagina}" FontWeight="Bold" AutomationProperties.AutomationId="Cr_Title_Text"/><TextBlock Text="{Binding StatoTesto}" Foreground="{DynamicResource AccentBrush}" AutomationProperties.AutomationId="Cr_Stato_Text"/><TextBlock FontSize="12" Foreground="{DynamicResource TextMutedBrush}" IsVisible="{Binding MostraSolaLetturaHint}" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SolaLetturaEditorHint}" AutomationProperties.AutomationId="Cr_SolaLettura_Text"/><TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource WarningTextBrush}" IsVisible="{Binding ModificheNonSalvate}" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificheNonSalvateTitolo}" AutomationProperties.AutomationId="Cr_ModificheNonSalvate_Text"/></StackPanel><Button Grid.Column="1" Margin="0,0,8,0" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RecuperaBozzaLocaleBtn}" Classes="Secondary" Click="OnRecuperaBozza" IsVisible="{Binding PuoRecuperareBozzaLocale}" IsEnabled="{Binding PuoModificare}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RecuperaBozzaLocaleTip}" AutomationProperties.AutomationId="Cr_RecuperaBozza_Button"/><Button Grid.Column="2" Margin="0,0,8,0" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaChangeRequestBtn}" Classes="Primary" Command="{Binding EntraInModificaCommand}" IsVisible="{Binding PuoEntrareInModifica}" AutomationProperties.AutomationId="Cr_Modifica_Button"/><Button Grid.Column="3" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TornaAdAnomalieCrBtn}" Classes="Secondary" Command="{Binding TornaAllaListaCommand}" AutomationProperties.AutomationId="Cr_TornaAllaLista_Button"/></Grid>
+    </Border>
+    <ScrollViewer Grid.Row="1"><StackPanel Margin="24" Spacing="14" MaxWidth="{DynamicResource MaxLarghezzaPagina}">
+      <!-- IsVisible bindato direttamente alla stringa restava sempre vero anche a Errore/Messaggio vuoti
+           ("" non è null): un banner vuoto comparirebbe su ogni CR nuova ancora prima di qualunque errore.
+           Bug preesistente scoperto durante la verifica UI del punto 8, corretto qui perché nella stessa card. -->
+      <Border Classes="Banner BannerErrore" IsVisible="{Binding Errore, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"><TextBlock Text="{Binding Errore}" AutomationProperties.AutomationId="Cr_Errore_Text" TextWrapping="Wrap"/></Border>
+      <Border Classes="Banner BannerInfo" IsVisible="{Binding Messaggio, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"><TextBlock Text="{Binding Messaggio}" TextWrapping="Wrap" AutomationProperties.AutomationId="Cr_Messaggio_Text"/></Border>
+      <!-- Indicatore del giro di caricamento (cataloghi e copertura): l'editor resta utilizzabile mentre il calcolo finisce. -->
+      <TextBlock Classes="Muted" IsVisible="{Binding CaricamentoInCorso}" AutomationProperties.AutomationId="Cr_Caricamento_Text" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdCaricamentoInCorso}"/>
+      <Border Classes="Card"><StackPanel Spacing="5">
+        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdStatoLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}"/>
+        <ComboBox Classes="Field" ItemsSource="{Binding StatiWorkflow}" SelectedItem="{Binding StatoSelezionato}" IsEnabled="{Binding PuoSelezionareStato}" AutomationProperties.AutomationId="Cr_Stato_Combo">
+          <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}"/></DataTemplate></ComboBox.ItemTemplate>
+        </ComboBox>
+        <!-- Chiudere o riaprire una CR richiede sempre un motivo scritto (anche da Validata). -->
+        <StackPanel Spacing="5" IsVisible="{Binding RichiedeMotivoTransizione}">
+          <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdMotivoTransizione}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}"/>
+          <TextBox Classes="Field" Text="{Binding MotivoTransizione, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="64" AutomationProperties.AutomationId="Cr_MotivoTransizione_Text"/>
+        </StackPanel>
+      </StackPanel></Border>
+      <Border x:Name="DatiCr" Classes="Card" IsEnabled="{Binding PuoModificare}"><StackPanel Spacing="10"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdSezDati}" Classes="SectionTitle"/>
+        <WrapPanel Classes="ColonneEditor" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=2}">
+          <StackPanel Spacing="6">
+            <ComboBox ItemsSource="{Binding TemplateCr}" SelectedItem="{Binding TemplateSelezionato}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdTipoCrPlaceholder}" IsVisible="{Binding TemplateCr, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}" AutomationProperties.AutomationId="Cr_Template_Combo"><ComboBox.ItemTemplate><DataTemplate x:DataType="models:TestTemplate"><TextBlock Text="{Binding Nome}"/></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding TemplateSelezionatoTesto}" Command="{Binding ScegliTemplateCrCommand}" IsVisible="{Binding TemplateCr, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}" AutomationProperties.AutomationId="Cr_Template_Scegli_Button"/>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Spacing="4">
+            <!-- Etichetta persistente (feedback utente 2026-09-15: "la scelta del responsabile non è affatto
+                 chiara, c'è una specie di pulsante grigio senza descrizione"): a differenza del PlaceholderText
+                 della ComboBox, che sparisce non appena c'è una selezione, questa resta sempre visibile così il
+                 campo si riconosce anche a scelta già fatta, non solo quando è vuoto. -->
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdResponsabileLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}"/>
+            <ComboBox ItemsSource="{Binding OperatoriDisponibili}" SelectedItem="{Binding Responsabile}" AutomationProperties.AutomationId="Cr_Responsabile_Combo" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdScegliResponsabilePlaceholder}" IsVisible="{Binding OperatoriDisponibili, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}"/>
+            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding Responsabile, TargetNullValue='Scegli responsabile...'}" Command="{Binding ScegliResponsabileCommand}" AutomationProperties.AutomationId="Cr_ScegliResponsabile_Button" IsVisible="{Binding OperatoriDisponibili, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}"/>
+            <!-- "Il creatore dovrebbe essere comunque sempre presente" (feedback utente 2026-09-15): a
+                 differenza di Responsabile, che può cambiare nel tempo, questo è sola lettura e non sparisce
+                 mai — non visibile finché la CR non è stata salvata almeno una volta (CreatoDa è vuoto prima). -->
+            <TextBlock Text="{Binding CreatoDa, StringFormat='Creato da: {0}'}" Classes="Muted" FontSize="12" IsVisible="{Binding CreatoDa, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"/>
+          </StackPanel>
+        </WrapPanel>
+        <TextBox Text="{Binding Titolo}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdTitoloPlaceholder}" AutomationProperties.AutomationId="Cr_Titolo_TextBox"/>
+        <StackPanel Spacing="3">
+          <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDescrizioneBreve}" Classes="Muted" />
+          <TextBox Text="{Binding DescrizioneBreve}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdDescrizioneBrevePlaceholder}" AutomationProperties.AutomationId="Cr_DescrizioneBreve_TextBox"/>
+        </StackPanel>
+        <StackPanel Spacing="3">
+          <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDescrizioneLunga}" Classes="Muted" />
+          <TextBox Text="{Binding Descrizione}" AcceptsReturn="True" MinHeight="100" TextWrapping="Wrap" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdDescrizioneTecnicaPlaceholder}" AutomationProperties.AutomationId="Cr_Descrizione_TextBox"/>
+        </StackPanel>
+        <StackPanel Spacing="3">
+          <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdMotivazioneDuplicatoLabel}" Classes="Muted"/>
+          <TextBox x:Name="MotivazioneDuplicatoTextBox" AutomationProperties.AutomationId="Cr_MotivazioneDuplicato_TextBox" Text="{Binding MotivazioneDuplicato}" AcceptsReturn="True" MinHeight="58" TextWrapping="Wrap" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdMotivazioneDuplicatoPlaceholder}"/>
+        </StackPanel>
+        <ItemsControl ItemsSource="{Binding CampiCr}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:CampoCrRiga"><StackPanel Spacing="3"><TextBlock Text="{Binding Nome}" FontWeight="SemiBold"/><TextBox Text="{Binding Valore}" IsVisible="{Binding ETesto}"/><ComboBox ItemsSource="{Binding Opzioni}" SelectedItem="{Binding Valore}" IsVisible="{Binding ELista}"/><CheckBox Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SelezionatoCheck}" IsChecked="{Binding ValoreCheckbox}" IsVisible="{Binding ECheckbox}"/></StackPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+      </StackPanel></Border>
+      <Border x:Name="AmbitoImpattato" Classes="Card" IsEnabled="{Binding PuoModificare}"><StackPanel Spacing="10"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdSezAmbito}" Classes="SectionTitle"/>
+        <!-- Veicolo/componente/Strumento sono campi multi-valore (feedback utente 2026-08-21: "dovrebbe esserci la
+             combobox con multiselezione essendo possibile più di un campo"), quindi un solo pulsante per campo
+             apre un picker multi-selezione invece di "scegli uno, Aggiungi, ripeti" — stesso schema già in uso
+             per Requisiti/Funzionalità/Test correlati nel Test e per Gamma qui sotto: checkbox flyout con
+             "Seleziona tutto" sotto soglia (10 elementi), dialogo con ricerca sopra soglia, gestito in
+             code-behind (OnScegliVeicoli/OnScegliEcu/OnScegliStrumenti) perché costruisce controlli a runtime. -->
+        <WrapPanel>
+          <Button Margin="0,0,10,8" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AggiungiVeicoliBtn}" Click="OnScegliVeicoli" AutomationProperties.AutomationId="Cr_AggiungiVeicoli_Button"/>
+          <Button Margin="0,0,10,8" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AggiungiEcuBtn}" Click="OnScegliEcu" AutomationProperties.AutomationId="Cr_AggiungiEcu_Button"/>
+          <Button Margin="0,0,10,8" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AggiungiStrumentiBtn}" Click="OnScegliStrumenti" AutomationProperties.AutomationId="Cr_AggiungiStrumenti_Button"/>
+        </WrapPanel>
+        <!-- Multi-gamma con "Seleziona tutto" (punto 3/4, feedback utente 2026-08-21): stesso schema soglia
+             checkbox-flyout/dialogo-con-ricerca già usato per i campi multi-selezione del Test (Requisiti,
+             Funzionalità...), gestito in code-behind (OnScegliGamma) perché costruisce controlli a runtime. -->
+        <Button HorizontalAlignment="Left" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdScegliGammeBtn}" Click="OnScegliGamma" AutomationProperties.AutomationId="Cr_AggiungiGamme_Button"/>
+        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=VeicoliTitolo}" FontWeight="SemiBold"/>
+        <!-- Raggruppati per gamma invece di un'unica esplosione piatta di badge (punto 4, feedback utente
+             2026-08-21): un gruppo con più di 4 veicoli parte collassato ("Nome gamma (N)"), espandibile con un
+             click sull'intestazione. -->
+        <ItemsControl ItemsSource="{Binding VeicoliRaggruppati}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:GruppoVeicoli">
+              <StackPanel Margin="0,0,0,6" Spacing="4">
+                <Button Classes="Link" HorizontalAlignment="Left" Content="{Binding EtichettaConteggio}"
+                        Command="{Binding #Root.((vm:ChangeRequestEditorViewModel)DataContext).ToggleGruppoVeicoliCommand}" CommandParameter="{Binding Etichetta}"/>
+                <ItemsControl ItemsSource="{Binding Veicoli}" IsVisible="{Binding Espanso}">
+                  <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Classes="Badge" Background="{DynamicResource InfoBackgroundBrush}" Margin="0,0,6,6"><StackPanel Orientation="Horizontal" Spacing="5"><TextBlock Text="{Binding}"/><Button Content="x" Classes="Link" Command="{Binding #Root.((vm:ChangeRequestEditorViewModel)DataContext).RimuoviVeicoloCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="{Binding StringFormat='Cr_RimuoviVeicolo_{0}'}"/></StackPanel></Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdEcuImpattateLabel}" FontWeight="SemiBold"/><ItemsControl ItemsSource="{Binding Componente}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Border Classes="Badge" Background="{DynamicResource WarningBackgroundBrush}" Margin="0,0,6,6"><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding}"/><Button Content="x" Classes="Link" Command="{Binding #Root.((vm:ChangeRequestEditorViewModel)DataContext).RimuoviEcuCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="{Binding StringFormat='Cr_RimuoviEcu_{0}'}"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdStrumentiImpattatiLabel}" FontWeight="SemiBold"/><ItemsControl ItemsSource="{Binding Strumenti}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Border Classes="Badge" Background="{DynamicResource SuccessBackgroundBrush}" Margin="0,0,6,6"><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding}"/><Button Content="x" Classes="Link" Command="{Binding #Root.((vm:ChangeRequestEditorViewModel)DataContext).RimuoviStrumentoCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="{Binding StringFormat='Cr_RimuoviStrumento_{0}'}"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+      </StackPanel></Border>
+      <Border Classes="Card" IsEnabled="{Binding PuoModificare}"><StackPanel Spacing="10"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdSezTestValidazione}" Classes="SectionTitle"/>
+        <!-- Descrizione breve visibile in lista (punto 2, feedback utente 2026-08-21), non solo l'Id; soglia
+             combobox/pulsante con ricerca (punto 1) applicata anche qui invece che solo a Veicolo/componente/Strumento. -->
+        <Grid ColumnDefinitions="2*,Auto" IsVisible="{Binding TestDisponibili, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}">
+          <ComboBox ItemsSource="{Binding TestDisponibili}" SelectedItem="{Binding TestDaCollegare}" AutomationProperties.AutomationId="Cr_CollegaTest_Combo" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdCollegaTestEsistentePlaceholder}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="models:TestCase">
+                <StackPanel Spacing="1" Margin="0,2">
+                  <TextBlock Text="{Binding Id}" FontWeight="SemiBold"/>
+                  <TextBlock Text="{Binding DescrizioneBreve}" Classes="Muted" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding DescrizioneBreve, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdCollegaObbligatorioBtn}" Command="{Binding CollegaTestCommand}" AutomationProperties.AutomationId="Cr_CollegaTestObbligatorio_Button"/>
+        </Grid>
+        <!-- Sopra soglia: ricerca sul motore del ViewModel (PickerTestDisponibili), con debounce e risultati superati scartati
+             (vedi ChangeRequestEditorView.RicercaTestCorrente). Il ComboBox sopra resta invariato per gli elenchi corti. -->
+        <Grid ColumnDefinitions="2*,Auto" IsVisible="{Binding TestDisponibili, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}">
+          <AutoCompleteBox x:Name="CollegaTestAutoCompleteBox" MinimumPrefixLength="0" FilterMode="None" SelectedItem="{Binding TestDaCollegare}" ValueMemberBinding="{ReflectionBinding Id}" AutomationProperties.AutomationId="Cr_CollegaTestRicerca_AutoComplete">
+            <AutoCompleteBox.ItemTemplate>
+              <DataTemplate x:DataType="models:TestCase">
+                <StackPanel Spacing="1" Margin="0,2">
+                  <TextBlock Text="{Binding Id}" FontWeight="SemiBold"/>
+                  <TextBlock Text="{Binding DescrizioneBreve}" Classes="Muted" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding DescrizioneBreve, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+              </DataTemplate>
+            </AutoCompleteBox.ItemTemplate>
+          </AutoCompleteBox>
+          <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdCollegaObbligatorioBtn}" Command="{Binding CollegaTestCommand}" AutomationProperties.AutomationId="Cr_CollegaTestRicercaObbligatorio_Button"/>
+        </Grid>
+        <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdCollegaTestEsistenteBtn}" Command="{Binding ScegliTestValidazioneCommand}" AutomationProperties.AutomationId="Cr_ScegliTestValidazione_Button" IsVisible="{Binding TestDisponibili, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}"/>
+        <Grid ColumnDefinitions="2*,Auto,Auto">
+          <StackPanel Spacing="6">
+            <ComboBox ItemsSource="{Binding TemplateTest}" SelectedItem="{Binding TemplateTestDaCreare}" AutomationProperties.AutomationId="Cr_TemplateTest_Combo" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdTipoVeroTestPlaceholder}" IsVisible="{Binding TemplateTest, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}"><ComboBox.ItemTemplate><DataTemplate x:DataType="models:TestTemplate"><TextBlock Text="{Binding Nome}"/></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding TemplateTestDaCreareTesto}" Command="{Binding ScegliTemplateTestCommand}" AutomationProperties.AutomationId="Cr_TemplateTest_Scegli_Button" IsVisible="{Binding TemplateTest, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}"/>
+          </StackPanel>
+          <CheckBox Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TplObbligatorio}" IsChecked="{Binding TestCreatoObbligatorio}" AutomationProperties.AutomationId="Cr_TestObbligatorio_CheckBox" VerticalAlignment="Center"/>
+          <Button Grid.Column="2" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdCreaTestValidazioneBtn}" Classes="Primary" Command="{Binding CreaTestValidazioneCommand}" AutomationProperties.AutomationId="Cr_CreaTestValidazione_Button"/>
+        </Grid>
+        <ItemsControl ItemsSource="{Binding TestValidazione}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="models:CollegamentoValidazioneCr"><Border Background="{DynamicResource SurfaceMutedBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,4"><StackPanel Spacing="6"><Grid ColumnDefinitions="Auto,*,Auto"><TextBlock Text="{Binding TestId}" FontWeight="Bold"/><TextBlock Grid.Column="1"><TextBlock.Text><MultiBinding Converter="{x:Static local:LocalizedFormatConverter.Instance}" ConverterParameter="CrEdObbligatorioFmt"><Binding Path="Obbligatorio"/><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua"/></MultiBinding></TextBlock.Text></TextBlock><Button Grid.Column="2" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriFileBtn}" Classes="Link" Command="{Binding #Root.((vm:ChangeRequestEditorViewModel)DataContext).ApriTestCommand}" CommandParameter="{Binding TestId}" AutomationProperties.AutomationId="{Binding TestId, StringFormat='Cr_ApriTest_{0}'}"/></Grid><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdCoperturaEccezionaleTesto}" Foreground="{DynamicResource WarningTextBrush}" IsVisible="{Binding EccezioneCopertura}"/><TextBox Text="{Binding MotivazioneEccezione}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdMotivazioneEccezionePlaceholder}" IsVisible="{Binding EccezioneCopertura}"/><Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdApprovaEccezioneBtn}" Command="{Binding #Root.((vm:ChangeRequestEditorViewModel)DataContext).ApprovaEccezioneCommand}" CommandParameter="{Binding}" IsVisible="{Binding EccezioneCopertura}" HorizontalAlignment="Left"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+      </StackPanel></Border>
+      <Border Classes="Card" IsEnabled="{Binding PuoModificare}"><StackPanel Spacing="10"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdSezAllegati}" Classes="SectionTitle"/>
+        <ItemsControl ItemsSource="{Binding AllegatiVisual}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="models:Allegato">
+              <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,3">
+                <TextBlock Grid.Column="0" Text="📎" Margin="0,0,8,0"/>
+                <Button Grid.Column="1" Content="{Binding NomeFile}" Classes="Link" HorizontalAlignment="Left" ToolTip.Tip="{Binding NomeFile}" AutomationProperties.AutomationId="Cr_Allegato_Nome_Button"
+                        Command="{Binding #Root.((vm:ChangeRequestEditorViewModel)DataContext).ApriAllegatoCommand}" CommandParameter="{Binding}"/>
+                <TextBlock Grid.Column="2" Text="{Binding DataCaricamento, StringFormat={}{0:dd/MM/yyyy}}" Classes="Muted" Margin="0,0,10,0"/>
+                <Button Grid.Column="3" Content="✕" Classes="Link" AutomationProperties.AutomationId="Cr_Allegato_Rimuovi_Button"
+                        Command="{Binding #Root.((vm:ChangeRequestEditorViewModel)DataContext).RimuoviAllegatoCommand}" CommandParameter="{Binding}"/>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ScegliFileBtn}" Classes="Secondary" HorizontalAlignment="Left" Click="OnSceglieFileAllegato" IsEnabled="{Binding PuoModificare}" AutomationProperties.AutomationId="Cr_ScegliAllegato_Button"/>
+      </StackPanel></Border>
+      <!-- Ticket TICKET/Ticketing (feedback utente 2026-09-15: "nelle Cr dovrebbe poi anche essere possibile
+           collegare il ticket TICKET come avviene per le non conformità") — il campo esisteva già solo per
+           l'export, qui la stessa UI già in uso per il Test. -->
+      <Border Classes="Card" IsEnabled="{Binding PuoModificare}"><StackPanel Spacing="10"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TicketEstaPolarionTitolo}" Classes="SectionTitle"/>
+        <ItemsControl ItemsSource="{Binding TicketCollegatiVisual}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="models:TicketRif">
+              <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
+                <TextBlock Grid.Column="0" Text="{Binding Riferimento}" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,10,0"/>
+                <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriInPolarionSempliceBtn}" Classes="Link" HorizontalAlignment="Left"
+                        Command="{Binding #Root.((vm:ChangeRequestEditorViewModel)DataContext).ApriTicketCommand}" CommandParameter="{Binding}" IsVisible="{Binding Url, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"/>
+                <Button Grid.Column="2" Content="✕" Classes="Link" Padding="0" FontSize="11"
+                        Command="{Binding #Root.((vm:ChangeRequestEditorViewModel)DataContext).RimuoviTicketCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="{Binding Riferimento, StringFormat='Cr_RimuoviTicket_{0}'}"/>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NessunTicketCollegato}" Classes="Muted" IsVisible="{Binding !TicketCollegatiVisual.Count}"/>
+        <Grid ColumnDefinitions="*,2*,Auto" ColumnSpacing="8" IsEnabled="{Binding PuoModificare}">
+          <TextBox Grid.Column="0" AutomationProperties.AutomationId="Cr_NuovoTicket_Riferimento_TextBox" Text="{Binding NuovoTicketRiferimento}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Ticket12345Placeholder}"/>
+          <TextBox Grid.Column="1" AutomationProperties.AutomationId="Cr_NuovoTicket_Url_TextBox" Text="{Binding NuovoTicketUrl}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=LinkPolarionOpzionaleUrl}"/>
+          <Button Grid.Column="2" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CollegaSempliceBtn}" Classes="Secondary" Command="{Binding AggiungiTicketCommand}" AutomationProperties.AutomationId="Cr_AggiungiTicket_Button"/>
+        </Grid>
+      </StackPanel></Border>
+      <Border Classes="Card"><StackPanel Spacing="10"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=WorkflowLabel}" Classes="SectionTitle"/><WrapPanel><Button Margin="0,0,8,8" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SalvaBtnSemplice}" Classes="Primary" Command="{Binding SalvaCommand}" IsEnabled="{Binding PuoSalvare}" AutomationProperties.AutomationId="Cr_Salva_Button"/><Button Margin="0,0,8,8" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdEsportaPacchettoBtn}" Classes="Secondary" Click="OnEsportaPacchetto" IsEnabled="{Binding PuoEsportarePacchetto}" AutomationProperties.AutomationId="Cr_EsportaPacchetto_Button"/><Button Margin="0,0,8,8" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ArchiviaBtn}" Classes="Secondary" Command="{Binding ArchiviaCommand}" IsEnabled="{Binding PuoArchiviare}" AutomationProperties.AutomationId="Cr_Archivia_Button"/></WrapPanel></StackPanel></Border>
+      <Border Classes="Card"><StackPanel><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdSezRevisioni}" Classes="SectionTitle"/><ItemsControl ItemsSource="{Binding ChangeRequest.Revisioni}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="models:RevisioneChangeRequest"><TextBlock Text="{Binding Numero, StringFormat='REV {0}'}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
+    </StackPanel></ScrollViewer>
+  </Grid>
+</UserControl>

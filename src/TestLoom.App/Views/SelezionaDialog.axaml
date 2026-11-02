@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:TestLoom.App.Services"
+        xmlns:conv="using:Avalonia.Data.Converters"
+        x:Class="TestLoom.App.Views.SelezionaDialog"
+        Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SelezionaTitolo}"
+        Width="480" MinHeight="320" Height="480" CanResize="True"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="10">
+        <TextBlock x:Name="TitoloText" Grid.Row="0" FontWeight="SemiBold" FontSize="15" AutomationProperties.AutomationId="SelectDialog_Title_Text" />
+        <TextBlock x:Name="SuggerimentoMultiploText" Grid.Row="1" Classes="Muted" FontSize="12" IsVisible="False" />
+        <TextBox x:Name="FiltroBox" Grid.Row="2" AutomationProperties.AutomationId="SelectDialog_Filter_TextBox" />
+        <!-- Contatore sempre visibile: "N risultati" con ricerca attiva, mai un troncamento silenzioso. -->
+        <TextBlock x:Name="ConteggioText" Grid.Row="3" Classes="Muted" FontSize="12" AutomationProperties.AutomationId="SelectDialog_Count_Text" />
+        <StackPanel x:Name="AzioniSelezioneMultipla" Grid.Row="4" Orientation="Horizontal" Spacing="10" IsVisible="False">
+            <Button x:Name="SelezionaVisibiliButton" Classes="Link" AutomationProperties.AutomationId="SelectDialog_SelectVisible_Button" />
+            <Button x:Name="DeselezionaVisibiliButton" Classes="Link" AutomationProperties.AutomationId="SelectDialog_DeselectVisible_Button" />
+        </StackPanel>
+        <ListBox x:Name="Lista" Grid.Row="5" SelectionMode="Single" AutomationProperties.AutomationId="SelectDialog_Items_ListBox">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="services:VoceSelezionabile">
+                    <StackPanel Spacing="1" Margin="0,2">
+                        <TextBlock Text="{Binding TestoPrincipale}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding TestoSecondario}" Classes="Muted" FontSize="12" TextWrapping="Wrap"
+                                   IsVisible="{Binding TestoSecondario, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+            <ListBox.Styles>
+                <!-- Il nome accessibile del contenitore ListBoxItem generato da Avalonia, non quello (invisibile
+                     a UI Automation) di un elemento dentro l'ItemTemplate — stesso principio già applicato
+                     all'AutomationId dei ListBoxItem di navigazione. Qui serve il Name (non l'AutomationId,
+                     univoco per definizione) perché il testo della voce varia per ogni elemento a runtime
+                     (nome componente/veicolo/funzionalità scelto dall'utente), non è un insieme chiuso enumerabile. -->
+                <Style Selector="ListBoxItem" x:DataType="services:VoceSelezionabile">
+                    <Setter Property="AutomationProperties.Name" Value="{Binding TestoPrincipale}" />
+                </Style>
+            </ListBox.Styles>
+        </ListBox>
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <Button x:Name="AnnullaButton" Classes="Secondary" AutomationProperties.AutomationId="SelectDialog_Cancel_Button" />
+            <Button x:Name="SelezionaButton" Classes="Primary" AutomationProperties.AutomationId="SelectDialog_Confirm_Button" />
+        </StackPanel>
+    </Grid>
+</Window>

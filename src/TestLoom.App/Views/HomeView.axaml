@@ -1,0 +1,483 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:models="using:TestLoom.App.Models"
+             xmlns:local="using:TestLoom.App"
+             xmlns:services="using:TestLoom.App.Services"
+             xmlns:views="using:TestLoom.App.Views"
+             xmlns:controls="using:TestLoom.App.Views.Controls"
+             x:Class="TestLoom.App.Views.HomeView"
+             x:DataType="vm:HomeViewModel"
+             x:Name="Root">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="RigaTestCase" x:DataType="models:TestCase">
+            <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="10,10">
+                <Grid ColumnDefinitions="230,120,170,*,150,70" ColumnSpacing="14" Margin="0,0,16,0">
+                    <TextBlock Grid.Column="0" Text="{Binding Id}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Id}" />
+                    <TextBlock Grid.Column="1" Text="{Binding Componente}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Componente}" />
+                    <TextBlock Grid.Column="2" Text="{Binding TestTemplateUid, Converter={x:Static local:TestTemplateLabelConverter.Instance}}" VerticalAlignment="Center" Classes="Muted" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TestTemplateUid, Converter={x:Static local:TestTemplateLabelConverter.Instance}}" />
+                    <TextBlock Grid.Column="3" VerticalAlignment="Center" Classes="Muted" TextTrimming="CharacterEllipsis" Text="{Binding Descrizione}" ToolTip.Tip="{Binding Descrizione}" />
+                    <Border Grid.Column="4" Classes="Badge" Background="{Binding StatoCorrente, Converter={x:Static local:EsitoColorConverter.Instance}}" VerticalAlignment="Center" HorizontalAlignment="Left">
+                        <TextBlock Text="{Binding StatoCorrente, Converter={x:Static local:EsitoLabelConverter.Instance}, TargetNullValue='Non testato'}" FontSize="12"
+                                   Foreground="{Binding StatoCorrente, Converter={x:Static local:EsitoTextColorConverter.Instance}}"
+                                   ToolTip.Tip="{Binding StatoCorrente, Converter={x:Static local:EsitoTooltipConverter.Instance}}" />
+                    </Border>
+                    <Button Grid.Column="5" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriFrecciaBtn}" Classes="Link"
+                            Command="{Binding #Root.((vm:HomeViewModel)DataContext).ApriCommand}"
+                            CommandParameter="{Binding}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- Versione compatta (Addendum §18): le tabelle Da fare/Fatti stanno affiancate a metà larghezza,
+             la riga larga fissa (RigaTestCase) non ci sta — impilata su 2 righe invece che 6 colonne fisse. -->
+        <DataTemplate x:Key="RigaTestCaseCompatta" x:DataType="models:TestCase">
+            <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="10,8">
+                <StackPanel Spacing="3">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding Id}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Id}" />
+                        <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriFrecciaBtn}" Classes="Link" Padding="0"
+                                Command="{Binding #Root.((vm:HomeViewModel)DataContext).ApriCommand}" CommandParameter="{Binding}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,Auto,*">
+                        <TextBlock Grid.Column="0" Text="{Binding Componente}" Classes="Muted" FontSize="13" Margin="0,0,10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Componente}" />
+                        <TextBlock Grid.Column="1" Text="{Binding TestTemplateUid, Converter={x:Static local:TestTemplateLabelConverter.Instance}}" Classes="Muted" FontSize="13" Margin="0,0,10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TestTemplateUid, Converter={x:Static local:TestTemplateLabelConverter.Instance}}" />
+                        <Border Grid.Column="2" Classes="Badge" Background="{Binding StatoCorrente, Converter={x:Static local:EsitoColorConverter.Instance}}" HorizontalAlignment="Left" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding StatoCorrente, Converter={x:Static local:EsitoLabelConverter.Instance}, TargetNullValue='Non testato'}" FontSize="11"
+                                       Foreground="{Binding StatoCorrente, Converter={x:Static local:EsitoTextColorConverter.Instance}}"
+                                       ToolTip.Tip="{Binding StatoCorrente, Converter={x:Static local:EsitoTooltipConverter.Instance}}" />
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <ScrollViewer Padding="{DynamicResource PagePadding}">
+        <StackPanel Spacing="{DynamicResource SpaziaturaSezioni}" MaxWidth="{DynamicResource MaxLarghezzaPagina}">
+            <!-- Intestazione fissa: titolo, personalizzazione e nuovo test restano sempre visibili; il riepilogo
+                 e le sezioni sono personalizzabili (vedi SezioniHome sotto). -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeTitolo}" Classes="PageTitle" AutomationProperties.AutomationId="Home_Title_Text" VerticalAlignment="Top" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Top">
+                    <Button Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomePersonalizzaBtn}"
+                            Command="{Binding TogglePersonalizzazioneCommand}" AutomationProperties.AutomationId="Home_Personalizza_Button" />
+                    <Button services:Spotlight.TargetId="home-new-test" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoTest}" Classes="Primary" Command="{Binding NuovoTestCaseCommand}" IsEnabled="{Binding PuoCreare}" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Calcolo della Home in background (HomeViewModel.Giro): indicatore discreto, sparisce quando i dati sono applicati. -->
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding CaricamentoInCorso}" AutomationProperties.AutomationId="Home_Caricamento_Indicatore">
+                <ProgressBar Width="80" Height="4" IsIndeterminate="True" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AggiornamentoInCorso}" Classes="Muted" FontSize="12" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Il recupero dell'indice Test avviene in background: il fallback non deve restare invisibile. -->
+            <Border Classes="Banner" IsVisible="{Binding MostraAvvisoIndice}">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="{Binding AvvisoIndiceTesto}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RiprovaIndice}" Command="{Binding RiprovaIndiceCommand}"
+                            IsVisible="{Binding PuoRiprovareIndice}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Personalizza Home (preferenza locale al PC): quali sezioni mostrare e in che ordine, con ripristino. -->
+            <Border Classes="Card" IsVisible="{Binding MostraPersonalizzazione}" AutomationProperties.AutomationId="Home_Personalizza_Panel"
+                    AutomationProperties.IsControlElementOverride="True">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomePersonalizzaTitolo}" Classes="SectionTitle" Margin="0" />
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomePersonalizzaDescr}" Classes="Muted" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding VociLayout}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:VoceLayoutHome">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,2">
+                                    <CheckBox Grid.Column="0" Content="{Binding Titolo}" IsChecked="{Binding Visibile, Mode=TwoWay}"
+                                              AutomationProperties.AutomationId="{Binding AutomationIdCheckBox}" />
+                                    <Button Grid.Column="1" Classes="Link" Content="↑" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeLayoutSpostaSuTip}"
+                                            Command="{Binding #Root.((vm:HomeViewModel)DataContext).SpostaSezioneSuCommand}" CommandParameter="{Binding Id}"
+                                            AutomationProperties.AutomationId="{Binding AutomationIdSu}" />
+                                    <Button Grid.Column="2" Classes="Link" Content="↓" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeLayoutSpostaGiuTip}"
+                                            Command="{Binding #Root.((vm:HomeViewModel)DataContext).SpostaSezioneGiuCommand}" CommandParameter="{Binding Id}"
+                                            AutomationProperties.AutomationId="{Binding AutomationIdGiu}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Classes="Secondary" HorizontalAlignment="Left" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeLayoutRipristinaBtn}"
+                            Command="{Binding RipristinaLayoutPredefinitoCommand}" AutomationProperties.AutomationId="Home_Layout_Reset_Button" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeLayoutUsaTeamBtn}"
+                                Command="{Binding UsaLayoutTeamCommand}" AutomationProperties.AutomationId="Home_Layout_UsaTeam_Button" />
+                        <Button Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeLayoutPubblicaTeamBtn}"
+                                Command="{Binding PubblicaLayoutTeamCommand}" IsVisible="{Binding PuoPubblicareLayoutTeam}"
+                                AutomationProperties.AutomationId="Home_Layout_PubblicaTeam_Button" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding MessaggioLayoutTeam}" IsVisible="{Binding HaMessaggioLayoutTeam}" Classes="Muted" TextWrapping="Wrap" AutomationProperties.AutomationId="Home_LayoutTeam_Messaggio_Text" />
+                    <TextBlock Text="{Binding MessaggioErroreLayoutTeam}" IsVisible="{Binding HaErroreLayoutTeam}" Foreground="#DC2626" TextWrapping="Wrap" AutomationProperties.AutomationId="Home_LayoutTeam_Errore_Text" />
+                </StackPanel>
+            </Border>
+
+            <!-- Contenitore delle sezioni personalizzabili: l'ordine viene applicato dalla vista (HomeView.axaml.cs)
+                 riordinando i figli per AutomationId Home_Sezione_&lt;id&gt;; visibilita' e contenuto sono nello XAML. -->
+            <StackPanel x:Name="SezioniHome" Spacing="20">
+            <TextBlock x:Name="SezioneRiepilogo" Classes="Muted" TextWrapping="Wrap" IsVisible="{Binding MostraSezioneRiepilogo}"
+                       AutomationProperties.AutomationId="Home_Sezione_riepilogo" AutomationProperties.IsControlElementOverride="True">
+                <Run Text="{Binding RiepilogoTesto}" />
+            </TextBlock>
+
+            <!-- Piano 6.4.0 punto 5(3): avviso esplicito e cliccabile per i Test senza componente associata, invece
+                 di lasciare che l'assenza di componente produca solo righe/colonne vuote e incomprensibili altrove. -->
+            <StackPanel x:Name="SezioneAvvisi" IsVisible="{Binding MostraSezioneAvvisi}" AutomationProperties.AutomationId="Home_Sezione_avvisi"
+                        AutomationProperties.IsControlElementOverride="True">
+            <Border Classes="Banner" IsVisible="{Binding MostraAvvisoTestSenzaEcu}" AutomationProperties.AutomationId="Home_AvvisoTestSenzaEcu_Border"
+                    AutomationProperties.IsControlElementOverride="True">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="{Binding TestSenzaEcuTesto}" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.AutomationId="Home_AvvisoTestSenzaEcu_Text" />
+                    <Button Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestSenzaEcuVaiAllElencoBtn}"
+                            Command="{Binding VaiATestSenzaEcuCommand}" AutomationProperties.AutomationId="Home_AvvisoTestSenzaEcu_Button" />
+                </StackPanel>
+            </Border>
+
+            </StackPanel>
+
+            <!-- KPI di reportistica/management (Addendum redesign 2026-08): quadro d'insieme sempre visibile, non legato ai filtri della dashboard sotto. Eccezione: la card "Tasso di conformita'" (Stato % / Test %) segue i filtri della dashboard (6.7.1), con gli stessi numeri del Report a parita' di filtri; le altre KPI restano globali -->
+            <UniformGrid x:Name="SezioneKpi" Columns="{Binding #SezioneKpi.Bounds.Width, Converter={x:Static local:ColonneDaLarghezzaConverter.Instance}, ConverterParameter=150|6}" IsVisible="{Binding MostraSezioneKpi}"
+                  AutomationProperties.AutomationId="Home_Sezione_kpi" AutomationProperties.IsControlElementOverride="True">
+                <Border Margin="0,0,12,12" Classes="Card"><StackPanel><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MieiTestAttiviLabel}" Classes="Muted" TextWrapping="Wrap"/><TextBlock Text="{Binding MieiAttivi}" AutomationProperties.AutomationId="Home_Kpi_MieiAttivi_Value" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold"/></StackPanel></Border>
+                <Border Margin="0,0,12,12" Classes="Card"><StackPanel><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SegnalazioniDaClassificareLabel}" Classes="Muted" TextWrapping="Wrap"/><TextBlock Text="{Binding DaClassificare}" AutomationProperties.AutomationId="Home_Kpi_DaClassificare_Value" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold"/></StackPanel></Border>
+                <Border Margin="0,0,12,12" Classes="Card"><StackPanel><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestDaRitestareLabel}" Classes="Muted" TextWrapping="Wrap"/><TextBlock Text="{Binding DaRitestare}" AutomationProperties.AutomationId="Home_Kpi_DaRitestare_Value" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold"/></StackPanel></Border>
+                <Border Margin="0,0,12,12" Classes="Card"><StackPanel><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcAperteLabel}" Classes="Muted" TextWrapping="Wrap"/><TextBlock Text="{Binding TotaleNcAperte}" AutomationProperties.AutomationId="Home_Kpi_TotaleNcAperte_Value" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold" Foreground="#DC2626"/></StackPanel></Border>
+                <!-- Change request aperte (non archiviate e non chiuse): cliccabile verso Anomalie / CR. -->
+                <Border Margin="0,0,12,12" Classes="Card">
+                    <Button Classes="Link" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Command="{Binding VaiAAnomalieCommand}" AutomationProperties.AutomationId="Home_KpiChangeRequest_Button">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrApertaLabel}" Classes="Muted" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding ChangeRequestAperte}" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold" Foreground="#1E293B"/>
+                        </StackPanel>
+                    </Button>
+                </Border>
+                <Border Margin="0,0,12,12" Classes="Card">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TassoConformitaLabel}" Classes="Muted" TextWrapping="Wrap"/>
+                        <ComboBox SelectedIndex="{Binding ModalitaPercentualeConformita}" AutomationProperties.AutomationId="Home_ModalitaPercentualeConformita_ComboBox">
+                            <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceModalitaPercentuale}"
+                                          ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceTooltipModalitaStatoPercentuale}" />
+                            <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceModalitaTestPercentuale}"
+                                          ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceTooltipModalitaTestPercentuale}" />
+                        </ComboBox>
+                        <TextBlock Text="{Binding TestoTassoConformita}" FontSize="12" FontWeight="SemiBold" Foreground="#166534" TextWrapping="Wrap" AutomationProperties.AutomationId="Home_TassoConformitaDistribuzione_Text"
+                                   ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeTooltipConformita}" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <Border x:Name="SezioneGrafici" Classes="Card" IsVisible="{Binding MostraSezioneGrafici}"
+                    AutomationProperties.AutomationId="Home_Sezione_grafici" AutomationProperties.IsControlElementOverride="True">
+                <StackPanel Spacing="14">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DashboardTitolo}" Classes="SectionTitle" Margin="0" />
+                            <TextBlock Text="{Binding KpiIterazioniTesto}" Classes="Muted" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RimuoviFiltriBtn}" Classes="Link" VerticalAlignment="Top"
+                                Command="{Binding ReimpostaFiltriDashboardCommand}" IsVisible="{Binding HaFiltriDashboardAttivi}" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="12">
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GammaVeicolareLabel}" FontSize="13" FontWeight="SemiBold" />
+                            <Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroGammaDashboard.TestoRiepilogo}" Tag="{Binding FiltroGammaDashboard}" Click="OnApriFiltroMultiSelect" AutomationProperties.AutomationId="Home_FiltroGamma_Button" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SottoveicoloLabel}" FontSize="13" FontWeight="SemiBold" />
+                            <Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroVeicoloDashboard.TestoRiepilogo}" Tag="{Binding FiltroVeicoloDashboard}" Click="OnApriFiltroMultiSelect" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="4">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TipoTestLabel}" FontSize="13" FontWeight="SemiBold" />
+                            <Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroTipoTestDashboard.TestoRiepilogo}" Tag="{Binding FiltroTipoTestDashboard}" Click="OnApriFiltroMultiSelect" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" Spacing="4">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=OperatoreEsecuzioniLabel}" FontSize="13" FontWeight="SemiBold" />
+                            <Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroOperatoreDashboard.TestoRiepilogo}" Tag="{Binding FiltroOperatoreDashboard}" Click="OnApriFiltroMultiSelect" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="4" Spacing="4">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColEsito}" FontSize="13" FontWeight="SemiBold" />
+                            <Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroEsitoDashboard.TestoRiepilogo}" Tag="{Binding FiltroEsitoDashboard}" Click="OnApriFiltroMultiSelect" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltriAvanzatiBtn}" Classes="Link" HorizontalAlignment="Left" Padding="0"
+                            Command="{Binding ToggleAltriFiltriDashboardCommand}" IsVisible="{Binding !MostraAltriFiltriDashboard}"
+                            AutomationProperties.AutomationId="Home_FiltriAvanzati_Apri_Button" />
+                    <StackPanel Spacing="10" IsVisible="{Binding MostraAltriFiltriDashboard}">
+                        <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NascondiFiltriAvanzatiBtn}" Classes="Link" HorizontalAlignment="Left" Padding="0"
+                                Command="{Binding ToggleAltriFiltriDashboardCommand}" AutomationProperties.AutomationId="Home_FiltriAvanzati_Nascondi_Button" />
+                        <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColEcu}" FontSize="13" FontWeight="SemiBold" />
+                                <Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroEcuDashboard.TestoRiepilogo}" Tag="{Binding FiltroEcuDashboard}" Click="OnApriFiltroMultiSelect" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AssegnatoALabel}" FontSize="13" FontWeight="SemiBold" />
+                                <Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroAssegnatarioDashboard.TestoRiepilogo}" Tag="{Binding FiltroAssegnatarioDashboard}" Click="OnApriFiltroMultiSelect" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="2" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FunzionalitaLabel}" FontSize="13" FontWeight="SemiBold" />
+                                <Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroFunzionalitaDashboard.TestoRiepilogo}" Tag="{Binding FiltroFunzionalitaDashboard}" Click="OnApriFiltroMultiSelect" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="3" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RequisitoLabel}" FontSize="13" FontWeight="SemiBold" />
+                                <Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroRequisitoDashboard.TestoRiepilogo}" Tag="{Binding FiltroRequisitoDashboard}" Click="OnApriFiltroMultiSelect" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="0" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=StrumentoLabel}" FontSize="13" FontWeight="SemiBold" />
+                                <Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroStrumentoDashboard.TestoRiepilogo}" Tag="{Binding FiltroStrumentoDashboard}" Click="OnApriFiltroMultiSelect" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroCategoriaFunzionalitaLabel}" FontSize="13" FontWeight="SemiBold" />
+                                <Button Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroCategoriaFunzionalitaDashboard.TestoRiepilogo}" Tag="{Binding FiltroCategoriaFunzionalitaDashboard}" Click="OnApriFiltroMultiSelect" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DataDaLabel}" FontSize="13" FontWeight="SemiBold" />
+                                <CalendarDatePicker Classes="Field" HorizontalAlignment="Stretch" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy"
+                                                    SelectedDate="{Binding DashboardDataDaTesto, Converter={x:Static local:DataTestoConverter.Instance}}"
+                                                    PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DataPlaceholder}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="3" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DataALabel}" FontSize="13" FontWeight="SemiBold" />
+                                <CalendarDatePicker Classes="Field" HorizontalAlignment="Stretch" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy"
+                                                    SelectedDate="{Binding DashboardDataATesto, Converter={x:Static local:DataTestoConverter.Instance}}"
+                                                    PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DataPlaceholder}" />
+                            </StackPanel>
+                            <!-- TIME (6.6.1): durata delle operazioni e totale minuti del Test. Operatore strettamente maggiore/minore; testo vuoto = nessun filtro. -->
+                            <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTempoOperazioneLabel}" FontSize="13" FontWeight="SemiBold" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <ComboBox Classes="Field" Width="160" SelectedIndex="{Binding OperatoreFiltroTempoOperazione}" AutomationProperties.AutomationId="Home_FiltroTempoOperazione_ComboBox">
+                                        <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTempoMaggiore}" />
+                                        <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTempoMinore}" />
+                                    </ComboBox>
+                                    <TextBox Classes="Field" Width="120" Text="{Binding TestoFiltroTempoOperazione}" Classes.CampoNonValido="{Binding FiltroTempoOperazioneHaErrore}" AutomationProperties.AutomationId="Home_FiltroTempoOperazione_TextBox" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTempoMinuti}" />
+                                </StackPanel>
+                                <TextBlock Foreground="{DynamicResource DangerBrush}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding FiltroTempoOperazioneHaErrore}"
+                                           Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTempoMinutiNonValidoMsg}"
+                                           AutomationProperties.AutomationId="Home_FiltroTempoOperazione_Errore" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" Spacing="4">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTempoTotaleTestLabel}" FontSize="13" FontWeight="SemiBold" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <ComboBox Classes="Field" Width="160" SelectedIndex="{Binding OperatoreFiltroTempoTotaleTest}" AutomationProperties.AutomationId="Home_FiltroTempoTotaleTest_ComboBox">
+                                        <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTempoMaggiore}" />
+                                        <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTempoMinore}" />
+                                    </ComboBox>
+                                    <TextBox Classes="Field" Width="120" Text="{Binding TestoFiltroTempoTotaleTest}" Classes.CampoNonValido="{Binding FiltroTempoTotaleTestHaErrore}" AutomationProperties.AutomationId="Home_FiltroTempoTotaleTest_TextBox" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTempoMinuti}" />
+                                </StackPanel>
+                                <TextBlock Foreground="{DynamicResource DangerBrush}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding FiltroTempoTotaleTestHaErrore}"
+                                           Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTempoMinutiNonValidoMsg}"
+                                           AutomationProperties.AutomationId="Home_FiltroTempoTotaleTest_Errore" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Filtri dei campi di sistema: disponibili insieme ai filtri avanzati e virtualizzati. -->
+                        <controls:FiltriCampiSistemaView Filtri="{Binding FiltriCampiCustomDashboard}" />
+                    </StackPanel>
+
+                    <TextBlock Classes="Muted FullTextTip" HorizontalAlignment="Right" Text="{Binding TestoFiltroAttivo}" IsVisible="{Binding HaFiltriDashboardAttivi}"
+                               AutomationProperties.AutomationId="Home_FiltroAttivo_Text" />
+
+                    <!-- Pannello grafici: tabella dei grafici disponibili sulla destra (spunta/togli per
+                         avere più grafici visibili insieme), area grafici renderizzati a sinistra. -->
+                    <Grid x:Name="GrigliaPannelloGrafici" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="320" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="190" MinWidth="150" MaxWidth="440" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="10">
+                            <!-- Ogni card mantiene la propria larghezza e passa alla riga successiva quando serve:
+                                 il ridimensionamento di un grafico non impatta le dimensioni degli altri. -->
+                            <ItemsControl ItemsSource="{Binding ChartsAttivi}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ChartRenderizzato">
+                                        <views:GraficoCard />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NessunGraficoSelezionato}" Classes="Muted" IsVisible="{Binding !ChartsAttivi.Count}" />
+                        </StackPanel>
+                        <GridSplitter x:Name="SplitterPannelloGrafici" Grid.Column="1" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                                       HorizontalAlignment="Stretch" Background="{DynamicResource BorderSubtleBrush}"
+                                       ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeGraficiSplitterTip}"
+                                       AutomationProperties.AutomationId="Home_Grafici_PannelloSplitter" />
+                        <Border Grid.Column="2" Background="#F8FAFC" CornerRadius="8" Padding="12" VerticalAlignment="Top">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficiLabel}" FontWeight="SemiBold" FontSize="13" />
+                                <ItemsControl ItemsSource="{Binding ChartOptions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ChartOption">
+                                            <StackPanel Spacing="2" Margin="0,4">
+                                                <CheckBox Content="{Binding Titolo}" IsChecked="{Binding Selezionato}" FontSize="13"
+                                                          AutomationProperties.AutomationId="{Binding AutomationIdCheckBox}" />
+                                                <!-- Selettore tipo di rappresentazione (solo tipi compatibili col dato): preferenza locale. -->
+                                                <ComboBox ItemsSource="{Binding TipiDisponibili}" SelectedItem="{Binding TipoSelezionato}"
+                                                          IsVisible="{Binding HaSelettoreTipo}"                                                          HorizontalAlignment="Stretch" FontSize="12" Margin="24,0,0,0"
+                                                          AutomationProperties.AutomationId="{Binding AutomationIdSelettoreTipo}"
+                                                          AutomationProperties.Name="{Binding Titolo}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
+                        <StackPanel Grid.Column="0" Spacing="6">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EsecuzioniPerOperatoreLabel}" Classes="Muted" FontWeight="SemiBold" />
+                            <ItemsControl ItemsSource="{Binding PerOperatore}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:WidgetRiga">
+                                        <Button Classes="Link" HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch" Padding="0" Margin="0,3"
+                                                Command="{Binding #Root.((vm:HomeViewModel)DataContext).FiltraDashboardPerOperatoreCommand}"
+                                                CommandParameter="{Binding Etichetta}">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="{Binding Etichetta}" TextTrimming="CharacterEllipsis" Foreground="#1E293B" ToolTip.Tip="{Binding Etichetta}" />
+                                                <TextBlock Grid.Column="1" Classes="Muted">
+                                                    <Run Text="{Binding Valore}" /><Run Text=" " /><Run Text="{Binding Sottotitolo}" />
+                                                </TextBlock>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NessunDatoDisponibile}" Classes="Muted" IsVisible="{Binding !PerOperatore.Count}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="6">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestPerGammaLabel}" Classes="Muted" FontWeight="SemiBold" />
+                            <ItemsControl ItemsSource="{Binding PerGamma}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:WidgetRiga">
+                                        <Button Classes="Link" HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch" Padding="0" Margin="0,3"
+                                                Command="{Binding #Root.((vm:HomeViewModel)DataContext).FiltraDashboardPerGammaCommand}"
+                                                CommandParameter="{Binding Etichetta}">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="{Binding Etichetta}" TextTrimming="CharacterEllipsis" Foreground="#1E293B" ToolTip.Tip="{Binding Etichetta}" />
+                                                <TextBlock Grid.Column="1" Classes="Muted">
+                                                    <Run Text="{Binding Valore}" /><Run Text=" " /><Run Text="{Binding Sottotitolo}" />
+                                                </TextBlock>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NessunDatoDisponibile}" Classes="Muted" IsVisible="{Binding !PerGamma.Count}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <StackPanel x:Name="SezioneListe" Spacing="20" IsVisible="{Binding MostraSezioneListe}"
+                        AutomationProperties.AutomationId="Home_Sezione_liste" AutomationProperties.IsControlElementOverride="True">
+            <!-- Cerca spostata sopra le due liste (Addendum §11, feedback QA): filtra direttamente Da fare/
+                 Fatti invece di aprire un terzo elenco separato più sotto, dove si perdeva di vista. -->
+            <Border Classes="Card">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CercaArchivioTitolo}" Classes="SectionTitle" Margin="0" />
+                    <TextBox services:Spotlight.TargetId="home-filter" services:ScorciatoieTastiera.CampoFiltroPrincipale="True" Classes="Field" Text="{Binding TestoRicerca}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CercaArchivioPlaceholder}">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding ConfermaRicercaTestoCommand}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
+                </StackPanel>
+            </Border>
+
+            <!-- Massimo ~12 righe subito visibili, il resto scorre dentro la card invece di allungarla
+                 all'infinito e far perdere di vista il resto della pagina (Addendum §11, feedback QA). -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
+                <Border Grid.Column="0" Classes="Card" Padding="0">
+                    <StackPanel Spacing="0">
+                        <Grid ColumnDefinitions="*,Auto" Margin="16,16,16,10">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DaFareTitolo}" Classes="SectionTitle" Margin="0" />
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DaFareSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Grid>
+                        <ListBox MaxHeight="620" ItemsSource="{Binding DaFare}" ItemTemplate="{StaticResource RigaTestCaseCompatta}" AutomationProperties.AutomationId="Home_DaFare_Lista"
+                                 SelectionMode="Single" Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                        </ListBox>
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NienteDaFare}" Classes="Muted" Margin="16" HorizontalAlignment="Center"
+                                   IsVisible="{Binding DaFareVuoto}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Classes="Card" Padding="0">
+                    <StackPanel Spacing="0">
+                        <Grid ColumnDefinitions="*,Auto" Margin="16,16,16,10">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FattiTitolo}" Classes="SectionTitle" Margin="0" />
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FattiSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SoloIMieiLabel}" IsChecked="{Binding SoloMiei}" VerticalAlignment="Center" />
+                        </Grid>
+                        <ListBox MaxHeight="620" ItemsSource="{Binding Fatti}" ItemTemplate="{StaticResource RigaTestCaseCompatta}"
+                                 SelectionMode="Single" Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                        </ListBox>
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AncoraNessunTestConcluso}" Classes="Muted" Margin="16" HorizontalAlignment="Center"
+                                   IsVisible="{Binding FattiVuoto}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+            </StackPanel>
+
+            <!-- Recenti: Test, Change Request e segnalazioni aperti di recente su questo PC (preferenza locale).
+                 Un elemento che non esiste piu' non compare, ma resta salvato. -->
+            <Border x:Name="SezioneRecenti" Classes="Card" IsVisible="{Binding MostraSezioneRecenti}"
+                    AutomationProperties.AutomationId="Home_Sezione_recenti" AutomationProperties.IsControlElementOverride="True">
+                <StackPanel Spacing="8" Margin="16">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeSezioneRecenti}" Classes="SectionTitle" Margin="0" />
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeRecentiDescr}" Classes="Muted" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding Recenti}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:VoceRecenteHome">
+                                <Border BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="0,8">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                        <Border Grid.Column="0" Classes="Badge" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding EtichettaTipo}" FontSize="11" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Id}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Id}" />
+                                            <TextBlock Text="{Binding TitoloVisualizzato}" Classes="Muted" FontSize="13" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TitoloVisualizzato}" />
+                                            <TextBlock Text="{Binding AperturaTesto}" Classes="Muted" FontSize="12" />
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Classes="Link" VerticalAlignment="Center"
+                                                Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeRecentiApriBtn}"
+                                                Command="{Binding #Root.((vm:HomeViewModel)DataContext).ApriRecenteCommand}" CommandParameter="{Binding}"
+                                                AutomationProperties.AutomationId="{Binding AutomationIdApri}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeRecentiVuoto}" Classes="Muted" IsVisible="{Binding RecentiVuoti}" />
+                </StackPanel>
+            </Border>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

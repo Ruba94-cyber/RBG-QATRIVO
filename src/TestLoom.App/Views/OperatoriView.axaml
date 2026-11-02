@@ -1,0 +1,226 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:services="using:TestLoom.App.Services"
+             xmlns:local="using:TestLoom.App"
+             xmlns:models="using:TestLoom.App.Models"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="TestLoom.App.Views.OperatoriView"
+             x:DataType="vm:OperatoriViewModel"
+             x:Name="Root">
+<Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="{DynamicResource PagePadding}" IsEnabled="{Binding InterazioneEditorAbilitata}">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=OperatoriTitolo}" Classes="PageTitle" />
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=OperatoriSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+            </StackPanel>
+            <WrapPanel Grid.Column="1" Classes="AzioniPagina" MaxWidth="560">
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Modifica}" Classes="Secondary" Command="{Binding IniziaModificaCommand}" IsVisible="{Binding MostraModifica}" AutomationProperties.AutomationId="Oper_Modifica_Button" />
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoGenerico}" Classes="Secondary" Command="{Binding NuovoCommand}" IsVisible="{Binding InModifica}" AutomationProperties.AutomationId="Oper_Nuovo_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoTooltipCtrlN}" />
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" Classes="Secondary" Command="{Binding AnnullaCommand}" IsVisible="{Binding InModifica}" AutomationProperties.AutomationId="Oper_Annulla_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnnullaTooltipEsc}" />
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Salva}" Classes="Primary" Command="{Binding SalvaCommand}" IsVisible="{Binding InModifica}" AutomationProperties.AutomationId="Oper_Salva_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SalvaTooltipCtrlS}" />
+            </WrapPanel>
+        </Grid>
+
+        <!-- Banner lock/errore/esito: sempre visibili, fuori dall'area scorrevole (un errore di Salva non deve finire fuori vista). -->
+        <StackPanel Grid.Row="1">
+            <Border Classes="Banner BannerAvviso" IsVisible="{Binding AvvisoLockNonConfermato}" Margin="0,12,0,0">
+                <TextBlock Text="{Binding AvvisoLockNonConfermatoTesto}" TextWrapping="Wrap" />
+            </Border>
+            <Border Classes="Banner BannerAvviso" IsVisible="{Binding LockDetenutoDaAltri}" Margin="0,12,0,0">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding LockInfoTesto, StringFormat='🔒 {0}'}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ForzaSbloccoBtn}" Classes="Link" Command="{Binding ForzaSbloccoCommand}" />
+                </Grid>
+            </Border>
+
+            <Border Classes="Banner BannerErrore" IsVisible="{Binding HaMessaggioErrore}" Margin="0,12,0,0">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{Binding MessaggioErrore}" TextWrapping="Wrap" />
+                    <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RiprovaIndice}" Classes="Link" Command="{Binding RiprovaRilascioLockCommand}" IsVisible="{Binding RilascioLockInAttesa}" AutomationProperties.AutomationId="Operatori_RiprovaRilascioLock_Button" />
+                </Grid>
+            </Border>
+        </StackPanel>
+
+        <!-- Zona sopra la tabella: altezza limitata e scorrevole, cosi' la griglia principale mantiene sempre
+             un'altezza minima utile (NON mettere mai la DataGrid dentro questo ScrollViewer: spezza la virtualizzazione). -->
+        <ScrollViewer Grid.Row="2" MaxHeight="{Binding #Root.Bounds.Height, Converter={x:Static local:AltezzaResiduaConverter.Instance}, ConverterParameter=400}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <!-- Avviso ruolo non sigillato/manomesso (piano 6.4.2, §4b, punto 2): visibile solo ai Master, l'operatore
+                     conta comunque già come Viewer (Operatore.RuoloEffettivo, punto unico) prima ancora di questo avviso. -->
+                <Border Classes="Banner BannerAvviso" IsVisible="{Binding HaOperatoriConRuoloNonSigillato}" Margin="0,12,0,0">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=OperatoriRuoloManomessoAvviso}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding OperatoriConRuoloNonSigillatoTesto}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+
+                <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,0">
+                    <TextBox Grid.Column="0" Classes="Field" Text="{Binding FiltroTesto}"
+                              PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CercaMasterDataPlaceholder}" />
+                    <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RimuoviFiltriBtn}" Classes="Link"
+                            Margin="8,0,0,0" Command="{Binding ReimpostaFiltriCommand}" IsVisible="{Binding HaFiltriAttivi}" />
+                </Grid>
+
+                <Border Classes="Banner BannerAvviso" Margin="0,12,0,0" IsVisible="{Binding Unione.MostraCoppieSospette}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterUnioneCoppieSospetteTitolo}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterUnioneCoppieSospetteSottotitolo}" Classes="Muted" FontSize="13" TextWrapping="Wrap" />
+                        <!-- Coppie virtualizzate (6.6.1): ListBox con pannello virtualizzato e altezza dal layout, come in WU Status. -->
+                        <ListBox ItemsSource="{Binding Unione.CoppieSospette}" MaxHeight="{Binding #Root.Bounds.Height, Converter={x:Static local:AltezzaResiduaConverter.Instance}, ConverterParameter=420|120}"
+                                 Background="Transparent" BorderThickness="0" Padding="0" SelectionMode="Single"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" KeyboardNavigation.TabNavigation="Continue"
+                                 AutomationProperties.AutomationId="Operatori_CoppieSospette_Lista">
+                            <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                            <ListBox.Styles>
+                                <Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="Background" Value="Transparent" /><Setter Property="CornerRadius" Value="0" /></Style>
+                                <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+                                <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+                            </ListBox.Styles>
+                            <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:CoppiaSospettaMaster">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                                            <TextBlock Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center">
+                                                <Run Text="{Binding A}" FontWeight="SemiBold" /><Run Text=" ↔ " /><Run Text="{Binding B}" FontWeight="SemiBold" />
+                                            </TextBlock>
+                                            <Button Grid.Column="1" Classes="Secondary" Padding="8,4" Margin="8,0,0,0" AutomationProperties.AutomationId="OperBtnUnisciRapido"
+                                                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=WuUnisciRapidoBtn}"
+                                                    Command="{Binding #Root.((vm:OperatoriViewModel)DataContext).Unione.UnisciCoppiaSospettaCommand}" CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+                </Border>
+
+                <Expander Margin="0,12,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False" IsVisible="{Binding Unione.MostraPannello}" Header="{Binding Unione.TitoloPannello}" AutomationProperties.AutomationId="OperUnioneExpander">
+                    <StackPanel Spacing="8" Margin="0,8,0,0">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterUnioneNessunaSelezione}" Classes="Muted" IsVisible="{Binding !Unione.HaSelezione}" />
+                        <Border Classes="Banner BannerErrore" IsVisible="{Binding Unione.HaErroreOperazione}"><TextBlock Text="{Binding Unione.ErroreOperazione}" TextWrapping="Wrap" AutomationProperties.AutomationId="OperUnioneErrore_Text" /></Border>
+                        <Border Classes="Banner BannerSuccesso" IsVisible="{Binding Unione.HaMessaggioEsito}"><TextBlock Classes="BannerSuccessoTesto" Text="{Binding Unione.MessaggioEsito}" AutomationProperties.AutomationId="OperUnioneEsito_Text" /></Border>
+                        <TextBlock Text="{Binding Unione.ProgressoTesto}" Classes="Muted" TextWrapping="Wrap" IsVisible="{Binding Unione.IsBusy}" AutomationProperties.AutomationId="OperUnioneAvanzamento" />
+                        <StackPanel Spacing="8" IsEnabled="{Binding Unione.PannelloAbilitato}">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding Unione.HaSelezione}">
+                            <ComboBox Grid.Column="0" Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding Unione.AltreVociPerUnione}" SelectedItem="{Binding Unione.VocePerUnioneSelezionata}"
+                                      PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterUnisciInPlaceholder}"
+                                      AutomationProperties.AutomationId="OperComboUnisciIn"
+                                      IsVisible="{Binding Unione.AltreVociPerUnione, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}" />
+                            <Button Grid.Column="0" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding Unione.VocePerUnioneTesto}" Command="{Binding Unione.ScegliVocePerUnioneCommand}"
+                                    IsVisible="{Binding Unione.AltreVociPerUnione, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}" AutomationProperties.AutomationId="OperBtnScegliUnisciIn" />
+                            <Button Grid.Column="1" Classes="Secondary" AutomationProperties.AutomationId="OperBtnUnisci"
+                                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterUnisciBtn}"
+                                    Command="{Binding Unione.UnisciSelezionataCommand}" IsEnabled="{Binding Unione.VocePerUnioneSelezionata, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding Unione.HaSelezione}">
+                            <TextBox Grid.Column="0" Classes="Field" Text="{Binding Unione.NuovoNomeRinomina}"
+                                     PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterRinominaInPlaceholder}"
+                                     AutomationProperties.AutomationId="OperTextRinominaIn" />
+                            <Button Grid.Column="1" Classes="Secondary" AutomationProperties.AutomationId="OperBtnRinomina"
+                                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterRinominaBtn}"
+                                    Command="{Binding Unione.RinominaSelezionataCommand}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding Unione.HaSelezione}">
+                            <TextBox Grid.Column="0" Classes="Field" Text="{Binding Unione.VociDivisioneTesto}"
+                                     PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterDividiInPlaceholder}"
+                                     AutomationProperties.AutomationId="OperTextDividiIn" />
+                            <Button Grid.Column="1" Classes="Secondary" AutomationProperties.AutomationId="OperBtnDividi"
+                                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterDividiBtn}"
+                                    Command="{Binding Unione.DividiSelezionataCommand}" />
+                        </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </Expander>
+            </StackPanel>
+        </ScrollViewer>
+
+
+        <DataGrid x:Name="GridPrincipale" BeginningEdit="OnGridBeginningEdit" SelectionChanged="OnSelezioneOperatoreCambiata" HorizontalScrollBarVisibility="Auto" services:TableLayoutPreferences.TableId="operators" CanUserResizeColumns="True" Grid.Row="3" MinHeight="200" Margin="0,16,0,0" ItemsSource="{Binding ItemsAttivi}" IsReadOnly="{Binding !InModifica}"
+                  SelectedItem="{Binding ElementoSelezionato}"
+                  AutoGenerateColumns="False" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColNome}" Binding="{Binding Nome}" SortMemberPath="Nome" Width="*" MinWidth="120" />
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColIniziali}" Binding="{Binding Iniziali}" Width="90" MinWidth="90" />
+                <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColRuolo}" Width="125">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="models:Operatore">
+                            <ComboBox ItemsSource="{Binding #Root.((vm:OperatoriViewModel)DataContext).Ruoli}" SelectedItem="{Binding Ruolo}" HorizontalAlignment="Stretch" Margin="2"
+                                      IsEnabled="{Binding #Root.((vm:OperatoriViewModel)DataContext).InModifica}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColGammeAssegnate}" Width="160" MinWidth="160">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="models:Operatore">
+                            <Button x:Name="GammeBtn" Content="{Binding GammeAssegnateTesto}" Classes="Link" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Click="OnScegliGamme" Tag="{Binding}" ToolTip.Tip="{Binding GammeAssegnateTesto}"
+                                    IsEnabled="{Binding #Root.((vm:OperatoriViewModel)DataContext).InModifica}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColUltimaModifica}" Binding="{Binding UltimaModifica, Mode=OneWay, StringFormat={}{0:dd/MM/yyyy HH:mm}}" Width="140" MinWidth="140" IsReadOnly="True" />
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDa}" Binding="{Binding ModificatoDa}" Width="120" MinWidth="120" IsReadOnly="True" />
+                <DataGridTemplateColumn Width="Auto">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="models:Operatore">
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DisattivaBtn}" Classes="Link"
+                                    IsEnabled="{Binding #Root.((vm:OperatoriViewModel)DataContext).InModifica}"
+                                    Command="{Binding #Root.((vm:OperatoriViewModel)DataContext).ArchiviaCommand}" CommandParameter="{Binding}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Stato vuoto: sovrapposto alla griglia, non intercetta i click. -->
+        <StackPanel Grid.Row="3" Classes="ElencoVuotoOverlay" Margin="0,40,0,0">
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ElencoVuoto}" Classes="Muted" HorizontalAlignment="Center" IsVisible="{Binding MostraElencoVuoto}" AutomationProperties.AutomationId="Oper_ElencoVuoto_Text" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ElencoVuotoFiltrato}" Classes="Muted" HorizontalAlignment="Center" IsVisible="{Binding MostraElencoVuotoFiltrato}" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ElencoVuotoSuggerimento}" Classes="Muted" HorizontalAlignment="Center" IsVisible="{Binding MostraSuggerimentoElencoVuoto}" />
+        </StackPanel>
+
+        <!-- Gestione PIN e chiave di recupero dell'operatore SELEZIONATO (G2 6.4.5: prima ogni riga conteneva
+             PIN attuale, chiave, campo nuovo PIN e pulsanti, 130 px per riga e colonna tagliata a 1280x800).
+             Stessa semantica di prima: PIN e chiave sono dati sensibili di TUTTI gli operatori, riservati a un
+             Master (collaudo 2026-08-24); la modifica resta abilitata solo in modifica (disabilitata/grigia in
+             sola lettura); il PIN attuale e' mascherato finche' non si preme "Mostra". -->
+        <TextBlock Grid.Row="4" Margin="0,10,0,0" Classes="Muted" FontSize="12" IsVisible="{Binding !EMaster}"
+                   Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PinRiservatoMaster}"
+                   AutomationProperties.AutomationId="Oper_PinRiservatoMaster_Text" />
+        <Border Grid.Row="4" Margin="0,10,0,0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,8"
+                IsVisible="{Binding EMaster}" AutomationProperties.AutomationId="Oper_PinBlockMaster_Border">
+            <StackPanel Spacing="6">
+                <TextBlock Classes="Muted" FontSize="12" IsVisible="{Binding ElementoSelezionato, Converter={x:Static conv:ObjectConverters.IsNull}}"
+                           Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=OperPinSelezionaOperatore}" AutomationProperties.AutomationId="Oper_PinSeleziona_Text" />
+                <StackPanel Spacing="6" DataContext="{Binding ElementoSelezionato}" x:DataType="models:Operatore"
+                            IsVisible="{Binding $self.DataContext, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+                    <TextBlock FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis">
+                        <Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColNuovoPin}" /><Run Text="  ·  " /><Run Text="{Binding Nome}" />
+                    </TextBlock>
+                    <WrapPanel ItemSpacing="18" LineSpacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoPinGeneratoLabel}" FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8" VerticalAlignment="Center" />
+                            <TextBox x:Name="PinAttualeBox" Classes="Field" Width="80" Padding="4" FontSize="13" FontFamily="Consolas,monospace" IsReadOnly="True"
+                                     Text="{Binding PinChiaro, Mode=OneWay, FallbackValue='—', TargetNullValue='—'}" PasswordChar="•"
+                                     RevealPassword="{Binding #MostraPinCheck.IsChecked}" AutomationProperties.AutomationId="Oper_PinAttuale_TextBox" />
+                            <CheckBox x:Name="MostraPinCheck" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=OperPinMostra}" FontSize="12" VerticalAlignment="Center" AutomationProperties.AutomationId="Oper_MostraPin_Check" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CodiceLabel}" FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8" VerticalAlignment="Center" />
+                            <SelectableTextBlock Text="{Binding RecoveryCodeChiaro, FallbackValue='—', TargetNullValue='—'}" FontFamily="Consolas,monospace" FontSize="13" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </WrapPanel>
+                    <WrapPanel ItemSpacing="6" LineSpacing="4" IsEnabled="{Binding #Root.((vm:OperatoriViewModel)DataContext).InModifica}">
+                        <TextBox Classes="Field" Width="110" Padding="4" FontSize="12" Text="{Binding NuovoPinTemp}"
+                                 PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoPinPlaceholder}" AutomationProperties.AutomationId="Oper_NuovoPin_TextBox" />
+                        <Button Classes="Secondary" Padding="6,4" FontSize="12" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ConfermaPinBtn}"
+                                ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ConfermaPinTooltip}"
+                                Command="{Binding #Root.((vm:OperatoriViewModel)DataContext).ImpostaPinCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="Oper_ImpostaPin_Button" />
+                        <Button Classes="Link" Padding="0" VerticalAlignment="Center" FontSize="12" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RigeneraChiaveBtn}"
+                                ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RigeneraChiaveTooltip}"
+                                Command="{Binding #Root.((vm:OperatoriViewModel)DataContext).RigeneraChiaveRecuperoCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="Oper_RigeneraChiave_Button" />
+                    </WrapPanel>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

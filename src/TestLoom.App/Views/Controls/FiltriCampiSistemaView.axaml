@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             x:Class="TestLoom.App.Views.Controls.FiltriCampiSistemaView">
+    <UserControl.Styles>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="ListBoxItem:selected">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBoxItem:selected:pointerover">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Viewport a altezza finita per i filtri dei campi di sistema (un centinaio e oltre). Il ListBox usa un
+         VirtualizingStackPanel e il proprio ScrollViewer: si realizzano solo le righe visibili, non un contenitore per campo.
+         I filtri di base della pagina restano fuori da questo controllo e non cambiano layout. -->
+    <ListBox x:Name="Lista" MaxHeight="220" Padding="0" Background="Transparent" BorderThickness="0"
+             AutomationProperties.AutomationId="FiltriCampiSistema_Lista">
+        <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:FiltroCampoCustom">
+                <Grid ColumnDefinitions="180,*" ColumnSpacing="10" Margin="0,3">
+                    <TextBlock Grid.Column="0" Text="{Binding Etichetta}" FontSize="13" FontWeight="SemiBold"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Etichetta}" />
+                    <Button Grid.Column="1" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Content="{Binding Filtro.TestoRiepilogo}" Tag="{Binding Filtro}" Click="OnApriFiltro"
+                            AutomationProperties.AutomationId="{Binding Chiave, StringFormat='FiltroCampoSistema_{0}_Button'}" />
+                </Grid>
+            </DataTemplate>
+        </ListBox.ItemTemplate>
+    </ListBox>
+</UserControl>

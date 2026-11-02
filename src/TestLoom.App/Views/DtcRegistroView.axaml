@@ -1,0 +1,128 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:services="using:TestLoom.App.Services"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="TestLoom.App.Views.DtcRegistroView"
+             x:DataType="vm:DtcRegistroViewModel"
+             x:Name="Root">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="{DynamicResource PagePadding}">
+        <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Classes="PageTitle"
+                       Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroTitolo}"
+                       AutomationProperties.AutomationId="DtcRegistro_Titolo_Text" />
+            <TextBlock Classes="Muted" TextWrapping="Wrap"
+                       Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroSottotitolo}" />
+        </StackPanel>
+
+        <WrapPanel Grid.Row="1" Orientation="Horizontal" ItemSpacing="8" LineSpacing="6" Margin="0,14,0,0">
+            <TextBox Classes="Field" Width="250" Text="{Binding FiltroTesto}"
+                     PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroCercaPlaceholder}"
+                     AutomationProperties.AutomationId="DtcRegistro_FiltroTesto_Input" />
+            <ComboBox Classes="Field" Width="210" ItemsSource="{Binding VeicoliFiltro}" SelectedItem="{Binding VeicoloSelezionato}"
+                      AutomationProperties.AutomationId="DtcRegistro_FiltroVeicolo_Combo">
+                <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:DtcRegistroVeicoloFiltro"><TextBlock Text="{Binding Etichetta}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox Classes="Field" Width="190" ItemsSource="{Binding PassiFiltro}" SelectedItem="{Binding PassoSelezionato}"
+                      AutomationProperties.AutomationId="DtcRegistro_FiltroPasso_Combo">
+                <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:DtcRegistroPassoFiltro"><TextBlock Text="{Binding Etichetta}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+            <CheckBox Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroSoloProblemi}"
+                      IsChecked="{Binding SoloProblemi}" VerticalAlignment="Center" AutomationProperties.AutomationId="DtcRegistro_SoloProblemi_CheckBox" />
+            <CheckBox Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroSoloSenzaRequisito}"
+                      IsChecked="{Binding SoloSenzaRequisito}" VerticalAlignment="Center" AutomationProperties.AutomationId="DtcRegistro_SenzaRequisito_CheckBox" />
+            <Button Classes="Link" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RimuoviFiltriBtn}"
+                    Command="{Binding AzzeraFiltriCommand}" IsVisible="{Binding HaFiltriAttivi}" AutomationProperties.AutomationId="DtcRegistro_AzzeraFiltri_Button" />
+            <Button Classes="Secondary" Content="{Binding TestoAssociaSelezionate}" Command="{Binding AssociaSelezionateCommand}"
+                    IsVisible="{Binding PuoAssociareSelezionate}" AutomationProperties.AutomationId="DtcRegistro_AssociaSelezionate_Button" />
+            <Button Classes="Secondary" Content="{Binding TestoAssociaDaRequisito}" Command="{Binding AssociaDaRequisitoCommand}"
+                    IsEnabled="{Binding PuoAssociareDaRequisito}" AutomationProperties.AutomationId="DtcRegistro_AssociaDaRequisito_Button" />
+            <Button Classes="Primary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroEsportaExcel}"
+                    Click="OnEsportaExcel" IsEnabled="{Binding PuoEsportare}" AutomationProperties.AutomationId="DtcRegistro_EsportaExcel_Button" />
+        </WrapPanel>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+            <TextBlock Grid.Column="0" Classes="Muted" FontSize="12" Text="{Binding TestoTotale}" AutomationProperties.AutomationId="DtcRegistro_Totale_Text" />
+            <TextBlock Grid.Column="1" Classes="Muted" FontSize="12" IsVisible="{Binding Caricamento}"
+                       Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CaricamentoPagina}"
+                       AutomationProperties.AutomationId="DtcRegistro_Caricamento_Text" />
+        </Grid>
+
+        <Grid Grid.Row="3" RowDefinitions="*,Auto,Auto" Margin="0,8,0,0">
+            <DataGrid Grid.Row="0" x:Name="DtcRegistro_Righe_Grid" services:TableLayoutPreferences.TableId="guasto-registro" ItemsSource="{Binding Righe}" SelectedItem="{Binding Selezionata}" SelectionMode="Extended" SelectionChanged="OnSelezioneCambiata"
+                      IsReadOnly="True" AutoGenerateColumns="False" CanUserResizeColumns="True"
+                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                      GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                      AutomationProperties.AutomationId="DtcRegistro_Righe_Grid">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColVeicolo}" Binding="{Binding VeicoloVisualizzato}" Width="170" MinWidth="120" />
+                    <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColEcu}" Binding="{Binding EcuVisualizzata}" Width="150" MinWidth="100" />
+                    <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColRequisito}" Binding="{Binding RequisitoVisualizzato}" Width="190" MinWidth="130" />
+                    <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColAssociazione}" Binding="{Binding StatoAssociazioneTesto}" Width="130" MinWidth="100" />
+                    <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColDtc}" Binding="{Binding Guasto}" Width="135" MinWidth="100" />
+                    <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColPasso}" Binding="{Binding PassoTesto}" Width="155" MinWidth="120" />
+                    <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColEsito}" Binding="{Binding EsitoTesto}" Width="190" MinWidth="130" />
+                    <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColTest}" Binding="{Binding TestId}" Width="150" MinWidth="110" />
+                    <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColRevisione}" Binding="{Binding NumeroRevisione}" Width="100" MinWidth="75" />
+                    <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColData}" Binding="{Binding DataTesto}" Width="155" MinWidth="125" />
+                    <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColOperatore}" Binding="{Binding Operatore}" Width="140" MinWidth="100" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <Border Grid.Row="1" Classes="Banner BannerErrore" Margin="0,8,0,0" IsVisible="{Binding MessaggioErrore, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding MessaggioErrore}" TextWrapping="Wrap" />
+            </Border>
+
+            <Border Grid.Row="2" Classes="Banner BannerAvviso" Margin="0,8,0,0" IsVisible="{Binding HaDettaglio}">
+                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="5">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <TextBlock Grid.Column="0" FontWeight="SemiBold" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroDettaglioTitolo}" />
+                        <Button Grid.Column="1" Classes="Link" Padding="0" HorizontalAlignment="Left" Content="{Binding Selezionata.TestId}"
+                                Command="{Binding ApriTestCommand}" CommandParameter="{Binding Selezionata.TestId}" AutomationProperties.AutomationId="DtcRegistro_ApriTest_Button" />
+                        <Button Grid.Column="2" Classes="Link" Padding="0" Content="✕" Command="{Binding ChiudiDettaglioCommand}"
+                                ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DettaglioChiudiTip}" />
+                    </Grid>
+                    <WrapPanel Orientation="Horizontal" ItemSpacing="20" LineSpacing="4">
+                        <TextBlock TextWrapping="Wrap"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColVeicolo}" /><Run Text=": " /><Run Text="{Binding Selezionata.VeicoloVisualizzato}" /></TextBlock>
+                        <TextBlock TextWrapping="Wrap"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColEcu}" /><Run Text=": " /><Run Text="{Binding Selezionata.EcuVisualizzata}" /></TextBlock>
+                        <TextBlock TextWrapping="Wrap"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColRequisito}" /><Run Text=": " /><Run Text="{Binding Selezionata.RequisitoVisualizzato}" /></TextBlock>
+                        <TextBlock TextWrapping="Wrap"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColPasso}" /><Run Text=": " /><Run Text="{Binding Selezionata.PassoTesto}" /></TextBlock>
+                        <TextBlock TextWrapping="Wrap"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColEsito}" /><Run Text=": " /><Run Text="{Binding Selezionata.EsitoTesto}" /></TextBlock>
+                        <TextBlock TextWrapping="Wrap"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColStrumento}" /><Run Text=": " /><Run Text="{Binding Dettaglio.Strumento}" /></TextBlock>
+                        <TextBlock TextWrapping="Wrap"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColStrumentiTest}" /><Run Text=": " /><Run Text="{Binding Dettaglio.StrumentiTest}" /></TextBlock>
+                        <TextBlock TextWrapping="Wrap"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColOperatore}" /><Run Text=": " /><Run Text="{Binding Selezionata.Operatore}" /><Run Text=" · " /><Run Text="{Binding Selezionata.DataTesto}" /></TextBlock>
+                    </WrapPanel>
+                    <TextBlock TextWrapping="Wrap" IsVisible="{Binding Dettaglio.Nota, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"><Run FontWeight="SemiBold" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColNota}" /><Run Text=": " /><Run Text="{Binding Dettaglio.Nota}" /></TextBlock>
+                    <TextBlock TextWrapping="Wrap" IsVisible="{Binding Dettaglio.Deviazione, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"><Run FontWeight="SemiBold" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColDeviazione}" /><Run Text=": " /><Run Text="{Binding Dettaglio.Deviazione}" /></TextBlock>
+                    <TextBlock TextWrapping="Wrap" IsVisible="{Binding Dettaglio.Problema, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"><Run FontWeight="SemiBold" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColProblema}" /><Run Text=": " /><Run Text="{Binding Dettaglio.Problema}" /></TextBlock>
+                    <TextBlock TextWrapping="Wrap" IsVisible="{Binding Dettaglio.MotivazioneNonApplicabile, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"><Run FontWeight="SemiBold" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroColMotivazioneNa}" /><Run Text=": " /><Run Text="{Binding Dettaglio.MotivazioneNonApplicabile}" /></TextBlock>
+                    <Button Classes="Secondary" HorizontalAlignment="Left" Content="{Binding TestoAssociaRequisito}"
+                            Command="{Binding AssociaRequisitoCommand}" IsEnabled="{Binding !AssociazioneInCorso}"
+                            IsVisible="{Binding PuoAssociareRequisito}"
+                            AutomationProperties.AutomationId="DtcRegistro_AssociaRequisito_Button" />
+                    <TextBlock Classes="Muted" TextWrapping="Wrap" Text="{Binding TestoAvvisoRevisioneStorica}"
+                               IsVisible="{Binding MostraAvvisoRevisioneStorica}"
+                               AutomationProperties.AutomationId="DtcRegistro_RevisioneStorica_Text" />
+                    <TextBlock Classes="Muted" TextWrapping="Wrap" Text="{Binding MessaggioAssociazione}"
+                               IsVisible="{Binding MessaggioAssociazione, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"
+                               AutomationProperties.AutomationId="DtcRegistro_AssociazioneMessaggio_Text" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,0">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                <Button Classes="Secondary" Content="◀" Command="{Binding PaginaPrecedenteCommand}" IsEnabled="{Binding PuoPaginaPrecedente}"
+                        ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaPrecedenteTip}"
+                        AutomationProperties.AutomationId="DtcRegistro_PaginaPrecedente_Button" />
+                <Button Classes="Secondary" Content="▶" Command="{Binding PaginaSuccessivaCommand}" IsEnabled="{Binding PuoPaginaSuccessiva}"
+                        ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaSuccessivaTip}"
+                        AutomationProperties.AutomationId="DtcRegistro_PaginaSuccessiva_Button" />
+            </StackPanel>
+            <TextBlock Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="Muted"><Run Text="{Binding PaginaCorrente}" /><Run Text=" / " /><Run Text="{Binding PagineTotali}" /></TextBlock>
+            <TextBlock Grid.Column="2" Classes="Muted" VerticalAlignment="Center" IsVisible="{Binding MessaggioPagina, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" Text="{Binding MessaggioPagina}" />
+        </Grid>
+    </Grid>
+</UserControl>

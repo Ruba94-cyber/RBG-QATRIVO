@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net10.0-windows (non il semplice net10.0 dell'app principale, che è Avalonia cross-platform): FlaUI e
+         System.Windows.Automation sono API Windows-only, e senza il suffisso -windows NuGet risolve i
+         pacchetti FlaUI.* solo via fallback .NET Framework 4.8 (nessun asset net10.0 pubblicato). -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <!-- UIA3 (default): usa direttamente System.Windows.Automation su Windows, niente driver esterni. -->
+    <PackageReference Include="FlaUI.Core" Version="5.0.0" />
+    <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Solo per riusare AppState/AppConfigService/Models/Services allo scopo di seminare un workspace di
+         test isolato con dati noti (stesso principio già usato da TestLoom.App.Tests) — MAI per pilotare
+         l'app dallo stesso processo: TestLoom viene sempre avviato come processo esterno reale (Process.Start su
+         TestLoom.exe) così FlaUI parla con la vera UI Avalonia via UI Automation, non con oggetti in-process. -->
+    <ProjectReference Include="..\TestLoom.App\TestLoom.App.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,97 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TestLoom.App.App"
+             xmlns:local="using:TestLoom.App"
+             RequestedThemeVariant="Light">
+             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <Application.DataTemplates>
+        <local:ViewLocator />
+    </Application.DataTemplates>
+
+    <!-- Senza queste, FluentTheme pesca l'accento dal tema di sistema di Windows: su una macchina con
+         personalizzazione impostata su un colore diverso dal blu dell'app (es. rosso), il contorno di focus
+         di TextBox/ComboBox appariva in quel colore invece che nel blu #2563EB usato ovunque nell'interfaccia,
+         sembrando un errore di validazione anche su un campo perfettamente valido. Fissare l'accento qui
+         rende l'aspetto dell'app indipendente dalle impostazioni della macchina di chi la usa. -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <Color x:Key="SystemAccentColor">#2563EB</Color>
+            <Color x:Key="SystemAccentColorLight1">#3B82F6</Color>
+            <Color x:Key="SystemAccentColorLight2">#60A5FA</Color>
+            <Color x:Key="SystemAccentColorLight3">#93C5FD</Color>
+            <Color x:Key="SystemAccentColorDark1">#1D4ED8</Color>
+            <Color x:Key="SystemAccentColorDark2">#1E40AF</Color>
+            <Color x:Key="SystemAccentColorDark3">#1E3A8A</Color>
+
+            <!-- Token del layout adattivo (6.6.1): usare sempre {DynamicResource ...}, perche' MainWindow aggiorna questi
+                 valori al cambio di modo (Ampio/Standard/Compatto/Minimo, vedi Services/LayoutAdattivo.cs). I valori qui
+                 sono quelli di Standard: un test verifica che coincidano con LayoutAdattivo.Token(Standard). -->
+            <!-- Margine esterno uniforme delle pagine (prima ripetuto come Margin="28" in ogni view). -->
+            <Thickness x:Key="PagePadding">28</Thickness>
+            <Thickness x:Key="CardPadding">16</Thickness>
+            <x:Double x:Key="SpaziaturaSezioni">20</x:Double>
+            <x:Double x:Key="TitoloPagina">22</x:Double>
+            <x:Double x:Key="KpiNumero">26</x:Double>
+            <x:Double x:Key="KpiNumeroPiccolo">22</x:Double>
+            <x:Double x:Key="LarghezzaSidebar">240</x:Double>
+            <x:Double x:Key="MaxLarghezzaPagina">1180</x:Double>
+            <x:Double x:Key="AltezzaMinimaTabella">200</x:Double>
+
+            <!-- Banner di esito positivo: stessa famiglia di BannerAvviso/BannerErrore in Styles.axaml. -->
+            <SolidColorBrush x:Key="SuccessBrush">#166534</SolidColorBrush>
+            <SolidColorBrush x:Key="SuccessBackgroundBrush">#DCFCE7</SolidColorBrush>
+            <SolidColorBrush x:Key="SuccessBorderBrush">#16A34A</SolidColorBrush>
+
+            <!-- Palette condivisa (UX2): colori prima scritti come esadecimali nei singoli XAML. Tema fisso Light. -->
+            <SolidColorBrush x:Key="SurfaceBrush">#FFFFFF</SolidColorBrush>
+            <SolidColorBrush x:Key="SurfaceMutedBrush">#F8FAFC</SolidColorBrush>
+            <!-- Sfondo opaco di ogni finestra, dialoghi compresi. Senza sfondo la finestra e' trasparente e lascia vedere
+                 cio' che c'e' sotto (es. Campi: Pianificazione). Lo applica lo stile "Window" in Styles.axaml; un test XAML
+                 controlla che il colore resti opaco. -->
+            <SolidColorBrush x:Key="WindowBackgroundBrush">#F8FAFC</SolidColorBrush>
+            <SolidColorBrush x:Key="SurfaceSubtleBrush">#F1F5F9</SolidColorBrush>
+            <SolidColorBrush x:Key="BorderSubtleBrush">#E2E8F0</SolidColorBrush>
+            <SolidColorBrush x:Key="BorderStrongBrush">#CBD5E1</SolidColorBrush>
+            <SolidColorBrush x:Key="TextMutedBrush">#64748B</SolidColorBrush>
+            <SolidColorBrush x:Key="AccentBrush">#2563EB</SolidColorBrush>
+            <SolidColorBrush x:Key="AppDarkBrush">#0F172A</SolidColorBrush>
+            <SolidColorBrush x:Key="TextOnDarkBrush">#FFFFFF</SolidColorBrush>
+            <SolidColorBrush x:Key="TextOnDarkSoftBrush">#E2E8F0</SolidColorBrush>
+            <SolidColorBrush x:Key="TextOnDarkMutedBrush">#94A3B8</SolidColorBrush>
+            <SolidColorBrush x:Key="InfoBackgroundBrush">#DBEAFE</SolidColorBrush>
+            <SolidColorBrush x:Key="InfoBorderBrush">#3B82F6</SolidColorBrush>
+            <SolidColorBrush x:Key="WarningBackgroundBrush">#FEF3C7</SolidColorBrush>
+            <SolidColorBrush x:Key="WarningBorderBrush">#F59E0B</SolidColorBrush>
+            <SolidColorBrush x:Key="WarningTextBrush">#B45309</SolidColorBrush>
+            <SolidColorBrush x:Key="DangerBrush">#DC2626</SolidColorBrush>
+            <SolidColorBrush x:Key="DangerDarkBrush">#991B1B</SolidColorBrush>
+            <SolidColorBrush x:Key="DangerDeepBrush">#7F1D1D</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeSoftBrush">#FFF7ED</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeBorderBrush">#F97316</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeBorderSoftBrush">#FDBA74</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeStrongBrush">#C2410C</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeDarkBrush">#9A3412</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeDeepBrush">#7C2D12</SolidColorBrush>
+            <SolidColorBrush x:Key="IndigoSoftBrush">#EEF2FF</SolidColorBrush>
+            <SolidColorBrush x:Key="IndigoBadgeBrush">#E0E7FF</SolidColorBrush>
+            <SolidColorBrush x:Key="IndigoTextBrush">#3730A3</SolidColorBrush>
+            <SolidColorBrush x:Key="PurpleBadgeBrush">#F3E8FF</SolidColorBrush>
+            <!-- Legenda matrice Audit: stessi valori di CellaMatriceAudit.Colore (AuditViewModel); un test ne verifica la coerenza. -->
+            <SolidColorBrush x:Key="AuditCellaDaTestareBrush">#F1F5F9</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaTestCreatoBrush">#FEF3C7</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaOttimoBrush">#BBF7D0</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaMedioBrush">#FDE68A</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaBassoBrush">#FECACA</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaNaBrush">#E2E8F0</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaConflittoBrush">#FCA5A5</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaPropagabileBrush">#FDBA74</SolidColorBrush>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+        <StyleInclude Source="avares://TestLoom/Styles.axaml" />
+    </Application.Styles>
+</Application>

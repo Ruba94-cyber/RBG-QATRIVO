@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:TestLoom.App.Services"
+        x:Class="TestLoom.App.Views.CreaTestCollegatoWindow"
+        Width="620" Height="560" MinWidth="480" MinHeight="420" CanResize="True"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+        <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,14">
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CreaTestCollegatoTitolo}" FontSize="16" FontWeight="Bold" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CreaTestCollegatoSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnDefinitions="1.2*,*" ColumnSpacing="20">
+            <StackPanel Grid.Column="0" Spacing="6">
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CreaTestCollegatoTipiLabel}" FontSize="13" FontWeight="SemiBold" />
+                <TextBox x:Name="TemplatiRicercaBox" IsVisible="False" />
+                <ScrollViewer>
+                    <StackPanel x:Name="TemplatiPanel" Spacing="6" />
+                </ScrollViewer>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="6">
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CreaTestCollegatoCampiLabel}" FontSize="13" FontWeight="SemiBold" />
+                <TextBox x:Name="CampiRicercaBox" IsVisible="False" />
+                <ScrollViewer>
+                    <StackPanel x:Name="CampiPanel" Spacing="6" />
+                </ScrollViewer>
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,14,0,0">
+            <Button x:Name="AnnullaButton" Classes="Secondary" AutomationProperties.AutomationId="CreaTestCollegato_Annulla_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" />
+            <Button x:Name="CreaButton" Classes="Primary" AutomationProperties.AutomationId="CreaTestCollegato_Crea_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CreaTestCollegatoBtn}" />
+        </StackPanel>
+    </Grid>
+</Window>

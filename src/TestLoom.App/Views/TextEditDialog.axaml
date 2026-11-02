@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:TestLoom.App.Services"
+        x:Class="TestLoom.App.Views.TextEditDialog"
+        Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TextEditTitolo}"
+        Width="720" Height="520" MinWidth="480" MinHeight="320" CanResize="True"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24" >
+        <TextBlock x:Name="TitoloText" Grid.Row="0" FontSize="16" FontWeight="Bold" Margin="0,0,0,14"
+                   AutomationProperties.AutomationId="TextEdit_Title_Text" />
+        <TextBox x:Name="ContenutoBox" Grid.Row="1" AcceptsReturn="True" TextWrapping="Wrap"
+                 VerticalContentAlignment="Top" ScrollViewer.VerticalScrollBarVisibility="Auto" FontSize="14"
+                 AutomationProperties.AutomationId="TextEdit_Content_TextBox" />
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,14,0,0">
+            <Button x:Name="AnnullaButton" Classes="Secondary" AutomationProperties.AutomationId="TextEdit_Cancel_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" />
+            <Button x:Name="SalvaButton" Classes="Primary" AutomationProperties.AutomationId="TextEdit_Save_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Salva}" />
+        </StackPanel>
+    </Grid>
+</Window>

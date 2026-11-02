@@ -1,0 +1,666 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:models="using:TestLoom.App.Models"
+             xmlns:local="using:TestLoom.App"
+             xmlns:services="using:TestLoom.App.Services"
+             x:Class="TestLoom.App.Views.ImpostazioniView"
+             x:DataType="vm:ImpostazioniViewModel"
+             x:Name="Root">
+    <Grid ColumnDefinitions="Auto,*" Margin="0">
+        <Border Grid.Column="0" services:Spotlight.TargetId="settings-sections" Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="0,0,1,0">
+            <StackPanel Margin="0,20">
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpostazioniSidebarTitolo}" Classes="NavTitolo" FontSize="12" FontWeight="Bold" Foreground="#94A3B8" Margin="20,0,0,10" />
+                <ListBox Classes="SubNavImpostazioni" ItemsSource="{Binding SottoSezioni}" SelectedItem="{Binding SottoSezioneSelezionata}" Background="Transparent" AutomationProperties.AutomationId="Impostazioni_Sidebar_List">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:NavItem">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="{Binding IconaEffettiva}" FontSize="14">
+                                    <ToolTip.Tip>
+                                        <TextBlock>
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{x:Static local:NavLabelConverter.Instance}">
+                                                    <Binding Path="Titolo" />
+                                                    <Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua" />
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                        </TextBlock>
+                                    </ToolTip.Tip>
+                                </TextBlock>
+                                <TextBlock FontSize="13" VerticalAlignment="Center" Classes="FullTextTip NavTesto">
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{x:Static local:NavLabelConverter.Instance}">
+                                            <Binding Path="Titolo" />
+                                            <Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua" />
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem" x:DataType="vm:NavItem">
+                            <Setter Property="Padding" Value="16,9" /><Setter Property="CornerRadius" Value="6" /><Setter Property="Margin" Value="8,1" />
+                            <Setter Property="AutomationProperties.AutomationId" Value="{Binding Id, StringFormat='Impostazioni_Sub_{0}'}" />
+                        </Style>
+                        <Style Selector="ListBoxItem:selected /template/ ContentPresenter"><Setter Property="Background" Value="#2563EB" /></Style>
+                        <Style Selector="ListBoxItem:selected"><Setter Property="Foreground" Value="White" /></Style>
+                    </ListBox.Styles>
+                </ListBox>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Column="1" IsVisible="{Binding EGenerale}">
+            <ScrollViewer Padding="{DynamicResource PagePadding}">
+                <StackPanel Spacing="16" MaxWidth="700">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NavGenerale}" Classes="PageTitle" AutomationProperties.AutomationId="Impostazioni_Title_Text" />
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GruppoPreferenzeMieTitolo}" Classes="GroupHeader" />
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Lingua / Language / Langue" Classes="SectionTitle" />
+                            <StackPanel Orientation="Horizontal" Spacing="16">
+                                <RadioButton GroupName="Lingua" Content="Italiano" IsChecked="{Binding EItaliano}" AutomationProperties.AutomationId="Impostazioni_Lingua_Italiano_RadioButton" />
+                                <RadioButton GroupName="Lingua" Content="English" IsChecked="{Binding EInglese}" AutomationProperties.AutomationId="Impostazioni_Lingua_English_RadioButton" />
+                                <RadioButton GroupName="Lingua" Content="Français" IsChecked="{Binding EFrancese}" AutomationProperties.AutomationId="Impostazioni_Lingua_Francais_RadioButton" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CambiaSubitoTesto}" Classes="Muted" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AvvioNotificheTitolo}" Classes="SectionTitle" />
+                            <CheckBox Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AvviaDitmRidotto}" IsChecked="{Binding AvvioRidotto}" AutomationProperties.AutomationId="Impostazioni_AvvioRidotto_CheckBox" />
+                            <CheckBox Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AbilitaNotificheWindows}" IsChecked="{Binding NotificheWindows}" AutomationProperties.AutomationId="Impostazioni_NotificheWindows_CheckBox" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IconaAreaNotificaTesto}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NotificheContatoreTitolo}" FontWeight="SemiBold" Margin="0,4,0,0" />
+                            <ItemsControl ItemsSource="{Binding TipiNotificaContatore}" Margin="12,0,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:VoceNotificaContatore">
+                                        <CheckBox Content="{Binding Etichetta}" IsChecked="{Binding MostraNelContatore}" IsEnabled="{Binding Modificabile}" AutomationProperties.AutomationId="{Binding AutomationId}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NotificheContatoreNota}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RiepilogoNotificheTitolo}" FontWeight="SemiBold" Margin="0,8,0,0" />
+                            <ComboBox ItemsSource="{Binding OpzioniModoRiepilogo}" SelectedItem="{Binding ModoRiepilogoSelezionato}" MinWidth="240" HorizontalAlignment="Left" AutomationProperties.AutomationId="Preferenze_Riepilogo_Modo">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:OpzioneModoRiepilogo">
+                                        <TextBlock Text="{Binding Etichetta}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RiepilogoTipiTitolo}" FontWeight="SemiBold" Margin="0,4,0,0" />
+                            <ItemsControl ItemsSource="{Binding TipiRiepilogoNotifiche}" Margin="12,0,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:VoceRiepilogoTipo">
+                                        <CheckBox Content="{Binding Etichetta}" IsChecked="{Binding IncludiNelRiepilogo}" IsEnabled="{Binding Modificabile}" AutomationProperties.AutomationId="{Binding AutomationId}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RiepilogoNotificheNota}" Classes="Muted" TextWrapping="Wrap" />
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SalvaPreferenzeBtn}" Classes="Secondary" HorizontalAlignment="Left" Command="{Binding SalvaPreferenzeLocaliCommand}" AutomationProperties.AutomationId="Impostazioni_SalvaPreferenze_Button" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=OrdinePannelliTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=OrdinePannelliTesto}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BarraPrincipaleTitolo}" FontWeight="SemiBold" FontSize="12.5" Margin="0,6,0,0" />
+                            <ItemsControl ItemsSource="{Binding NavPrincipale}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:NavItem">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,2">
+                                            <TextBlock Grid.Column="0" Text="{Binding IconaEffettiva}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" VerticalAlignment="Center" Classes="FullTextTip">
+                                                <TextBlock.Text><MultiBinding Converter="{x:Static local:NavLabelConverter.Instance}"><Binding Path="Titolo" /><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua" /></MultiBinding></TextBlock.Text>
+                                            </TextBlock>
+                                            <Button Grid.Column="2" Content="▲" Classes="Secondary" Padding="8,2" Margin="0,0,4,0" Command="{Binding $parent[ItemsControl].((vm:ImpostazioniViewModel)DataContext).SpostaSuNavPrincipaleCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="{Binding Id, StringFormat='Impostazioni_OrdineNav_Su_{0}'}" />
+                                            <Button Grid.Column="3" Content="▼" Classes="Secondary" Padding="8,2" Command="{Binding $parent[ItemsControl].((vm:ImpostazioniViewModel)DataContext).SpostaGiuNavPrincipaleCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="{Binding Id, StringFormat='Impostazioni_OrdineNav_Giu_{0}'}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SottoSezioniImpostazioniTitolo}" FontWeight="SemiBold" FontSize="12.5" Margin="0,10,0,0" />
+                            <ItemsControl ItemsSource="{Binding SottoSezioni}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:NavItem">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,2">
+                                            <TextBlock Grid.Column="0" Text="{Binding IconaEffettiva}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" VerticalAlignment="Center" Classes="FullTextTip">
+                                                <TextBlock.Text><MultiBinding Converter="{x:Static local:NavLabelConverter.Instance}"><Binding Path="Titolo" /><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua" /></MultiBinding></TextBlock.Text>
+                                            </TextBlock>
+                                            <Button Grid.Column="2" Content="▲" Classes="Secondary" Padding="8,2" Margin="0,0,4,0" Command="{Binding $parent[ItemsControl].((vm:ImpostazioniViewModel)DataContext).SpostaSuSottoSezioneCommand}" CommandParameter="{Binding}" />
+                                            <Button Grid.Column="3" Content="▼" Classes="Secondary" Padding="8,2" Command="{Binding $parent[ItemsControl].((vm:ImpostazioniViewModel)DataContext).SpostaGiuSottoSezioneCommand}" CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card" AutomationProperties.AutomationId="Impostazioni_Icone_Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IconeMenuTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IconeMenuTesto}" Classes="Muted" TextWrapping="Wrap" />
+                            <ListBox ItemsSource="{Binding VociIcone}" SelectedItem="{Binding VoceIconaSelezionata}" MaxHeight="220" AutomationProperties.AutomationId="Impostazioni_Icone_Voci_List">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:NavItem">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="{Binding IconaEffettiva}" FontSize="15" />
+                                            <TextBlock VerticalAlignment="Center">
+                                                <TextBlock.Text><MultiBinding Converter="{x:Static local:NavLabelConverter.Instance}"><Binding Path="Titolo" /><Binding Source="{x:Static services:LocalizationService.Instance}" Path="Lingua" /></MultiBinding></TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                                <ListBox.Styles>
+                                    <Style Selector="ListBoxItem" x:DataType="vm:NavItem">
+                                        <Setter Property="AutomationProperties.AutomationId" Value="{Binding ChiaveIcona, StringFormat='Impostazioni_Icone_Voce_{0}'}" />
+                                    </Style>
+                                </ListBox.Styles>
+                            </ListBox>
+                            <StackPanel Spacing="8" IsVisible="{Binding HaVoceIconaSelezionata}">
+                                <ItemsControl ItemsSource="{Binding GalleriaIcone}" AutomationProperties.AutomationId="Impostazioni_Icone_Galleria">
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <Button Content="{Binding}" Classes="Secondary" Padding="8,4" Margin="0,0,4,4" FontSize="16"
+                                                    AutomationProperties.AutomationId="{Binding StringFormat='Impostazioni_Icone_Scegli_{0}'}"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ImpostazioniViewModel)DataContext).ScegliIconaCommand}" CommandParameter="{Binding}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IconaLiberaLabel}" VerticalAlignment="Center" />
+                                    <TextBox Classes="Field" Width="80" Text="{Binding IconaLibera}" AutomationProperties.AutomationId="Impostazioni_Icone_Libera_Text" />
+                                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IconaApplicaBtn}" Classes="Secondary" Command="{Binding ApplicaIconaLiberaCommand}" AutomationProperties.AutomationId="Impostazioni_Icone_Applica_Button" />
+                                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IconaRipristinaBtn}" Classes="Secondary" Command="{Binding RipristinaIconaCommand}" AutomationProperties.AutomationId="Impostazioni_Icone_Ripristina_Button" />
+                                </StackPanel>
+                            </StackPanel>
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IconeRipristinaTutteBtn}" Classes="Secondary" HorizontalAlignment="Left" Command="{Binding RipristinaTutteIconeCommand}" AutomationProperties.AutomationId="Impostazioni_Icone_RipristinaTutte_Button" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GruppoConfigurazioneTitolo}" Classes="GroupHeader" IsVisible="{Binding !!PolarionSezioniOpzioni.Count}" />
+                    <Border Classes="Card" IsVisible="{Binding !!PolarionSezioniOpzioni.Count}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SezioniPolarionTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SezioniPolarionSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+                            <ItemsControl ItemsSource="{Binding PolarionSezioniOpzioni}" IsEnabled="{Binding EMaster}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:FiltroOpzione"><CheckBox Content="{Binding Etichetta}" IsChecked="{Binding Selezionato}" Margin="0,0,16,4" /></DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Salva}" Classes="Secondary" HorizontalAlignment="Left" Command="{Binding SalvaSezioniPolarionCommand}" IsVisible="{Binding EMaster}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Per-operator, per-PC TICKET notification preferences. These do not change API synchronization. -->
+                    <Border Classes="Card" AutomationProperties.AutomationId="PolarionNotification_Settings_Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Notifiche TICKET per gamme e veicoli" Classes="SectionTitle"/>
+                            <TextBlock Text="Seleziona gli elementi da monitorare su questo PC. Le informazioni TICKET continueranno a sincronizzarsi per tutti i ticket collegati." Classes="Muted" TextWrapping="Wrap"/>
+                            <TextBlock Text="Gamme" FontWeight="SemiBold"/>
+                            <ItemsControl ItemsSource="{Binding PolarionGammeNotifiche}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:FiltroOpzione"><CheckBox Content="{Binding Etichetta}" IsChecked="{Binding Selezionato}" Margin="0,0,14,4"/></DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="Veicoli" FontWeight="SemiBold"/>
+                            <ItemsControl ItemsSource="{Binding PolarionVeicoliNotifiche}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:FiltroOpzione"><CheckBox Content="{Binding Etichetta}" IsChecked="{Binding Selezionato}" Margin="0,0,14,4"/></DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <CheckBox Content="Includi elementi non associati" IsChecked="{Binding PolarionIncludiNonAssociati}"
+                                      AutomationProperties.AutomationId="PolarionNotification_Unassociated_CheckBox"/>
+                            <Button Content="Salva filtri TICKET su questo PC" Classes="Secondary" HorizontalAlignment="Left"
+                                    Command="{Binding SalvaFiltriNotifichePolarionCommand}"
+                                    AutomationProperties.AutomationId="PolarionNotification_Save_Button"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Separate TICKET read-only API config. Token edit is never populated from shared storage. -->
+                    <Border Classes="Card" AutomationProperties.AutomationId="PolarionApi_Settings_Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="TICKET / Ticketing REST API" Classes="SectionTitle"/>
+                            <TextBlock Text="Lettura e sincronizzazione TICKET tramite API. Le scritture REST sono disabilitate: creazione e modifica avvengono nel browser con la sessione Ticketing personale." Classes="Muted" TextWrapping="Wrap"/>
+                            <TextBlock Text="API root (HTTPS)" Classes="Muted"/>
+                            <TextBox Classes="Field" Text="{Binding PolarionApiRoot}" IsEnabled="{Binding EMaster}" AutomationProperties.AutomationId="PolarionApi_Root_TextBox"/>
+                            <TextBlock Text="{Binding PolarionApiTokenIndicator}" Classes="Muted"/>
+                            <TextBlock Text="Nuovo token condiviso (lasciare vuoto per mantenerlo)" Classes="Muted" IsVisible="{Binding EMaster}"/>
+                            <TextBox Classes="Field" Text="{Binding PolarionApiNewToken}" PasswordChar="●" IsVisible="{Binding EMaster}"
+                                     AutomationProperties.AutomationId="PolarionApi_Token_TextBox"/>
+                            <TextBlock Text="Assegnatari Ticketing (max 2; non devono essere utenti TestLoom)" Classes="Muted" TextWrapping="Wrap"/>
+                             <TextBox Classes="Field" PlaceholderText="ID utente Ticketing 1" Text="{Binding PolarionAssigneeOne}"
+                                      IsEnabled="{Binding EMaster}" AutomationProperties.AutomationId="PolarionApi_AssigneeOne"/>
+                             <TextBox Classes="Field" PlaceholderText="ID utente Ticketing 2" Text="{Binding PolarionAssigneeTwo}"
+                                      IsEnabled="{Binding EMaster}" AutomationProperties.AutomationId="PolarionApi_AssigneeTwo"/>
+                             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PolarionBrowserUrlHelp}" Classes="Muted" TextWrapping="Wrap"/>
+                             <TextBox Classes="Field" Text="{Binding PolarionBrowserCreateUrl}"
+                                      IsEnabled="{Binding EMaster}" AutomationProperties.AutomationId="PolarionApi_BrowserCreateUrl"/>
+                             <CheckBox Content="Abilita lettura TICKET" IsChecked="{Binding PolarionApiReadEnabled}" IsEnabled="{Binding EMaster}"
+                                      AutomationProperties.AutomationId="PolarionApi_Enable_CheckBox"/>
+                            <TextBlock Text="Il token è offuscato, non cifrato. Usare soltanto se la condivisione è consentita dalle policy aziendali."
+                                       Classes="Muted" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding PolarionApiPendingStatus}" Classes="Muted" TextWrapping="Wrap"
+                                       AutomationProperties.AutomationId="PolarionApi_Pending_Text"/>
+                            <Button Content="Salva configurazione TICKET" Classes="Secondary" HorizontalAlignment="Left"
+                                    Command="{Binding SalvaConfigurazionePolarionApiCommand}" IsVisible="{Binding EMaster}"
+                                    AutomationProperties.AutomationId="PolarionApi_Save_Button"/>
+                            <Button Content="{Binding PolarionTestLabel}" Classes="Secondary" HorizontalAlignment="Left"
+                                    IsEnabled="{Binding !PolarionRefreshInCorso}" Command="{Binding TestaConnessionePolarionCommand}"
+                                    AutomationProperties.AutomationId="PolarionApi_Test_Button"/>
+                            <Button Content="Aggiorna TICKET ora" Classes="Secondary" HorizontalAlignment="Left"
+                                    IsEnabled="{Binding !PolarionRefreshInCorso}"
+                                    Command="{Binding AggiornaPolarionOraCommand}"
+                                    AutomationProperties.AutomationId="PolarionApi_RefreshNow_Button"/>
+                            <ProgressBar IsIndeterminate="True" IsVisible="{Binding PolarionRefreshInCorso}" Width="160"/>
+                            <TextBlock Text="{Binding PolarionRefreshProgressText}" IsVisible="{Binding PolarionRefreshInCorso}"
+                                       TextWrapping="Wrap" AutomationProperties.AutomationId="PolarionApi_Progress_Text"/>
+                            <Button Content="{Binding PolarionCancelLabel}" Command="{Binding AnnullaPolarionCommand}"
+                                    IsVisible="{Binding PolarionRefreshInCorso}" HorizontalAlignment="Left"
+                                    AutomationProperties.AutomationId="PolarionApi_Cancel_Button"/>
+                            <TextBlock Text="{Binding PolarionApiFeedback}" IsVisible="{Binding HasPolarionApiError}"
+                                       Foreground="#DC2626" TextWrapping="Wrap" AutomationProperties.AutomationId="PolarionApi_Error_Text"/>
+                            <TextBlock Text="{Binding PolarionApiFeedback}" IsVisible="{Binding HasPolarionApiSuccess}"
+                                       Foreground="#166534" TextWrapping="Wrap" AutomationProperties.AutomationId="PolarionApi_Status_Text"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoManomessaAvviso}" Foreground="#DC2626" TextWrapping="Wrap" IsVisible="{Binding ModalitaAccessoManomessa}" />
+                            <StackPanel Orientation="Horizontal" Spacing="16" IsEnabled="{Binding EMaster}">
+                                <RadioButton GroupName="ModalitaAccesso" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoConPin}" IsChecked="{Binding AccessoConPinSelezionato}" />
+                                <RadioButton GroupName="ModalitaAccesso" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoSenzaPin}" IsChecked="{Binding AccessoSenzaPinSelezionato}" />
+                            </StackPanel>
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoSalvaBtn}" Classes="Secondary" HorizontalAlignment="Left" Command="{Binding SalvaModalitaAccessoCommand}" IsVisible="{Binding EMaster}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- TIME (6.6.1): durata obbligatoria per le operazioni eseguite. Sola lettura per chi non e' Master. -->
+                    <Border Classes="Card" AutomationProperties.AutomationId="Impostazioni_PoliticaDurata_Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PoliticaDurataTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PoliticaDurataNota}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ErrorePoliticaDurata}" Foreground="#DC2626" TextWrapping="Wrap" IsVisible="{Binding HaErrorePoliticaDurata}" />
+                            <CheckBox IsEnabled="{Binding EMaster}" IsChecked="{Binding DurataObbligatoriaSelezionata}"
+                                      Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PoliticaDurataObbligatoria}"
+                                      AutomationProperties.AutomationId="Impostazioni_DurataObbligatoria_CheckBox" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PoliticaDurataSoloMaster}" Classes="Muted" IsVisible="{Binding !EMaster}" />
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PoliticaDurataSalva}"
+                                    Classes="Secondary" HorizontalAlignment="Left" IsEnabled="{Binding EMaster}" Command="{Binding SalvaPoliticaDurataCommand}"
+                                    AutomationProperties.AutomationId="Impostazioni_SalvaPoliticaDurata_Button" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GruppoStatoTitolo}" Classes="GroupHeader" />
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CartellaCondivisaTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding CartellaAttuale}" Classes="Muted FullTextTip" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding OperazioneCartellaInCorso}" AutomationProperties.AutomationId="Impostazioni_CambioCartella_Occupato">
+                                <ProgressBar Width="120" IsIndeterminate="True" />
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpAperturaCartella}" Classes="Muted" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel Spacing="6" AutomationProperties.AutomationId="Impostazioni_ModalitaCondivisione_Blocco">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaCondivisioneTitolo}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding ModalitaCondivisioneEffettivaTesto}" Classes="Muted" TextWrapping="Wrap" AutomationProperties.AutomationId="Impostazioni_ModalitaCondivisione_Effettiva_Text" />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" ItemsSource="{Binding OpzioniModalitaCondivisione}" SelectedItem="{Binding ModalitaCondivisioneSelezionata}" AutomationProperties.AutomationId="Impostazioni_ModalitaCondivisione_ComboBox" />
+                                    <Button Grid.Column="1" Classes="Secondary" Margin="8,0,0,0" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaCondivisioneApplicaBtn}" Command="{Binding ApplicaModalitaCondivisioneCommand}" AutomationProperties.AutomationId="Impostazioni_ModalitaCondivisione_Applica_Button" />
+                                </Grid>
+                            </StackPanel>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBox Grid.Column="0" Classes="Field" Text="{Binding Cartella}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PercorsoCartellaPlaceholder}" AutomationProperties.AutomationId="Impostazioni_Cartella_TextBox" />
+                                <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AggiornaBtn}" Classes="Primary" Margin="8,0,0,0" Command="{Binding CambiaCartellaCommand}" AutomationProperties.AutomationId="Impostazioni_Cartella_Aggiorna_Button" />
+                            </Grid>
+                            <!-- Solo i dati operativi: non pinna gli allegati Files On-Demand. Conferma modale obbligatoria. -->
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpDatiOperativiNota}" Classes="Muted" TextWrapping="Wrap" IsVisible="{Binding MostraAzioniCloudFiles}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding MostraAzioniCloudFiles}">
+                                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpMantieniDatiLocali}" Classes="Secondary" AutomationProperties.AutomationId="Impostazioni_Dati_MantieniLocali_Button" Click="OnMantieniDatiOperativi" IsEnabled="{Binding !DisponibilitaDatiInCorso}" />
+                                    <ProgressBar Width="100" IsIndeterminate="True" IsVisible="{Binding DisponibilitaDatiInCorso}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpDisponibilitaNota}" Classes="Muted" TextWrapping="Wrap" IsVisible="{Binding MostraAzioniCloudFiles}" />
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpCentroIntegrita}"
+                                    AutomationProperties.AutomationId="Impostazioni_CentroIntegrita_Button"
+                                    Classes="Secondary" HorizontalAlignment="Left"
+                                    Click="OnCentroIntegrita" />
+                            <Border Background="#FFF7ED" CornerRadius="6" Padding="10">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpModalitaViewerTitolo}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpModalitaViewerNota}" TextWrapping="Wrap" />
+                                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpAttivaSolaLettura}" AutomationProperties.AutomationId="Impostazioni_Dati_ViewerAttiva_Button" Classes="Secondary" HorizontalAlignment="Left" Click="OnAttivaSolaLetturaLocale"
+                                            IsVisible="{Binding !ModalitaLocaleSolaLetturaAttiva}" />
+                                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpDisattivaSolaLettura}" AutomationProperties.AutomationId="Impostazioni_Dati_ViewerDisattiva_Button" Classes="Secondary" HorizontalAlignment="Left" Click="OnDisattivaSolaLetturaLocale"
+                                            IsVisible="{Binding ModalitaLocaleSolaLetturaAttiva}" />
+                                </StackPanel>
+                            </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CartellaNonRaggiungibile}" Foreground="#DC2626" IsVisible="{Binding !CartellaValida}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding MessaggioErrore}" AutomationProperties.AutomationId="Impostazioni_Errore_Text" Foreground="#DC2626" IsVisible="{Binding HaMessaggioErrore}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=StatoSincronizzazioneTitolo}" Classes="SectionTitle" />
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Border Grid.Column="0" Classes="Badge" Background="{Binding SincronizzazioneOk, Converter={x:Static local:BoolToSyncColorConverter.Instance}}" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding StatoSincronizzazioneTesto}" AutomationProperties.AutomationId="Impostazioni_StatoSincronizzazione_Text" FontSize="12" FontWeight="SemiBold" Foreground="{Binding SincronizzazioneOk, Converter={x:Static local:BoolToSyncTextColorConverter.Instance}}" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="{Binding UltimaVerificaSincronizzazioneTesto}" Classes="Muted" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                <Button Grid.Column="2" Content="{Binding EtichettaVerificaLocale}" AutomationProperties.AutomationId="Impostazioni_Dati_VerificaLocale_Button" Classes="Secondary" Command="{Binding ForzaSincronizzazioneCommand}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ForkSyncTitolo}" Classes="SectionTitle" />
+                                <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ForkSyncAggiorna}" Classes="Link" Command="{Binding AggiornaForkJournalCommand}" />
+                            </Grid>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ForkSyncDescrizione}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ForkSyncNessuno}" Classes="Muted" IsVisible="{Binding !HaForkJournal}" />
+                            <ItemsControl ItemsSource="{Binding ForkJournal}" IsVisible="{Binding HaForkJournal}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ForkJournalRiga">
+                                        <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,3">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="{Binding TestId}" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding Riepilogo}" Classes="Muted" FontSize="12" />
+                                                    <TextBlock Text="{Binding RilevatoIl}" Classes="Muted" FontSize="11" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ForkSyncRisolvi}" Classes="Secondary" VerticalAlignment="Center"
+                                                        Command="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).RisolviForkJournalCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        IsEnabled="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).PuoRisolvereFork}" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ForkSyncSoloMaster}" Classes="Muted" FontSize="11" IsVisible="{Binding HaForkJournal}" />
+                            <ProgressBar Width="160" IsIndeterminate="True" IsVisible="{Binding RisoluzioneForkInCorso}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card" AutomationProperties.AutomationId="RecordFork_Card" services:Spotlight.TargetId="settings-conflicts">
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpConflittiPostazioniTitolo}" Classes="SectionTitle" />
+                                <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AggiornaBtn}" Classes="Link" Command="{Binding AggiornaRecordForksCommand}"
+                                        AutomationProperties.AutomationId="RecordFork_Aggiorna_Button" />
+                            </Grid>
+                            <TextBlock Classes="Muted" TextWrapping="Wrap"
+                                       Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpConflittiPostazioniNota}" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpNessunConflittoLog}" Classes="Muted" IsVisible="{Binding !HaRecordForks}"
+                                       AutomationProperties.AutomationId="RecordFork_Nessuno_Text" />
+                            <ItemsControl ItemsSource="{Binding RecordForks}" IsVisible="{Binding HaRecordForks}"
+                                          AutomationProperties.AutomationId="RecordFork_List">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RecordForkRiga">
+                                        <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,3">
+                                            <StackPanel Spacing="4">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                    <StackPanel Spacing="2">
+                                                        <TextBlock Text="{Binding Titolo}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding Riepilogo}" Classes="Muted" FontSize="12" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding RilevatoIl}" Classes="Muted" FontSize="11" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpMantieniVersioneCorrente}" Classes="Secondary" VerticalAlignment="Center"
+                                                            Command="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).MantieniVersioneCorrenteRecordForkCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            IsEnabled="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).PuoRisolvereRecordFork}"
+                                                            AutomationProperties.AutomationId="RecordFork_MantieniCorrente_Button" />
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding Rami}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:RecordForkRamoRiga">
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="12,2,0,2">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding Descrizione}" FontSize="12" />
+                                                                    <TextBlock Text="{Binding Dettaglio}" Classes="Muted" FontSize="11" />
+                                                                </StackPanel>
+                                                                <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpUsaQuestaVersione}" Classes="Secondary"
+                                                                        Command="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).ApplicaRamoRecordForkCommand}"
+                                                                        CommandParameter="{Binding}"
+                                                                        IsEnabled="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).PuoRisolvereRecordFork}"
+                                                                        AutomationProperties.AutomationId="{Binding AutomationId}" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpSoloMasterSceglie}" Classes="Muted" FontSize="11" IsVisible="{Binding HaRecordForks}" />
+                            <ProgressBar Width="160" IsIndeterminate="True" IsVisible="{Binding RisoluzioneRecordForkInCorso}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card" AutomationProperties.AutomationId="MasterConflict_Card">
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpConflittiCataloghiTitolo}" Classes="SectionTitle" />
+                                <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AggiornaBtn}" Classes="Link" Command="{Binding AggiornaConflittiMasterCommand}"
+                                        AutomationProperties.AutomationId="MasterConflict_Aggiorna_Button" />
+                            </Grid>
+                            <TextBlock Classes="Muted" TextWrapping="Wrap"
+                                       Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpConflittiCataloghiNota}" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpNessunConflittoCataloghi}" Classes="Muted" IsVisible="{Binding !HaConflittiMaster}"
+                                       AutomationProperties.AutomationId="MasterConflict_Nessuno_Text" />
+                            <ItemsControl ItemsSource="{Binding ConflittiMaster}" IsVisible="{Binding HaConflittiMaster}"
+                                          AutomationProperties.AutomationId="MasterConflict_List">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:MasterConflittoRiga">
+                                        <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,3">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="{Binding Titolo}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Riepilogo}" Classes="Muted" FontSize="12" TextWrapping="Wrap" />
+                                                <ItemsControl ItemsSource="{Binding Versioni}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:MasterConflittoVersioneRiga">
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="12,2,0,2">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding Titolo}" FontSize="12" />
+                                                                    <TextBlock Text="{Binding Dettaglio}" Classes="Muted" FontSize="11" TextWrapping="Wrap" />
+                                                                </StackPanel>
+                                                                <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpUsaQuestaVersione}" Classes="Secondary" VerticalAlignment="Center"
+                                                                        Command="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).UsaVersioneConflittoMasterCommand}"
+                                                                        CommandParameter="{Binding}"
+                                                                        IsEnabled="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).PuoRisolvereConflittoMaster}"
+                                                                        AutomationProperties.AutomationId="{Binding AutomationId}" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpSoloMasterSceglie}" Classes="Muted" FontSize="11" IsVisible="{Binding HaConflittiMaster}" />
+                            <ProgressBar Width="160" IsIndeterminate="True" IsVisible="{Binding RisoluzioneConflittoMasterInCorso}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IndiceLocaleTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IndiceLocaleDescrizione}" Classes="Muted" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IndiceLocaleRicostruisci}" Classes="Secondary" HorizontalAlignment="Left" Command="{Binding RicostruisciIndiceLocaleCommand}" AutomationProperties.AutomationId="Impostazioni_Indice_Ricostruisci_Button" IsEnabled="{Binding PuoRicostruireIndice}" />
+                                <ProgressBar Width="120" IsIndeterminate="True" IsVisible="{Binding RicostruzioneIndiceInCorso}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=LogDiagnosticoTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=LogDiagnosticoDescrizione}" Classes="Muted" TextWrapping="Wrap" />
+                            <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="6">
+                                <TextBlock Grid.Column="0" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=LogDiagnosticoCartellaLabel}" Classes="Muted" FontSize="12" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="{Binding PercorsoCartellaLogDiagnostico}" Classes="Link" Padding="0" Command="{Binding ApriCartellaLogDiagnosticoCommand}" />
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=LogDiagnosticoEsporta}" Classes="Secondary" HorizontalAlignment="Left" Click="OnEsportaLogDiagnostico" IsEnabled="{Binding !EsportazioneInCorso}" />
+<Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" Classes="Secondary" HorizontalAlignment="Left" Command="{Binding AnnullaEsportazioneCommand}" IsVisible="{Binding EsportazioneInCorso}" AutomationProperties.AutomationId="Impostazioni_AnnullaEsportazione_Button" />
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DiagNcAgganciatePulsante}" Classes="Secondary" HorizontalAlignment="Left" Command="{Binding VerificaNcAgganciateCommand}" AutomationProperties.AutomationId="Impostazioni_VerificaNcAgganciate_Button" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=StoragePuliziaTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=StoragePuliziaDescrizione}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=StorageRetentionDescrizione}" Classes="Muted" FontSize="11" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding UltimaManutenzioneStorageTesto}" Classes="Muted" TextWrapping="Wrap" AutomationProperties.AutomationId="Impostazioni_Storage_Ultimo_Text" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=StoragePuliziaEsegui}" Classes="Secondary" HorizontalAlignment="Left" Command="{Binding EseguiManutenzioneStorageCommand}" AutomationProperties.AutomationId="Impostazioni_Storage_Esegui_Button" IsEnabled="{Binding PuoEseguireManutenzioneStorage}" />
+                                <ProgressBar Width="120" IsIndeterminate="True" IsVisible="{Binding ManutenzioneStorageInCorso}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BackupDatiTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SnapshotZipTesto}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RetentionAutomaticaTesto}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding BackupGiornalieroStatoTesto}" Classes="Muted" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CreaBackupBtn}" AutomationProperties.AutomationId="Impostazioni_Backup_Crea_Button" Classes="Secondary" Command="{Binding CreaBackupManualeCommand}" />
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriCartellaBackupBtn}" Classes="Secondary" Command="{Binding ApriCartellaBackupCommand}" />
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpVerificaUltimoZip}" Classes="Secondary"
+                                        AutomationProperties.AutomationId="Impostazioni_Backup_VerificaZip_Button"
+                                        Command="{Binding VerificaUltimoBackupCommand}"
+                                        IsEnabled="{Binding !VerificaBackupLocaleInCorso}" />
+                                <ProgressBar Width="70" IsIndeterminate="True"
+                                             IsVisible="{Binding VerificaBackupLocaleInCorso}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpBackupAggiuntivoNota}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBox Classes="Field" Text="{Binding PercorsoBackupEsterno}" AutomationProperties.AutomationId="Impostazioni_Backup_EsternoPercorso_TextBox" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpBackupPercorsoPlaceholder}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpSalvaPercorso}" AutomationProperties.AutomationId="Impostazioni_Backup_SalvaPercorso_Button" Classes="Secondary" Command="{Binding SalvaPreferenzeLocaliCommand}" />
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpCopiaUltimoZip}" AutomationProperties.AutomationId="Impostazioni_Backup_CopiaEsterno_Button" Classes="Secondary" Command="{Binding CopiaBackupEsternoCommand}" IsEnabled="{Binding !CopiaBackupEsternoInCorso}" />
+                                <ProgressBar Width="100" IsIndeterminate="True" IsVisible="{Binding CopiaBackupEsternoInCorso}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpBackupZipAllegatiNota}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpSalvataggioFallitoNota}" Classes="Muted" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpEsaminaBozze}" AutomationProperties.AutomationId="Impostazioni_Bozze_Esamina_Button"
+                                        Classes="Secondary" Click="OnEsaminaBozze" />
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpApriBozzeEmergenza}" AutomationProperties.AutomationId="Impostazioni_Bozze_Apri_Button" Classes="Secondary" HorizontalAlignment="Left" Command="{Binding ApriBozzeEmergenzaCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AllegatiTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AllegatiCartellaSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriCartellaAllegatiBtn}" Classes="Secondary" Command="{Binding ApriCartellaAllegatiCommand}" />
+                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=LiberaSpazioAllegatiBtn}" Classes="Secondary" Command="{Binding LiberaSpazioAllegatiCommand}" IsVisible="{Binding MostraAzioniCloudFiles}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=OperatoreAttivoTitolo}" Classes="SectionTitle" />
+                            <TextBlock Classes="Muted"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RuoloPrefix}" /><Run Text="{Binding RuoloAttivoTesto}" FontWeight="SemiBold" /></TextBlock>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PerCambiareOperatoreTesto}" Classes="Muted" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PerCreareOperatoreTesto}" Classes="Muted" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card" IsVisible="{Binding HaFileConProblemi}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FileConProblemiTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=QuestiFileSonoStatiSaltati}" Classes="Muted" TextWrapping="Wrap" />
+                            <ItemsControl ItemsSource="{Binding FileConProblemi}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:FileConProblemi">
+                                        <StackPanel Margin="0,4" Spacing="1">
+                                            <TextBlock Text="{Binding Percorso}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" ToolTip.Tip="{Binding Percorso}" />
+                                            <TextBlock Text="{Binding Errore}" Classes="Muted" FontSize="12" TextWrapping="Wrap" ToolTip.Tip="{Binding Errore}" />
+                                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,0">
+                                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriFileBtn}" Classes="Link" Padding="0" FontSize="13" Command="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).ApriFileConProblemiCommand}" CommandParameter="{Binding}" />
+                                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ProvaRiparaBtn}" Classes="Link" Padding="0" FontSize="13" Command="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).ProvaRiparaFileConProblemiCommand}" CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card" IsVisible="{Binding HaDuplicatiId}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IdDuplicatiTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PiuFileRisolvonoStessoId}" Classes="Muted" TextWrapping="Wrap" />
+                            <ItemsControl ItemsSource="{Binding DuplicatiId}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:TestCaseDuplicato">
+                                        <StackPanel Margin="0,4" Spacing="1">
+                                            <TextBlock Text="{Binding Id}" FontWeight="SemiBold" FontSize="13" />
+                                            <ItemsControl ItemsSource="{Binding Percorsi}">
+                                                <ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" Classes="Muted" FontSize="12" TextWrapping="Wrap" ToolTip.Tip="{Binding}" /></DataTemplate></ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card" IsVisible="{Binding HaCopieDiConflitto}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CopieDiConflittoTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CopieDiConflittoDescrizione}" Classes="Muted" TextWrapping="Wrap" />
+                            <ItemsControl ItemsSource="{Binding CopieDiConflitto}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:FileConProblemi">
+                                        <StackPanel Margin="0,4" Spacing="1">
+                                            <TextBlock Text="{Binding Percorso}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap" ToolTip.Tip="{Binding Percorso}" />
+                                            <TextBlock Text="{Binding Errore}" Classes="Muted" FontSize="12" TextWrapping="Wrap" ToolTip.Tip="{Binding Errore}" />
+                                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,0">
+                                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriFileBtn}" Classes="Link" Padding="0" FontSize="13" Command="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).ApriFileConProblemiCommand}" CommandParameter="{Binding}" />
+                                                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IgnoraBtn}" Classes="Link" Padding="0" FontSize="13" Command="{Binding #Root.((vm:ImpostazioniViewModel)DataContext).IgnoraCopiaDiConflittoCommand}" CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="Card">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=InformazioniTitolo}" Classes="SectionTitle" />
+                            <TextBlock Classes="Muted"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestLoomVersionePrefix}" /><Run Text="{Binding Versione}" /></TextBlock>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SviluppatoDaTesto}" Classes="Muted" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="{Binding Messaggio}" AutomationProperties.AutomationId="Impostazioni_Messaggio_Text" Foreground="#166534" IsVisible="{Binding HaMessaggio}" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <ContentControl Grid.Column="1" Content="{Binding PaginaCorrente}" IsVisible="{Binding !EGenerale}" />
+    </Grid>
+</UserControl>

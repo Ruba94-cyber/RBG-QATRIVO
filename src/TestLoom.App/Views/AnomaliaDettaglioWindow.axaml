@@ -1,0 +1,130 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:TestLoom.App.ViewModels"
+        xmlns:local="using:TestLoom.App"
+        xmlns:services="using:TestLoom.App.Services"
+        xmlns:models="using:TestLoom.App.Models"
+        x:Class="TestLoom.App.Views.AnomaliaDettaglioWindow"
+        x:DataType="vm:AnomaliaDettaglioViewModel"
+        Width="760" Height="680" MinWidth="560" MinHeight="420" CanResize="True"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+        <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,12">
+            <TextBlock FontSize="16" FontWeight="Bold"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaDettaglioTitolo}" /><Run Text=" · " /><Run Text="{Binding Nc.Id}" /></TextBlock>
+            <TextBlock Text="{Binding Nc.Descrizione}" Classes="Muted" TextWrapping="Wrap" MaxHeight="60" />
+            <Button Classes="Link" HorizontalAlignment="Left" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriTestBtn}"
+                    Command="{Binding ApriTestCollegatoCommand}" IsVisible="{Binding PuoAprireTest}"
+                    AutomationProperties.AutomationId="Anomalie_Riga_ApriTest_Button" />
+            <Button Classes="Primary" HorizontalAlignment="Left" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaChangeRequestBtn}"
+                    Click="OnEntraInModifica" IsVisible="{Binding PuoEntrareInModifica}"
+                    AutomationProperties.AutomationId="AnomaliaDettaglio_EntraInModifica_Button" />
+            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource WarningTextBrush}" IsVisible="{Binding HaModificheNonSalvate}" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificheNonSalvateTitolo}" AutomationProperties.AutomationId="AnomaliaDettaglio_ModificheNonSalvate_Text" />
+            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RecuperaBozzaLocaleBtn}" Classes="Secondary" HorizontalAlignment="Left"
+                    Click="OnRecuperaBozza" IsVisible="{Binding PuoRecuperareBozza}"
+                    IsEnabled="{Binding PuoModificare}"
+                    ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzaLocaleConfrontaTip}"
+                    AutomationProperties.AutomationId="AnomaliaDettaglio_RecuperaBozza_Button" />
+            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RicaricaVersioneCorrenteBtn}" Classes="Secondary" HorizontalAlignment="Left"
+                    Command="{Binding RicaricaDopoConflittoCommand}" IsVisible="{Binding ConflittoInAttesa}"
+                    ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RicaricaVersioneCorrenteTip}"
+                    AutomationProperties.AutomationId="AnomaliaDettaglio_RicaricaDopoConflitto_Button" />            <Border Classes="Banner BannerAvviso" IsVisible="{Binding SolaLettura}" Margin="0,6,0,0"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaSolaLettura}" TextWrapping="Wrap" /></Border>
+            <Border Classes="Banner BannerAvviso" IsVisible="{Binding NonPersistita}" Margin="0,6,0,0"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaNonPersistitaHint}" TextWrapping="Wrap" /></Border>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="12" Margin="0,0,12,0" IsEnabled="{Binding PuoModificare}">
+                <WrapPanel Classes="ColonneEditor" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=2}">
+                    <StackPanel Grid.Column="0" Grid.Row="0" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=WorkflowLabel}" Classes="Muted" />
+    <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding StatiWorkflow}" SelectedItem="{Binding Nc.StatoWorkflow}" IsEnabled="{Binding Aperta}" AutomationProperties.AutomationId="AnomaliaDettaglio_Stato_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+                    <StackPanel Grid.Column="1" Grid.Row="0" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SeveritaObblLabel}" Classes="Muted" />
+    <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding SeveritaDisponibili}" SelectedItem="{Binding Nc.Severita}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SeveritaObbligatoria}" AutomationProperties.AutomationId="AnomaliaDettaglio_Severita_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+                    <StackPanel Grid.Column="0" Grid.Row="1" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PrioritaLabel}" Classes="Muted" />
+    <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding PrioritaDisponibili}" SelectedItem="{Binding Nc.Priorita}" IsEnabled="{Binding EMaster}" AutomationProperties.AutomationId="AnomaliaDettaglio_Priorita_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+                    <StackPanel Grid.Column="1" Grid.Row="1" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=OwnerLabel}" Classes="Muted" />
+    <TextBox Classes="Field" Text="{Binding Nc.Owner}" AutomationProperties.AutomationId="AnomaliaDettaglio_Owner_TextBox" /></StackPanel>
+                </WrapPanel>
+
+                <WrapPanel Classes="ColonneEditor" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=3}">
+                    <StackPanel Grid.Column="0" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcDestinatarioPlaceholder}" Classes="Muted" />
+    <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding Destinatari}" SelectedItem="{Binding Nc.Destinatario}" AutomationProperties.AutomationId="AnomaliaDettaglio_Destinatario_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:DestinatarioLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcCausaProbabilePlaceholder}" Classes="Muted" />
+    <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding CauseProbabili}" SelectedItem="{Binding CausaProbabileSelezionata}" AutomationProperties.AutomationId="AnomaliaDettaglio_CausaProbabile_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:CausaProbabileLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcStatoDettaglioPlaceholder}" Classes="Muted" />
+    <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding StatiDettaglio}" SelectedItem="{Binding Nc.StatoDettaglio}" AutomationProperties.AutomationId="AnomaliaDettaglio_StatoDettaglio_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:StatoDettaglioNcLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+                </WrapPanel>
+                <TextBox Classes="Field" Text="{Binding Nc.CausaProbabileAltro}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcCausaAltroPlaceholder}" IsVisible="{Binding MostraCausaAltro}" AutomationProperties.AutomationId="AnomaliaDettaglio_CausaAltro_TextBox" />
+
+                <!-- Collega a Test a posteriori: visibile solo finche' la NC non ha alcun Test collegato. -->
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding SenzaTestCollegato}">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcNessunTestCollegato}" Classes="Muted" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Classes="Field" Text="{Binding TestIdDaCollegare}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcTestIdDaCollegarePlaceholder}" AutomationProperties.AutomationId="AnomaliaDettaglio_TestIdDaCollegare_TextBox" />
+                </Grid>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PolarionLabel}" FontWeight="SemiBold" />
+                    <ItemsControl ItemsSource="{Binding Nc.CollegamentiPolarion}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:CollegamentoPolarion">
+                                <Border Classes="Badge" Background="{DynamicResource InfoBackgroundBrush}" Margin="0,0,6,6"><TextBlock Text="{Binding Codice}" FontWeight="SemiBold" /></Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Grid ColumnDefinitions="*,2*" ColumnSpacing="8">
+                        <TextBox Classes="Field" Text="{Binding NuovoTicketRiferimento}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Ticket12345Placeholder}" AutomationProperties.AutomationId="AnomaliaDettaglio_TicketRiferimento_TextBox" />
+                        <TextBox Grid.Column="1" Classes="Field" Text="{Binding NuovoTicketUrl}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=LinkPolarionOpzionale}" AutomationProperties.AutomationId="AnomaliaDettaglio_TicketUrl_TextBox" />
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="3">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaMotivoChiusuraLabel}" Classes="Muted" />
+                    <TextBox Classes="Field" Text="{Binding MotivoChiusura}" IsEnabled="{Binding PuoModificare}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MotivoChiusuraPlaceholder}" AutomationProperties.AutomationId="AnomaliaDettaglio_MotivoChiusura_TextBox" />
+                </StackPanel>
+                <StackPanel Spacing="3" IsVisible="{Binding Chiusa}"><TextBlock Classes="Muted" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaDataChiusura}"/><CalendarDatePicker SelectedDate="{Binding DataChiusuraModificabile}" IsEnabled="{Binding PuoModificare}" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy" AutomationProperties.AutomationId="AnomaliaDettaglio_DataChiusura_Input"/></StackPanel>
+
+                <!-- Riaprire una NC chiusa richiede sempre un motivo scritto (resta nello storico). -->
+                <StackPanel Spacing="3" IsVisible="{Binding PuoRiaprire}">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MotivoRiaperturaLabel}" Classes="Muted" />
+                    <TextBox Classes="Field" Text="{Binding MotivoRiapertura}" AutomationProperties.AutomationId="AnomaliaDettaglio_MotivoRiapertura_TextBox" />
+                </StackPanel>
+
+                <!-- Aggiorna test collegato alla chiusura: solo con un test collegato e NC aperta. -->
+                <Border IsVisible="{Binding MostraSezioneTest}" Padding="12" CornerRadius="8" Background="{DynamicResource SurfaceMutedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaAggiornaTestTitolo}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaAggiornaTestHint}" Classes="Muted" TextWrapping="Wrap" />
+                        <TextBlock Classes="Muted" TextWrapping="Wrap"><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaTestCollegatoLabel}" /><Run Text=": " /><Run Text="{Binding TestCollegatoId}" FontWeight="SemiBold" /><Run Text="  ·  " /><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaVeicoliTestLabel}" /><Run Text=": " /><Run Text="{Binding VeicoliTest}" /></TextBlock>
+                        <ItemsControl ItemsSource="{Binding Condizioni}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CondizioneEsitoRiga">
+                                    <Grid ColumnDefinitions="*,220,130" ColumnSpacing="10" Margin="0,0,0,6">
+                                        <TextBlock Text="{Binding Etichetta}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                        <ComboBox Grid.Column="1" Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding Esiti}" SelectedItem="{Binding EsitoNuovo}" AutomationProperties.AutomationId="{Binding AutomationIdEsito}"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:EsitoLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+                                        <TextBox Grid.Column="2" Classes="Field" HorizontalAlignment="Stretch" Text="{Binding DurataTesto, Mode=TwoWay}" IsVisible="{Binding MostraDurata}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DurataOperazioneLabel}" AutomationProperties.AutomationId="{Binding AutomationIdDurata}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <WrapPanel Classes="ColonneEditor" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=2}">
+                            <StackPanel Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaStatoLavoroTestLabel}" Classes="Muted" />
+    <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding StatiLavoro}" SelectedItem="{Binding StatoLavoroNuovo}" AutomationProperties.AutomationId="AnomaliaDettaglio_StatoTest_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaOrigineLabel}" Classes="Muted" />
+                                <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding OpzioniOrigine}" SelectedItem="{Binding OrigineSelezionata}" AutomationProperties.AutomationId="AnomaliaDettaglio_Origine_Combo"><ComboBox.ItemTemplate><DataTemplate x:DataType="vm:OpzioneOrigine"><TextBlock Text="{Binding Etichetta}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Spacing="8" Margin="0,12,0,0">
+            <Border Classes="Banner BannerErrore" IsVisible="{Binding HaErrore}"><TextBlock Text="{Binding Errore}" TextWrapping="Wrap" AutomationProperties.AutomationId="AnomaliaDettaglio_Errore_Text" /></Border>
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+                <Button Grid.Column="0" Classes="Danger" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EliminaBtn}" IsVisible="{Binding PuoEliminare}" Command="{Binding EliminaCommand}" AutomationProperties.AutomationId="AnomaliaDettaglio_Elimina_Button" />
+                <Button Grid.Column="1" Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RiapriAnomaliaBtn}" IsVisible="{Binding PuoRiaprire}" Command="{Binding RiapriCommand}" AutomationProperties.AutomationId="AnomaliaDettaglio_Riapri_Button" />
+                <Button Grid.Column="3" Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" Command="{Binding AnnullaCommand}" AutomationProperties.AutomationId="AnomaliaDettaglio_Annulla_Button" />
+                <Button Grid.Column="4" Classes="Danger" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ChiudiAnomaliaBtn}" IsVisible="{Binding PuoChiudere}" Command="{Binding ChiudiCommand}" AutomationProperties.AutomationId="AnomaliaDettaglio_Chiudi_Button" />
+                <Button Grid.Column="5" Classes="Primary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SalvaModificheBtn}" IsEnabled="{Binding PuoModificare}" Command="{Binding SalvaCommand}" AutomationProperties.AutomationId="AnomaliaDettaglio_Salva_Button" />
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Window>

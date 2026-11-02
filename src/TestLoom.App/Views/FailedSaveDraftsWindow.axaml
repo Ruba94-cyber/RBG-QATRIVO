@@ -1,0 +1,94 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:services="using:TestLoom.App.Services"
+        x:Class="TestLoom.App.Views.FailedSaveDraftsWindow"
+        Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeEmergenzaTitolo}"
+        Width="960" Height="640" MinWidth="730" MinHeight="480"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12" Margin="20">
+        <StackPanel Grid.Row="0" Spacing="6">
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeEmergenzaTitolo}" FontSize="20" FontWeight="SemiBold"
+                       AutomationProperties.AutomationId="DraftInspector_Title_Text" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeAvvisoNonAutorevoli}"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeAvvisoConfronto}"
+                       FontSize="12" TextWrapping="Wrap" />
+        </StackPanel>
+        <Grid Grid.Row="1" ColumnDefinitions="310,*" ColumnSpacing="12">
+            <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" RowSpacing="6">
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeCopieTrovate}" FontWeight="SemiBold" />
+                <ListBox x:Name="DraftList" Grid.Row="1" SelectionChanged="OnSelectionChanged"
+                         AutomationProperties.AutomationId="DraftInspector_List" />
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="PreviousButton" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzePrecedenti}" Click="OnPrevious"
+                            AutomationProperties.AutomationId="DraftInspector_Previous_Button" />
+                    <Button x:Name="NextButton" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeSuccessive}" Click="OnNext"
+                            AutomationProperties.AutomationId="DraftInspector_Next_Button" />
+                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AggiornaBtn}" Click="OnRefresh"
+                            AutomationProperties.AutomationId="DraftInspector_Refresh_Button" />
+                </StackPanel>
+            </Grid>
+            <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="8">
+                <TextBlock x:Name="StatusText" Grid.Row="0" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeLetturaInCorso}"
+                           TextWrapping="Wrap" AutomationProperties.AutomationId="DraftInspector_Status_Text" />
+                <TextBlock x:Name="DetailText" Grid.Row="1" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeSelezionaDallElenco}"
+                           TextWrapping="Wrap" MaxHeight="135" AutomationProperties.AutomationId="DraftInspector_Details_Text" />
+                <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="8">
+                    <Grid Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzaLocaleNonAutorevole}" FontWeight="SemiBold" />
+                        <TextBox x:Name="PreviewText" Grid.Row="1" IsReadOnly="True" AcceptsReturn="True"
+                                 TextWrapping="Wrap" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeNessunaAnteprima}"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 AutomationProperties.AutomationId="DraftInspector_Preview_TextBox" />
+                    </Grid>
+                    <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeDocumentoCanonico}" FontWeight="SemiBold" />
+                        <TextBox x:Name="CurrentText" Grid.Row="1" IsReadOnly="True" AcceptsReturn="True"
+                                 TextWrapping="Wrap" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeConfrontoNonEffettuato}"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 AutomationProperties.AutomationId="DraftInspector_CompareLocal_TextBox" />
+                    </Grid>
+                </Grid>
+                <WrapPanel Grid.Row="3">
+                    <Button x:Name="PreviewButton" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeMostraAnteprimaJson}"
+                            Margin="0,0,8,4"
+                            Click="OnPreview" IsEnabled="False"
+                            AutomationProperties.AutomationId="DraftInspector_Preview_Button" />
+                    <Button x:Name="CompareButton" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeConfrontaSoloLocali}"
+                            Margin="0,0,8,4"
+                            Click="OnCompare" IsEnabled="False"
+                            AutomationProperties.AutomationId="DraftInspector_Compare_Button" />
+                    <Button x:Name="UseDraftButton" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeCaricaCampiScelti}"
+                            Margin="0,0,8,4"
+                            Click="OnUseDraftInEditor" IsEnabled="False" IsVisible="False"
+                            AutomationProperties.AutomationId="DraftInspector_LoadEditor_Button" />
+                    <Button x:Name="PrepareButton" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzePreparaCopiaLocale}"
+                            Margin="0,0,8,4"
+                            Click="OnPrepare" IsEnabled="False"
+                            AutomationProperties.AutomationId="DraftInspector_Prepare_Button" />
+                </WrapPanel>
+                <StackPanel Grid.Row="4" Spacing="5">
+                    <TextBlock x:Name="FieldSelectionNotice" IsVisible="False"
+                               Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeCampiSelezionabiliNota}"
+                               TextWrapping="Wrap" FontSize="12" />
+                    <ScrollViewer MaxHeight="78" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <WrapPanel x:Name="FieldSelectionPanel" IsVisible="False" />
+                    </ScrollViewer>
+                    <TextBlock x:Name="ComparisonText" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeConfrontoNonEffettuatoSync}"
+                               TextWrapping="Wrap" MaxHeight="65"
+                               AutomationProperties.AutomationId="DraftInspector_CompareStatus_Text" />
+                    <TextBlock x:Name="PreparedText" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeNessunaCopiaPreparata}"
+                               TextWrapping="Wrap" MaxHeight="70"
+                               AutomationProperties.AutomationId="DraftInspector_Prepared_Text" />
+                    <TextBox x:Name="DifferencesText" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BozzeDifferenzeNonCalcolate}"
+                             IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" Height="94"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             AutomationProperties.AutomationId="DraftInspector_Differences_TextBox" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Chiudi}" Click="OnClose" AutomationProperties.AutomationId="DraftInspector_Close_Button" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:services="using:TestLoom.App.Services"
+             xmlns:local="using:TestLoom.App"
+             x:Class="TestLoom.App.Views.ArchivioView"
+             x:DataType="vm:ArchivioViewModel"
+             x:Name="Root">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="{DynamicResource PagePadding}">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CestinoTitolo}" Classes="PageTitle" AutomationProperties.AutomationId="Archivio_Title_Text" />
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CestinoSottotitolo}" Classes="Muted FullTextTip" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SvuotaArchivioBtn}" Classes="Secondary"
+                    Command="{Binding SvuotaArchivioCommand}" IsVisible="{Binding MostraSvuota}" VerticalAlignment="Top" AutomationProperties.AutomationId="Archivio_Svuota_Button" />
+        </Grid>
+
+        <StackPanel Grid.Row="1">
+            <Border Classes="Banner" IsVisible="{Binding MostraAvanzamentoSvuotamento}" Margin="0,12,0,0">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding ProgressoSvuotamento}" TextWrapping="Wrap" AutomationProperties.AutomationId="Archivio_SvuotamentoAvanzamento_Text" />
+                    <ProgressBar Minimum="0" Maximum="{Binding SvuotamentoTotale}" Value="{Binding SvuotamentoCompletati}"
+                                 IsIndeterminate="{Binding SvuotamentoIndeterminato}" AutomationProperties.AutomationId="Archivio_SvuotamentoProgress_Bar" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="Banner BannerErrore" IsVisible="{Binding HaMessaggioErrore}" Margin="0,12,0,0">
+                <TextBlock Text="{Binding MessaggioErrore}" TextWrapping="Wrap" />
+            </Border>
+
+            <Border Classes="Banner BannerSuccesso" IsVisible="{Binding HaMessaggio}" Margin="0,12,0,0">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Classes="BannerSuccessoTesto" Text="{Binding Messaggio}" />
+                    <Button Grid.Column="1" Classes="BannerChiudi" Content="✕" Command="{Binding CancellaMessaggioCommand}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ChiudiMessaggioTip}" AutomationProperties.Name="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ChiudiMessaggioTip}" />
+                </Grid>
+            </Border>
+        </StackPanel>
+
+        <DataGrid x:Name="Archivio_Grid" services:TableLayoutPreferences.TableId="archive" CanUserResizeColumns="True" Grid.Row="2" MinHeight="{DynamicResource AltezzaMinimaTabella}" Margin="0,12,0,0" ItemsSource="{Binding Voci}" IsReadOnly="True"
+                  AutoGenerateColumns="False" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColTipoEntita}" Binding="{Binding TipoEntita}" Width="140" />
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColId}" Binding="{Binding Etichetta}" Width="200" MinWidth="200" />
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColArchiviatoIl}" Binding="{Binding UltimaModifica, Mode=OneWay, StringFormat={}{0:dd/MM/yy HH:mm}}" Width="205" MinWidth="200" />
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColArchiviatoDa}" Binding="{Binding ModificatoDa}" Width="205" MinWidth="200" />
+                <DataGridTemplateColumn Header="" Width="100" MinWidth="95">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:VoceArchivio">
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RipristinaBtn}" Classes="Link"
+                                    IsVisible="{Binding #Root.((vm:ArchivioViewModel)DataContext).PuoModificare}"
+                                    Command="{Binding #Root.((vm:ArchivioViewModel)DataContext).RipristinaVoceCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="Archivio_Ripristina_Button" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="" Width="175" MinWidth="165">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:VoceArchivio">
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EliminaDefinitivamenteBtn}" Classes="Link"
+                                    IsVisible="{Binding #Root.((vm:ArchivioViewModel)DataContext).PuoModificare}"
+                                    Command="{Binding #Root.((vm:ArchivioViewModel)DataContext).EliminaVoceDefinitivamenteCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="Archivio_EliminaDefinitivamente_Button" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <TextBlock Grid.Row="2" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ArchivioVuoto}" Classes="Muted" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   IsVisible="{Binding Vuoto}" />
+        <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="8" HorizontalAlignment="Right" Margin="0,8,0,0"
+              IsVisible="{Binding MostraPaginazione}">
+            <Button Grid.Column="0" Content="←" Classes="Secondary" MinWidth="42" AutomationProperties.AutomationId="Archivio_PaginaPrec_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaPrecedenteTip}" AutomationProperties.Name="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaPrecedenteTip}"
+                    Command="{Binding PaginaPrecedenteCommand}" IsEnabled="{Binding PaginaPrecedenteDisponibile}" />
+            <TextBlock Grid.Column="1" Text="{Binding RiepilogoPaginazione}" Classes="Muted" VerticalAlignment="Center" />
+            <Button Grid.Column="2" Content="→" Classes="Secondary" MinWidth="42" AutomationProperties.AutomationId="Archivio_PaginaSucc_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaSuccessivaTip}" AutomationProperties.Name="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaSuccessivaTip}"
+                    Command="{Binding PaginaSuccessivaCommand}" IsEnabled="{Binding PaginaSuccessivaDisponibile}" />
+        </Grid>
+    </Grid>
+</UserControl>

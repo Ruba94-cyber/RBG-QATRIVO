@@ -1,0 +1,137 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:TestLoom.App.ViewModels"
+        xmlns:services="using:TestLoom.App.Services"
+        xmlns:models="using:TestLoom.App.Models"
+        xmlns:local="using:TestLoom.App"
+        xmlns:conv="using:Avalonia.Data.Converters"
+        x:Class="TestLoom.App.Views.AssociazioniVeicoloWindow"
+        x:DataType="vm:AssociazioniVeicoloViewModel"
+        Title="{Binding Titolo}"
+        Width="900" Height="660" MinWidth="620" MinHeight="420" CanResize="True"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="20" IsEnabled="{Binding InterazioneEditorAbilitata}">
+        <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="{Binding Titolo}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.AutomationId="Assoc_Titolo_Text" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AssociazioniVeicoloSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Banner: lock di un'altra postazione, esito, errore e sola lettura. Sempre visibili, fuori dall'elenco. -->
+        <StackPanel Grid.Row="1">
+            <Border Classes="Banner BannerAvviso" IsVisible="{Binding AvvisoLockNonConfermato}" Margin="0,12,0,0">
+                <TextBlock Text="{Binding AvvisoLockNonConfermatoTesto}" TextWrapping="Wrap" />
+            </Border>
+            <Border Classes="Banner BannerAvviso" IsVisible="{Binding LockDetenutoDaAltri}" Margin="0,12,0,0">
+                <TextBlock Text="{Binding LockInfoTesto, StringFormat='🔒 {0}'}" TextWrapping="Wrap" AutomationProperties.AutomationId="Assoc_LockInfo_Text" />
+            </Border>
+            <Border Classes="Banner BannerAvviso" IsVisible="{Binding SoloLettura}" Margin="0,8,0,0">
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AssociazioniVeicoloSolaLettura}" TextWrapping="Wrap" />
+            </Border>
+            <Border Classes="Banner BannerErrore" IsVisible="{Binding HaMessaggioErrore}" Margin="0,8,0,0">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{Binding MessaggioErrore}" TextWrapping="Wrap" AutomationProperties.AutomationId="Assoc_MessaggioErrore_Text" />
+                    <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RiprovaIndice}" Classes="Link" Command="{Binding RiprovaRilascioLockCommand}" IsVisible="{Binding RilascioLockInAttesa}" AutomationProperties.AutomationId="Assoc_RiprovaRilascioLock_Button" />
+                </Grid>
+            </Border>
+            <Border Classes="Banner BannerSuccesso" IsVisible="{Binding HaMessaggio}" Margin="0,8,0,0">
+                <TextBlock Classes="BannerSuccessoTesto" Text="{Binding Messaggio}" TextWrapping="Wrap" AutomationProperties.AutomationId="Assoc_Messaggio_Text" />
+            </Border>
+        </StackPanel>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16" Margin="0,12,0,8">
+            <TextBox Grid.Column="0" Classes="Field" Text="{Binding Ricerca}" AutomationProperties.AutomationId="Assoc_Cerca_TextBox"
+                     PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CercaMasterDataPlaceholder}" />
+            <CheckBox Grid.Column="1" IsChecked="{Binding SoloMontate}" VerticalAlignment="Center" AutomationProperties.AutomationId="Assoc_SoloMontate_CheckBox"
+                      Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AssociazioniVeicoloSoloMontate}" />
+            <TextBlock Grid.Column="2" Text="{Binding RiepilogoMontate}" Classes="Muted" VerticalAlignment="Center" AutomationProperties.AutomationId="Assoc_Riepilogo_Text" />
+        </Grid>
+
+        <!-- Elenco componente virtualizzato: con centinaia di componente la lista scorre senza creare tutte le righe. -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="10" Margin="0,0,0,8" IsVisible="{Binding InModifica}">
+            <Button Classes="Link" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PickerSelezionaVisibili}"
+                    Command="{Binding SelezionaEcuVisibiliCommand}" AutomationProperties.AutomationId="Assoc_SelectVisibleEcu_Button" />
+            <Button Classes="Link" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PickerDeselezionaVisibili}"
+                    Command="{Binding DeselezionaEcuVisibiliCommand}" AutomationProperties.AutomationId="Assoc_DeselectVisibleEcu_Button" />
+        </StackPanel>
+
+        <ListBox Grid.Row="4" ItemsSource="{Binding RigheVisibili}" SelectionMode="Single" Background="Transparent" BorderThickness="1"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.AutomationId="Assoc_ElencoEcu_Lista">
+            <ListBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+            <ListBox.Styles>
+                <Style Selector="ListBoxItem"><Setter Property="Padding" Value="8,6" /><Setter Property="Margin" Value="0" /><Setter Property="MinHeight" Value="0" /></Style>
+            </ListBox.Styles>
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:AssociazioneEcuRiga">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
+                            <CheckBox Grid.Column="0" Content="{Binding Nome}" IsChecked="{Binding Montata}" IsEnabled="{Binding Vm.InModifica}" AutomationProperties.AutomationId="Assoc_EcuMontata_CheckBox" />
+                            <TextBlock Grid.Column="1" Text="{Binding TestoVeicoli}" Classes="Muted" VerticalAlignment="Center" />
+                            <Button Grid.Column="2" Classes="Link" Content="{Binding TestoEspansione}" Command="{Binding AlternaEspansioneCommand}"
+                                    IsVisible="{Binding Montata}" AutomationProperties.AutomationId="Assoc_EcuEspandi_Button" />
+                        </Grid>
+
+                        <!-- Funzionalità applicabili a questa componente, con la casella per il veicolo corrente. -->
+                        <StackPanel IsVisible="{Binding MostraDettaglio}" Margin="28,0,0,0" Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding Vm.InModifica}">
+                                <Button Classes="Link" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PickerSelezionaVisibili}"
+                                        Command="{Binding SelezionaFunzioniVisibiliCommand}" AutomationProperties.AutomationId="Assoc_SelectVisibleFunctions_Button" />
+                                <Button Classes="Link" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PickerDeselezionaVisibili}"
+                                        Command="{Binding DeselezionaFunzioniVisibiliCommand}" AutomationProperties.AutomationId="Assoc_DeselectVisibleFunctions_Button" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding Funzioni}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:AssociazioneFunzioneRiga">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                            <CheckBox Grid.Column="0" Content="{Binding Nome}" IsChecked="{Binding Applicata}" IsEnabled="{Binding Componente.Vm.InModifica}" AutomationProperties.AutomationId="Assoc_FunzioneApplicata_CheckBox" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Etichetta}" Classes="Muted" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AssociazioniVeicoloNessunaFunzione}"
+                                       Classes="Muted" IsVisible="{Binding NessunaFunzione}" />
+
+                            <!-- Aggiunta di una funzionalità non ancora associata: in piccolo elenco una ComboBox, oltre soglia un picker con ricerca. -->
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,4,0,0" IsVisible="{Binding Vm.InModifica}">
+                                <ComboBox Grid.Column="0" ItemsSource="{Binding Aggiungibili}" SelectedItem="{Binding FunzioneDaAggiungere}" HorizontalAlignment="Stretch"
+                                          IsVisible="{Binding Aggiungibili, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}"
+                                          PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AssociazioniVeicoloSceltaFunzioneBtn}"
+                                          AutomationProperties.AutomationId="Assoc_ComboFunzione_ComboBox">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="models:Funzionalita"><TextBlock Text="{Binding Nome}" /></DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <Button Grid.Column="0" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                        Content="{Binding TestoSceltaFunzione}"
+                                        Command="{Binding SceltaFunzioneCommand}"
+                                        IsVisible="{Binding Aggiungibili, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}"
+                                        AutomationProperties.AutomationId="Assoc_SceltaFunzione_Button" />
+                                <Button Grid.Column="2" Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AssociazioniVeicoloAggiungiBtn}"
+                                        Command="{Binding AggiungiFunzioneCommand}" AutomationProperties.AutomationId="Assoc_AggiungiFunzione_Button" />
+                            </Grid>
+                            <CheckBox IsChecked="{Binding SoloQuestoVeicolo}" IsVisible="{Binding AltriVeicoliSulluEcu}" IsEnabled="{Binding Vm.InModifica}"
+                                      Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AssociazioniVeicoloSoloQuestoVeicolo}"
+                                      AutomationProperties.AutomationId="Assoc_SoloQuestoVeicolo_CheckBox" />
+                        </StackPanel>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Grid Grid.Row="5" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+            <TextBlock Grid.Column="0" Classes="Muted" VerticalAlignment="Center" TextWrapping="Wrap"
+                       Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AssociazioniVeicoloNessunaEcu}"
+                       IsVisible="{Binding NessunaEcuDaMostrare}" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                <Button Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Modifica}"
+                        Command="{Binding IniziaModificaCommand}" IsVisible="{Binding MostraModifica}" AutomationProperties.AutomationId="Assoc_Modifica_Button" />
+                <Button Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}"
+                        Command="{Binding AnnullaCommand}" IsVisible="{Binding InModifica}" AutomationProperties.AutomationId="Assoc_Annulla_Button" />
+                <Button Classes="Primary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Salva}"
+                        Command="{Binding SalvaCommand}" IsVisible="{Binding InModifica}" AutomationProperties.AutomationId="Assoc_Salva_Button" />
+                <Button Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Chiudi}"
+                        Click="OnChiudi" AutomationProperties.AutomationId="Assoc_Chiudi_Button" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

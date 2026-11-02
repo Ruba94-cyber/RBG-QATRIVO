@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:TestLoom.App.Services"
+        x:Class="TestLoom.App.Views.ImportExcelOpzioniWindow"
+        Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImportExcelOpzioniTitolo}"
+        Width="520" SizeToContent="Height" CanResize="True"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="24" Spacing="16">
+        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImportExcelOpzioniIntro}" TextWrapping="Wrap" Classes="Muted" />
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImportExcelFoglioLabel}" FontSize="13" FontWeight="SemiBold" />
+            <ComboBox x:Name="FoglioCombo" Classes="Field" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="ImportExcel_Foglio_ComboBox" />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImportExcelRigaLabel}" FontSize="13" FontWeight="SemiBold" />
+            <NumericUpDown x:Name="RigaUpDown" Minimum="1" Maximum="1000" Value="1" FormatString="0" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="ImportExcel_Riga_NumericUpDown" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImportExcelRigaAiuto}" FontSize="13" Classes="Muted" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <Button x:Name="AnnullaButton" Classes="Secondary" AutomationProperties.AutomationId="ImportExcel_Annulla_Button" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" />
+            <Button x:Name="ImportaButton" Classes="Primary" AutomationProperties.AutomationId="ImportExcel_Importa_Button" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImportaExcelBtn}" />
+        </StackPanel>
+    </StackPanel>
+</Window>

@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:services="using:TestLoom.App.Services"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="TestLoom.App.Views.GraficoCard"
+             x:DataType="vm:ChartRenderizzato">
+
+    <Border x:Name="Contenitore" Background="#F8FAFC" CornerRadius="8" Padding="10" Margin="0,0,14,14"
+            Width="{Binding LarghezzaCardVisualizzata}" HorizontalAlignment="Stretch">
+        <StackPanel Spacing="6">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBlock Text="{Binding Titolo}" Classes="Muted" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <!-- Senza dati non c'e' nulla da aprire: il pulsante resta disattivato (niente click muti). -->
+                    <Button Classes="Link" Padding="6,2" Click="OnApri"
+                            IsEnabled="{Binding Dati, Converter={x:Static conv:ObjectConverters.IsNotNull}}"
+                            Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoApri}"
+                            AutomationProperties.AutomationId="{Binding ApriAutomationId}" />
+                    <Button Classes="Link" Padding="6,2" Click="OnEsportaPng"
+                            Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoEsportaPng}"
+                            AutomationProperties.AutomationId="{Binding EsportaAutomationId}" />
+                    <Button Classes="Link" Padding="6,2" Click="OnCopia"
+                            Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoCopia}"
+                            AutomationProperties.AutomationId="{Binding CopiaAutomationId}" />
+                </StackPanel>
+            </Grid>
+            <!-- Immagine alla dimensione effettiva della card. Le maniglie sui bordi regolano larghezza e altezza;
+                 il render segue i Bounds reali e conserva il debounce asincrono. -->
+            <Grid Height="{Binding AltezzaGrafico}" ClipToBounds="False">
+                <Image x:Name="ImmagineCard" Source="{Binding Immagine}" Stretch="Fill" Height="{Binding AltezzaGrafico}"
+                       HorizontalAlignment="Stretch" VerticalAlignment="Stretch" SizeChanged="OnImmagineSizeChanged"
+                       AutomationProperties.AutomationId="{Binding AutomationId}"
+                       AutomationProperties.Name="{Binding Titolo}"
+                       AutomationProperties.HelpText="{Binding TipoTesto}"
+                       ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeTooltipGraficoEsiti}" />
+                <Border Tag="larghezza" Width="8" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                        Background="#CBD5E1" CornerRadius="3" Margin="2,12"
+                        Cursor="SizeWestEast" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoRidimensionaLarghezzaTooltip}"
+                        PointerPressed="OnRidimensionamentoPremuto" PointerMoved="OnRidimensionamentoSpostato" PointerReleased="OnRidimensionamentoRilasciato" PointerCaptureLost="OnRidimensionamentoCapturePerso"
+                        AutomationProperties.AutomationId="{Binding AutomationId, StringFormat='{}{0}_RidimensionaLarghezza'}" />
+                <Border Tag="altezza" Height="8" HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
+                        Background="#CBD5E1" CornerRadius="3" Margin="12,2"
+                        Cursor="SizeNorthSouth" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoRidimensionaAltezzaTooltip}"
+                        PointerPressed="OnRidimensionamentoPremuto" PointerMoved="OnRidimensionamentoSpostato" PointerReleased="OnRidimensionamentoRilasciato" PointerCaptureLost="OnRidimensionamentoCapturePerso"
+                        AutomationProperties.AutomationId="{Binding AutomationId, StringFormat='{}{0}_RidimensionaAltezza'}" />
+                <Border x:Name="ManigliaAngolo" Tag="entrambe" Width="10" Height="10"
+                        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                        Background="#2563EB" CornerRadius="3"
+                        Cursor="SizeWestEast" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoRidimensionaGraficoTooltip}"
+                        PointerPressed="OnRidimensionamentoPremuto" PointerMoved="OnRidimensionamentoSpostato" PointerReleased="OnRidimensionamentoRilasciato" PointerCaptureLost="OnRidimensionamentoCapturePerso"
+                        DoubleTapped="OnRipristinaDimensioni" AutomationProperties.AutomationId="{Binding AutomationId, StringFormat='{}{0}_RidimensionaEntrambe'}" />
+            </Grid>
+            <Expander IsVisible="{Binding HaLegendaTortaCompleta}"
+                      Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoLegendaCompleta}"
+                      AutomationProperties.AutomationId="Grafico_LegendaCompleta_Expander">
+                <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding LegendaTortaCompleta}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:VoceLegendaCompletaGrafico">
+                                <Grid Margin="2">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding Intestazione}">
+                                        <Border Width="12" Height="12" VerticalAlignment="Center" Background="{Binding Colore}"
+                                                IsVisible="{Binding Colore, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+                                        <TextBlock Text="{Binding Testo}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !Intestazione}">
+                                        <Border Width="12" Height="12" VerticalAlignment="Center" Background="{Binding Colore}" />
+                                        <TextBlock Text="{Binding Testo}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Expander>
+            <!-- Rendering fallito (eccezione o PNG non decodificato): messaggio al posto di un'immagine vuota. -->
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoNonDisponibile}"
+                       Classes="Muted" IsVisible="{Binding NonDisponibile}"
+                       AutomationProperties.AutomationId="{Binding AutomationId, StringFormat='{}{0}_NonDisponibile'}" />
+            <TextBlock Text="{Binding Messaggio}" Classes="Muted" TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</UserControl>

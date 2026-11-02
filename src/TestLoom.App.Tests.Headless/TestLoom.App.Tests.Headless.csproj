@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- Test di layout headless (Category=LayoutHeadless) in un processo di test proprio: LayoutHeadlessSessione crea
+       un'Application Avalonia che resta impostata per tutto il processo, quindi non deve condividere il processo con
+       TestLoom.App.Tests (vedi TestAssemblyAccess.cs). Stessa versione di Avalonia dell'app (12.1.2). -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageReference Include="Avalonia.Headless" Version="12.1.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TestLoom.App\TestLoom.App.csproj" />
+  </ItemGroup>
+
+  <!-- Helper condivisi con la suite principale (stessi file, nessuna copia): la piattaforma headless deve avere il
+       proprio thread di pompa del Dispatcher (DispatcherTestPump), e TestStateFactory crea gli AppState di test. -->
+  <!-- TestLocalAppDataFixture: stessa radice dati isolata (TestLoom_DATA_ROOT) della suite principale: %APPDATA% e
+       %LOCALAPPDATA% reali non vengono mai toccati (ModuleInitializer). -->
+  <ItemGroup>
+    <Compile Include="..\TestLoom.App.Tests\DispatcherTestPump.cs" Link="DispatcherTestPump.cs" />
+    <Compile Include="..\TestLoom.App.Tests\TestStateFactory.cs" Link="TestStateFactory.cs" />
+    <Compile Include="..\TestLoom.App.Tests\TestLocalAppDataFixture.cs" Link="TestLocalAppDataFixture.cs" />
+    <Compile Include="..\TestLoom.App.Tests\TestOperatori.cs" Link="TestOperatori.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

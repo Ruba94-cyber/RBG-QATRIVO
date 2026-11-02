@@ -1,0 +1,130 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:services="using:TestLoom.App.Services"
+             xmlns:local="using:TestLoom.App"
+             x:Class="TestLoom.App.Views.FirstRunView"
+             x:DataType="vm:FirstRunViewModel">
+    <Grid Background="{DynamicResource AppDarkBrush}">
+        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="16" Width="560" MaxHeight="900" Padding="32" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="18">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BenvenutoTitolo}" FontSize="22" FontWeight="Bold" IsVisible="{Binding EPrimoAccesso}" />
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AccediTitolo}" FontSize="22" FontWeight="Bold" IsVisible="{Binding !EPrimoAccesso}" />
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=BenvenutoSottotitolo}" Classes="Muted" TextWrapping="Wrap" IsVisible="{Binding EPrimoAccesso}" />
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AccediSottotitolo}" Classes="Muted" TextWrapping="Wrap" IsVisible="{Binding !EPrimoAccesso}" />
+                </StackPanel>
+
+                <Border Classes="Banner BannerErrore" Margin="0" Padding="14" IsVisible="{Binding MostraLockoutRuoliNonSigillati}" AutomationProperties.AutomationId="Login_LockoutRuoli_Banner">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=LockoutRuoliNonSigillatiTitolo}" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource DangerDarkBrush}" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=LockoutRuoliNonSigillatiTesto}" Classes="Muted" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource DangerDeepBrush}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="Banner BannerInfo" Margin="0" Padding="14" IsVisible="{Binding PuoInizializzareDemo}">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DemoCartellaVuotaTitolo}" FontWeight="Bold" FontSize="13" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DemoCartellaVuotaTesto}" Classes="Muted" TextWrapping="Wrap" FontSize="13" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <Button Grid.Column="0" Classes="Primary" HorizontalContentAlignment="Center" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CaricaDemoCompletaBtn}" Command="{Binding CaricaDemoCompletaCommand}" AutomationProperties.AutomationId="Login_CaricaDemoCompleta_Button" />
+                            <Button Grid.Column="1" Classes="Secondary" HorizontalContentAlignment="Center" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CaricaDemoConfigurazioneBtn}" Command="{Binding CaricaDemoConfigurazioneCommand}" AutomationProperties.AutomationId="Login_CaricaDemoConfigurazione_Button" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="Banner BannerInfo" Margin="0" Padding="14" IsVisible="{Binding PuoInizializzareDemo}" AutomationProperties.AutomationId="FirstRun_PuntoDiPartenza_Banner">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding TitoloPuntoDiPartenza}" FontWeight="Bold" FontSize="13" />
+                        <TextBlock Text="{Binding TestoPuntoDiPartenza}" Classes="Muted" TextWrapping="Wrap" FontSize="12" />
+                        <ComboBox ItemsSource="{Binding PuntiDiPartenza}" SelectedItem="{Binding PuntoDiPartenzaSelezionato}" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="FirstRun_PuntoDiPartenza_Combo" />
+                        <TextBlock Text="{Binding DescrizionePuntoDiPartenza}" Classes="Muted" TextWrapping="Wrap" FontSize="12" />
+                        <Button Classes="Secondary" HorizontalAlignment="Left" Content="{Binding TestoBottonePuntoDiPartenza}" Command="{Binding CreaModelliInizialiCommand}" AutomationProperties.AutomationId="FirstRun_PuntoDiPartenza_Button" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="Banner BannerInfo" Margin="0" Padding="12" IsVisible="{Binding MostraDemoInCorso}">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DemoCaricamentoInCorso}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                </Border>
+
+                <Border Classes="Banner BannerSuccesso" Margin="0" Padding="12" IsVisible="{Binding MostraMessaggioDemo}">
+                    <TextBlock Text="{Binding MessaggioDemo}" TextWrapping="Wrap" AutomationProperties.AutomationId="Login_DemoMessaggio_Text" Foreground="{DynamicResource SuccessBrush}" FontWeight="SemiBold" />
+                </Border>
+
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CambiaCartellaCondivisaBtn}" Classes="Link" HorizontalAlignment="Left" Padding="0"
+                        Command="{Binding ToggleCambioCartellaCommand}" IsVisible="{Binding !MostraCambioCartella}" />
+                <StackPanel Spacing="6" IsVisible="{Binding MostraCambioCartella}">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CartellaCondivisaLabel}" FontWeight="SemiBold" FontSize="13" />
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                        <TextBox Grid.Column="0" Classes="Field" Text="{Binding Cartella}" PlaceholderText="C:\...\CS Diagnostic Shared" AutomationProperties.AutomationId="Login_Cartella_TextBox" />
+                        <Button Grid.Column="1" Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ScegliCartellaBtn}" Margin="8,0,0,0" Click="OnScegliCartella" />
+                        <Button Grid.Column="2" Classes="Secondary" Content="↻" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RicaricaOperatori}" Margin="8,0,0,0" Command="{Binding RicaricaDopoSceltaCommand}" />
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="6" IsVisible="{Binding MostraRiprovaCartella}" AutomationProperties.AutomationId="Login_CartellaNonAperta_Blocco">
+                    <TextBlock Text="{Binding TestoStatoCartella}" TextWrapping="Wrap" Foreground="#DC2626" />
+                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RiprovaCartellaBtn}" Classes="Secondary" HorizontalAlignment="Left" Command="{Binding RiprovaCartellaCommand}" AutomationProperties.AutomationId="Login_RiprovaCartella_Button" />
+                </StackPanel>
+
+                <StackPanel Spacing="6" IsVisible="{Binding MostraLoginStandard}">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IlTuoNomeOperatore}" FontWeight="SemiBold" FontSize="13" />
+                    <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding OperatoriDisponibili}" SelectedItem="{Binding OperatoreSelezionato}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SelezionaElenco}"
+                              AutomationProperties.AutomationId="Login_Operatore_ComboBox"
+                              IsVisible="{Binding OperatoriDisponibili, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}" />
+                    <AutoCompleteBox MinimumPrefixLength="0" Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding OperatoriDisponibili}" SelectedItem="{Binding OperatoreSelezionato}" FilterMode="Custom" ItemFilter="{x:Static local:AutoCompleteFilters.Stringa}"
+                              PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SelezionaElenco}"
+                              AutomationProperties.AutomationId="Login_Operatore_AutoCompleteBox"
+                              IsVisible="{Binding OperatoriDisponibili, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}" />
+                    <TextBox Classes="Field" Text="{Binding PinInserito}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Pin}" PasswordChar="•" Margin="0,4,0,0"
+                              AutomationProperties.AutomationId="Login_Pin_TextBox" IsVisible="{Binding !AccessoSenzaPin}" />
+                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PinDimenticatoBtn}" Classes="Link" Padding="0" Margin="0,2,0,0" Command="{Binding ToggleRecuperoPinCommand}" IsVisible="{Binding !AccessoSenzaPin}" />
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NonPresenteInElencoTesto}" Classes="Muted" Margin="0,10,0,0" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,*,Auto" Margin="0,4,0,0">
+                        <TextBox Grid.Column="0" Classes="Field" Text="{Binding NuovoOperatoreNome}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IlTuoNomePlaceholder}" />
+                        <TextBox Grid.Column="1" Classes="Field" Text="{Binding NuovoOperatorePin}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ScegliUnPinPlaceholder}" PasswordChar="•" Margin="8,0" />
+                        <Button Grid.Column="2" Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CreaBtn}" Command="{Binding AggiungiOperatoreCommand}" />
+                    </Grid>
+                </StackPanel>
+
+                <Border Classes="Banner BannerSuccesso" Margin="0" Padding="12" IsVisible="{Binding MostraCodiceRecupero}">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CodiceRecuperoTitolo}" FontWeight="Bold" FontSize="13" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CodiceRecuperoSottotitolo}" Classes="Muted" TextWrapping="Wrap" FontSize="13" />
+                        <SelectableTextBlock AutomationProperties.AutomationId="Login_CodiceRecupero_Text" Text="{Binding CodiceRecuperoMostrato}" FontFamily="Consolas,monospace" FontSize="16" FontWeight="Bold" Margin="0,4,0,0" />
+                        <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CodiceSalvatoContinuaBtn}" Classes="Primary" HorizontalAlignment="Left" Margin="0,8,0,0" Command="{Binding ContinuaDopoCodiceRecuperoCommand}" AutomationProperties.AutomationId="Login_CodiceRecuperoContinua_Button" IsVisible="{Binding AttendeConfermaCodiceRecupero}" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Spacing="6" IsVisible="{Binding MostraRecuperoPin}">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RecuperoPinTitolo}" FontWeight="SemiBold" FontSize="13" />
+                    <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding OperatoriDisponibili}" SelectedItem="{Binding RecuperoOperatoreSelezionato}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SelezionaElenco}"
+                              IsVisible="{Binding OperatoriDisponibili, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}" />
+                    <AutoCompleteBox MinimumPrefixLength="0" Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding OperatoriDisponibili}" SelectedItem="{Binding RecuperoOperatoreSelezionato}" FilterMode="Custom" ItemFilter="{x:Static local:AutoCompleteFilters.Stringa}"
+                              PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SelezionaElenco}"
+                              IsVisible="{Binding OperatoriDisponibili, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}" />
+                    <TextBox Classes="Field" Text="{Binding RecuperoCodiceInserito}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CodiceRecuperoPlaceholder}" />
+                    <TextBox Classes="Field" Text="{Binding RecuperoNuovoPin}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoPinPlaceholder}" PasswordChar="•" />
+                    <TextBlock Text="{Binding RecuperoMessaggioErrore}" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding MostraRecuperoErrore}" TextWrapping="Wrap" />
+                    <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ConfermaRecuperoBtn}" Classes="Secondary" HorizontalAlignment="Left" Command="{Binding ConfermaRecuperoPinCommand}" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding MessaggioErrore}" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding MostraErrore}" TextWrapping="Wrap" AutomationProperties.AutomationId="Login_Error_Text" />
+
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Accedi}" Classes="Primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding ConfermaCommand}" IsVisible="{Binding MostraLoginStandard}" AutomationProperties.AutomationId="Login_Confirm_Button" />
+
+                <Border Background="{DynamicResource OrangeSoftBrush}" BorderBrush="{DynamicResource OrangeBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" IsVisible="{Binding RichiedeCambioPin}">
+                    <StackPanel Spacing="9">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CambioPinDemoTitolo}" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource OrangeDarkBrush}" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CambioPinDemoTesto}" TextWrapping="Wrap" Foreground="{DynamicResource OrangeDeepBrush}" />
+                        <TextBox Classes="Field" Text="{Binding NuovoPinObbligatorio}" AutomationProperties.AutomationId="Login_NuovoPin_TextBox" PasswordChar="•" MaxLength="4" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoPinPersonale}" />
+                        <TextBox Classes="Field" Text="{Binding ConfermaNuovoPinObbligatorio}" AutomationProperties.AutomationId="Login_ConfermaNuovoPin_TextBox" PasswordChar="•" MaxLength="4" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ConfermaNuovoPin}" />
+                        <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpostaPinContinuaBtn}" Classes="Primary" HorizontalAlignment="Stretch" Command="{Binding ConfermaCambioPinObbligatorioCommand}" AutomationProperties.AutomationId="Login_ImpostaPin_Button" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:TestLoom.App.Services"
+        x:Class="TestLoom.App.Views.TestTemplateEditorWindow"
+        Width="960" Height="760" MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+        <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,14">
+            <TextBlock x:Name="TitoloText" FontSize="16" FontWeight="Bold" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TplEditorSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel x:Name="RootPanel" Spacing="20" MaxWidth="1100" />
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,14,0,0">
+            <Button x:Name="AnteprimaButton" Classes="Secondary"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnteprimaBtn}" />
+            <Button x:Name="ChiudiButton" Classes="Primary" AutomationProperties.AutomationId="TplEditor_Chiudi_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Chiudi}" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,38 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:TestLoom.App.Services"
+        x:Class="TestLoom.App.Views.PolarionSelezioneDialog"
+        Width="900" Height="600" MinWidth="700" MinHeight="420" CanResize="True"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+        <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,14">
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PolarionSelezioneTitolo}" FontSize="16" FontWeight="Bold" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PolarionSelezioneSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnDefinitions="220,*" ColumnSpacing="16">
+            <DockPanel Grid.Column="0">
+                <TextBox x:Name="SezioniRicercaBox" DockPanel.Dock="Top" IsVisible="False" Margin="0,0,0,6" />
+                <ScrollViewer>
+                    <StackPanel x:Name="SezioniPanel" Spacing="8" />
+                </ScrollViewer>
+            </DockPanel>
+            <Border Grid.Column="1" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6">
+                <TextBox x:Name="AnteprimaBox" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                         FontFamily="Consolas,monospace" FontSize="12" BorderThickness="0"
+                         AutomationProperties.AutomationId="PolarionSelezione_Anteprima_TextBox"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+            </Border>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,14,0,0">
+            <Button x:Name="AnnullaButton" Classes="Secondary" AutomationProperties.AutomationId="PolarionSelezione_Annulla_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" />
+            <Button x:Name="PreparaBrowserButton" Classes="Secondary"
+                    AutomationProperties.AutomationId="PolarionSelezione_PreparaEstaBrowser_Button"
+                    Content="Prepara TICKET nel browser dalla NC/CR" />
+            <Button x:Name="GeneraButton" Classes="Primary" AutomationProperties.AutomationId="PolarionSelezione_Genera_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PolarionGeneraBtn}" />
+        </StackPanel>
+    </Grid>
+</Window>

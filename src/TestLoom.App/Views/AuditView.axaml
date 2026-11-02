@@ -1,0 +1,241 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:services="using:TestLoom.App.Services"
+             xmlns:local="using:TestLoom.App"
+             x:Class="TestLoom.App.Views.AuditView"
+             x:DataType="vm:AuditViewModel"
+             x:Name="Root">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="{DynamicResource PagePadding}">
+        <StackPanel Grid.Row="0" Spacing="16" MaxWidth="{DynamicResource MaxLarghezzaPagina}">
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditTitolo}" Classes="PageTitle" AutomationProperties.AutomationId="Audit_Title_Text" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditSottotitolo}" Classes="Muted AuditSottotitolo" TextWrapping="Wrap" />
+
+            <UniformGrid x:Name="GrigliaKpi" Columns="{Binding #GrigliaKpi.Bounds.Width, Converter={x:Static local:ColonneDaLarghezzaConverter.Instance}, ConverterParameter=120|7}">
+                <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditValutate}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding TotaleCoppieValutate}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditTestCreato}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding TotaleCoppieTestCreato}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditDaTestare}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding TotaleCoppieDaTestare}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditConflitti}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding TotaleCoppieInConflitto}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding HaConflitti}" />
+                        <TextBlock Text="{Binding TotaleCoppieInConflitto}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" IsVisible="{Binding !HaConflitti}" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPercentuale}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding PercentualeValutato, StringFormat={}{0:0}%}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPunteggioMedio}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding PunteggioMedio, StringFormat={}{0:0.0}}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" IsVisible="{Binding HaPunteggioMedio}" />
+                        <TextBlock Text="—" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" IsVisible="{Binding !HaPunteggioMedio}" />
+                    </StackPanel>
+                </Border>
+                <!-- Vista aggregata (Piano 6.3.1 §1, seconda consegna, punto (a)): conta su TUTTI i veicoli le
+                     coppie "!" (propagabili non confermate), indipendentemente dal sottoveicolo selezionato
+                     nella matrice sotto — contatore aggiuntivo, non ridefinisce i numeri delle altre card. -->
+                <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPropagabili}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding TotaleCoppiePropagabili}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" Foreground="{DynamicResource OrangeStrongBrush}" IsVisible="{Binding HaPropagabili}" />
+                        <TextBlock Text="{Binding TotaleCoppiePropagabili}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" IsVisible="{Binding !HaPropagabili}" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+        </StackPanel>
+        <Border Grid.Row="1" Classes="Card" Margin="0,8,0,0" Padding="{DynamicResource CardPadding}">
+            <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="6">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditMatriceTitolo}" Classes="SectionTitle" Margin="0" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                            <!-- Propagazione massiva a livello veicolo (Piano 6.4.0, punto 1): visibile/abilitato
+                                 solo per un Master e solo se il veicolo selezionato ha almeno una cella "!". -->
+                            <Button AutomationProperties.AutomationId="Audit_PropagaVeicolo_Button"
+                                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPropagaVeicoloBtn}"
+                                    Classes="Secondary" Click="OnPropagaVeicolo" IsVisible="{Binding PuoPropagareVeicolo}" />
+                            <Button services:Spotlight.TargetId="audit-export" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditEsportaExcel}" Classes="Primary" Click="OnEsportaExcel" IsEnabled="{Binding !EsportazioneInCorso}" AutomationProperties.AutomationId="Audit_EsportaExcel_Button" />
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" Classes="Secondary" Command="{Binding AnnullaEsportazioneCommand}" IsVisible="{Binding EsportazioneInCorso}" AutomationProperties.AutomationId="Audit_AnnullaEsportazione_Button" />
+                        </StackPanel>
+                    </Grid>
+                <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="14">
+                    <StackPanel Grid.Column="0" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FiltroTipoRequisitoLabel}" FontSize="13" FontWeight="SemiBold" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Button Grid.Column="0" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding FiltroTipoRequisito.TestoRiepilogo}" Click="OnApriFiltroTipoRequisito"
+                                    AutomationProperties.AutomationId="Audit_FiltroTipoRequisito_Button" />
+                            <Button Grid.Column="1" Classes="Link" Margin="8,0,0,0" Click="OnAzzeraFiltroTipo" IsVisible="{Binding HaFiltroTipoAttivo}" AutomationProperties.AutomationId="Audit_FiltroTipoRequisito_Azzera_Button"
+                                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AzzeraFiltriBtn}" />
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditSottoveicolo}" FontSize="13" FontWeight="SemiBold" />
+                        <!-- Sopra la soglia di 10 elementi, bottone + dialog di ricerca (feedback utente
+                             2026-08-26), stessa regola già applicata al campo Veicolo dell'editor Test invece
+                             di una ComboBox che con molti sottoveicoli diventa scomoda da scorrere. -->
+                        <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding SottoveicoliDisponibili}" SelectedItem="{Binding SottoveicoloSelezionato}"
+                                  AutomationProperties.AutomationId="Audit_Sottoveicolo_ComboBox"
+                                  IsVisible="{Binding SottoveicoliDisponibili, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}" />
+                        <Button Classes="Field" Content="{Binding SottoveicoloSelezionato, Converter={x:Static local:ScegliPlaceholderConverter.Instance}, ConverterParameter=ScegliVeicoloPlaceholder}"
+                                AutomationProperties.AutomationId="Audit_Sottoveicolo_Scegli_Button"
+                                Command="{Binding ScegliSottoveicoloCommand}" IsVisible="{Binding SottoveicoliDisponibili, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}" />
+                    </StackPanel>
+                </Grid>
+
+                <WrapPanel Grid.Row="2" Orientation="Horizontal" Margin="0,4">
+                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,12,2">
+                            <Border Background="{DynamicResource AuditCellaDaTestareBrush}" Width="14" Height="14" CornerRadius="3" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditDaTestare}" FontSize="12" Classes="Muted" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,12,2">
+                            <Border Background="{DynamicResource AuditCellaTestCreatoBrush}" Width="14" Height="14" CornerRadius="3" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditTestCreato}" FontSize="12" Classes="Muted" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,12,2">
+                            <Border Background="{DynamicResource AuditCellaOttimoBrush}" Width="14" Height="14" CornerRadius="3" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPunteggio45}" FontSize="12" Classes="Muted" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,12,2">
+                            <Border Background="{DynamicResource AuditCellaMedioBrush}" Width="14" Height="14" CornerRadius="3" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPunteggio23}" FontSize="12" Classes="Muted" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,12,2">
+                            <Border Background="{DynamicResource AuditCellaBassoBrush}" Width="14" Height="14" CornerRadius="3" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPunteggio01}" FontSize="12" Classes="Muted" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,12,2">
+                            <Border Background="{DynamicResource AuditCellaNaBrush}" Width="14" Height="14" CornerRadius="3" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NaLabel}" FontSize="12" Classes="Muted" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,12,2">
+                            <Border Background="{DynamicResource AuditCellaConflittoBrush}" Width="14" Height="14" CornerRadius="3" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditConflittoLegenda}" FontSize="12" Classes="Muted" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,12,2">
+                            <Border Background="{DynamicResource AuditCellaPropagabileBrush}" Width="14" Height="14" CornerRadius="3" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPropagabileLegenda}" FontSize="12" Classes="Muted" />
+                        </StackPanel>
+                    </WrapPanel>
+                <Grid Grid.Row="3">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditMatriceVuota}" Classes="Muted"
+                               HorizontalAlignment="Center" Margin="0,16" IsVisible="{Binding MatriceVuota}" />
+                    <Grid x:Name="MatriceHost" RowDefinitions="Auto,*" IsVisible="{Binding !MatriceVuota}">
+                        <!-- Intestazione fissa: angolo e una colonna per componente. Scorre in orizzontale insieme al corpo (AuditView.axaml.cs). -->
+                        <Border Grid.Row="0" x:Name="MatriceIntestazioneBordo" ClipToBounds="True">
+                            <StackPanel x:Name="MatriceIntestazione" Orientation="Horizontal" />
+                        </Border>
+                        <!-- Unico ScrollViewer della pagina: scorre in verticale e in orizzontale. Le righe sono virtualizzate. -->
+                        <ScrollViewer x:Name="MatriceScroll" Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                      AutomationProperties.AutomationId="Audit_Matrice_Scroll">
+                            <ItemsControl x:Name="MatriceRighe">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
+
+                <StackPanel Grid.Row="4" Spacing="8">
+                    <Border Classes="Banner BannerSuccesso" IsVisible="{Binding HaMessaggio}">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Classes="BannerSuccessoTesto" Text="{Binding Messaggio}" />
+                            <Button Grid.Column="1" Classes="BannerChiudi" Content="✕" Command="{Binding CancellaMessaggioCommand}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ChiudiMessaggioTip}" AutomationProperties.Name="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ChiudiMessaggioTip}" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="Banner BannerErrore" IsVisible="{Binding HaMessaggioErrore}" Margin="0">
+                        <TextBlock Text="{Binding MessaggioErrore}" TextWrapping="Wrap" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+            </Border>
+
+        <StackPanel Grid.Row="2" Spacing="16" Margin="0,8,0,0">
+            <!-- Dettaglio guasto del requisito Extra selezionato (drill-down dalla sezione Extra della matrice). Lista VIRTUALIZZATA. -->
+            <Border Classes="Card" IsVisible="{Binding MostraDettaglioDtc}" AutomationProperties.AutomationId="Audit_DettaglioDtc_Card">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding DtcTitolo}" Classes="SectionTitle" Margin="0" AutomationProperties.AutomationId="Audit_Guasto_Titolo_Text" />
+                        <Button Grid.Column="1" Classes="Secondary" Content="CSV" Click="OnEsportaDettaglioDtcCsv" IsEnabled="{Binding !EsportazioneInCorso}" AutomationProperties.AutomationId="Audit_Guasto_EsportaCsv_Button" />
+                        <Button Grid.Column="2" Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" Command="{Binding AnnullaEsportazioneCommand}" IsVisible="{Binding EsportazioneInCorso}" Margin="8,0,0,0" AutomationProperties.AutomationId="Audit_Guasto_AnnullaCsv_Button" />
+                        <Button Grid.Column="3" Classes="Link" Margin="8,0,0,0" Content="✕" Click="OnChiudiDettaglioDtc" AutomationProperties.AutomationId="Audit_Guasto_Chiudi_Button" />
+                    </Grid>
+                    <TextBlock Text="{Binding DtcRiepilogo}" FontWeight="SemiBold" AutomationProperties.AutomationId="Audit_Guasto_Riepilogo_Text" />
+                    <!-- Filtri principali sempre visibili (FiltriPrincipaliConfig): ricerca guasto e solo non completi. -->
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                        <TextBox Grid.Column="0" Classes="Field" Text="{Binding DtcFiltroTesto}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcCodicePlaceholder}" AutomationProperties.AutomationId="Audit_Guasto_Filtro_TextBox" />
+                        <CheckBox Grid.Column="1" IsChecked="{Binding DtcSoloNonCompleti}" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcAvanzSoloNonCompleti}" AutomationProperties.AutomationId="Audit_Guasto_SoloNonCompleti_Check" />
+                        <Button Grid.Column="2" Classes="Link" Click="OnAzzeraFiltriDtc" IsVisible="{Binding HaFiltriDtcAttivi}" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AzzeraFiltriBtn}" AutomationProperties.AutomationId="Audit_Guasto_Azzera_Button" />
+                    </Grid>
+                    <!-- Altri filtri: pannello SEMPRE collassato all'apertura. -->
+                    <Expander IsExpanded="False" Header="{Binding AltriFiltriDtcTesto}" AutomationProperties.AutomationId="Audit_Guasto_AltriFiltri_Expander">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Classes="Secondary" Content="{Binding FiltroDtcEcu.TestoRiepilogo}" Click="OnApriFiltroDtcEcu" AutomationProperties.AutomationId="Audit_Guasto_FiltroComponente_Button" />
+                            <Button Classes="Secondary" Content="{Binding FiltroDtcStato.TestoRiepilogo}" Click="OnApriFiltroDtcStato" AutomationProperties.AutomationId="Audit_Guasto_FiltroStato_Button" />
+                        </StackPanel>
+                    </Expander>
+                    <ListBox ItemsSource="{Binding DtcRighe}" MaxHeight="240" SelectionMode="Single" AutomationProperties.AutomationId="Audit_Guasto_Lista">
+                        <ListBox.Styles>
+                            <Style Selector="ListBoxItem" x:DataType="services:DtcDettaglioRiga">
+                                <Setter Property="AutomationProperties.AutomationId" Value="{Binding AutomationId}" />
+                            </Style>
+                        </ListBox.Styles>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="services:DtcDettaglioRiga">
+                                <Grid ColumnDefinitions="100,110,100,130,170,130,110,Auto" ColumnSpacing="8">
+                                    <TextBlock Grid.Column="0" Text="{Binding Guasto}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding VeicoloConAvviso}" Classes="Muted" VerticalAlignment="Center" ToolTip.Tip="{Binding AllineamentoTesto}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Componente}" Classes="Muted" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="3" Text="{Binding StatoTesto}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="4" Text="{Binding PassoMancanteTesto}" Classes="Muted" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="5" Text="{Binding UltimoTestId}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="6" Text="{Binding UltimaDataTesto}" Classes="Muted" VerticalAlignment="Center" />
+                                    <Button Grid.Column="7" Classes="Link" Content="↗" IsVisible="{Binding HaTest}"
+                                            Command="{Binding #Root.((vm:AuditViewModel)DataContext).ApriTestDtcCommand}" CommandParameter="{Binding UltimoTestId}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+            </Border>
+
+            <Expander Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CronologiaReportTitolo}" IsExpanded="False" AutomationProperties.AutomationId="Audit_Cronologia_Expander">
+                <StackPanel Spacing="10" Margin="0,8,0,0">
+                    <ItemsControl ItemsSource="{Binding Cronologia}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ReportGenerato">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+                                    <TextBlock Grid.Column="0" Text="{Binding Data, StringFormat={}{0:dd/MM/yyyy HH:mm}}" Classes="Muted" Width="140" />
+                                    <TextBlock Grid.Column="1" Text="{Binding NomeFile}" VerticalAlignment="Center" Classes="FullTextTip" />
+                                    <Button Grid.Column="2" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriFrecciaBtn}" Classes="Link"
+                                            Command="{Binding #Root.((vm:AuditViewModel)DataContext).ApriFileCommand}" CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NessunReportGenerato}" Classes="Muted" IsVisible="{Binding !Cronologia.Count}" />
+                </StackPanel>
+            </Expander>
+        </StackPanel>
+    </Grid>
+</UserControl>

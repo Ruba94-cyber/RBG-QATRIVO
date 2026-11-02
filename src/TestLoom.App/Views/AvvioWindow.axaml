@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:TestLoom.App.ViewModels"
+        xmlns:services="using:TestLoom.App.Services"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="460" d:DesignHeight="220"
+        x:Class="TestLoom.App.Views.AvvioWindow"
+        x:DataType="vm:AvvioViewModel"
+        Icon="/Assets/testloom.ico"
+        Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AvvioTitolo}"
+        Width="460" Height="220" CanResize="True"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="True"
+        AutomationProperties.AutomationId="AvvioWindow"
+        x:Name="AvvioRoot">
+
+    <Design.DataContext>
+        <vm:AvvioViewModel />
+    </Design.DataContext>
+
+    <Border Background="{DynamicResource AppDarkBrush}" Padding="28">
+        <StackPanel Spacing="14" VerticalAlignment="Center">
+            <TextBlock Text="TestLoom" Foreground="{DynamicResource TextOnDarkBrush}" FontSize="20" FontWeight="Bold" />
+
+            <TextBlock Text="{Binding Messaggio}" Foreground="{DynamicResource TextOnDarkSoftBrush}" FontSize="14"
+                       TextWrapping="Wrap"
+                       AutomationProperties.AutomationId="Avvio_Messaggio_Text" />
+
+            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Percentuale}"
+                         IsIndeterminate="{Binding !TotaleConosciuto}"
+                         Height="10" CornerRadius="5"
+                         AutomationProperties.AutomationId="Avvio_Barra_Progresso" />
+
+            <TextBlock Foreground="{DynamicResource TextOnDarkMutedBrush}" FontSize="12" TextWrapping="Wrap"
+                       IsVisible="{Binding TotaleConosciuto}"
+                       AutomationProperties.AutomationId="Avvio_Conteggio_Text">
+                <Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AvvioElaboratiPrefisso}" /><Run Text="{Binding Elaborati}" /><Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AvvioDiInfisso}" /><Run Text="{Binding Totale}" />
+            </TextBlock>
+
+            <Grid ColumnDefinitions="*,*">
+                <TextBlock Grid.Column="0" Foreground="{DynamicResource TextOnDarkMutedBrush}" FontSize="12"
+                           AutomationProperties.AutomationId="Avvio_Trascorso_Text">
+                    <Run Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AvvioTrascorsoPrefisso}" /><Run Text="{Binding TrascorsoTesto}" />
+                </TextBlock>
+                <TextBlock Grid.Column="1" Foreground="{DynamicResource TextOnDarkMutedBrush}" FontSize="12" HorizontalAlignment="Right"
+                           TextWrapping="Wrap"
+                           Text="{Binding StimaTesto}"
+                           AutomationProperties.AutomationId="Avvio_Stima_Text" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</Window>

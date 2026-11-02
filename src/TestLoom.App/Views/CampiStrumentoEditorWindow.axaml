@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:TestLoom.App.Services"
+        x:Class="TestLoom.App.Views.CampiStrumentoEditorWindow"
+        Width="900" Height="620" MinWidth="700" MinHeight="420"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24">
+        <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,14">
+            <TextBlock x:Name="TitoloText" FontSize="16" FontWeight="Bold" AutomationProperties.AutomationId="CampiStrumento_Titolo_Text" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CampiStrumentoEditorSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- L'editor lavora su una working copy. Un errore di commit lascia la finestra aperta e l'originale
+             intatto; Annulla/X scartano invece la working copy senza alcuna scrittura. -->
+        <Border x:Name="ErroreSalvataggioBorder" Grid.Row="1" Classes="Banner BannerErrore" IsVisible="False" Margin="0,0,0,12">
+            <TextBlock x:Name="ErroreSalvataggioText" TextWrapping="Wrap" AutomationProperties.AutomationId="CampiStrumento_ErroreSalvataggio_Text" />
+        </Border>
+
+        <ScrollViewer Grid.Row="2">
+            <StackPanel x:Name="RootPanel" Spacing="8" MaxWidth="1100" />
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,14,0,0">
+            <Button x:Name="AnteprimaButton" Classes="Secondary" AutomationProperties.AutomationId="CampiStrumento_Anteprima_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnteprimaBtn}" />
+            <Button x:Name="AnnullaButton" Classes="Secondary" AutomationProperties.AutomationId="CampiStrumento_Annulla_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" />
+            <Button x:Name="SalvaButton" Classes="Primary" AutomationProperties.AutomationId="CampiStrumento_Salva_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Salva}" />
+        </StackPanel>
+    </Grid>
+</Window>

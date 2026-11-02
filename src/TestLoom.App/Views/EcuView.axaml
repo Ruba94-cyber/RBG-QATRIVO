@@ -1,0 +1,194 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TestLoom.App.ViewModels"
+             xmlns:services="using:TestLoom.App.Services"
+             xmlns:local="using:TestLoom.App"
+             xmlns:models="using:TestLoom.App.Models"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="TestLoom.App.Views.EcuView"
+             x:DataType="vm:EcuViewModel"
+             x:Name="Root">
+<Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="{DynamicResource PagePadding}" IsEnabled="{Binding InterazioneEditorAbilitata}">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EcuTitolo}" Classes="PageTitle" />
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EcuSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+            </StackPanel>
+            <WrapPanel Grid.Column="1" Classes="AzioniPagina" MaxWidth="560">
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Modifica}" Classes="Secondary" Command="{Binding IniziaModificaCommand}" IsVisible="{Binding MostraModificaPerCreazione}" AutomationProperties.AutomationId="Componente_Modifica_Button" />
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoGenerico}" Classes="Secondary" Command="{Binding NuovoCommand}" IsVisible="{Binding InModifica}" AutomationProperties.AutomationId="Componente_Nuovo_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoTooltipCtrlN}" />
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImportaExcelBtn}" Classes="Secondary" Command="{Binding ImportaDaExcelCommand}" IsVisible="{Binding InModifica}" Click="OnImportaExcel" AutomationProperties.AutomationId="Componente_ImportaExcel_Button" />
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterDataSalvaPaginaBtn}" Classes="Secondary" Command="{Binding SalvaPaginaCommand}" IsVisible="{Binding MostraSalvaPagina}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterDataSalvaPaginaTip}" AutomationProperties.AutomationId="Componente_SalvaPagina_Button" />
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" Classes="Secondary" Command="{Binding AnnullaCommand}" IsVisible="{Binding InModifica}" AutomationProperties.AutomationId="Componente_Annulla_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnnullaTooltipEsc}" />
+                <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Salva}" Classes="Primary" Command="{Binding SalvaCommand}" IsVisible="{Binding InModifica}" AutomationProperties.AutomationId="Componente_Salva_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SalvaTooltipCtrlS}" />
+            </WrapPanel>
+        </Grid>
+
+        <!-- Banner lock/errore/esito: sempre visibili, fuori dall'area scorrevole (un errore di Salva non deve finire fuori vista). -->
+        <StackPanel Grid.Row="1">
+            <Border Classes="Banner BannerAvviso" IsVisible="{Binding AvvisoLockNonConfermato}" Margin="0,12,0,0">
+                <TextBlock Text="{Binding AvvisoLockNonConfermatoTesto}" TextWrapping="Wrap" />
+            </Border>
+            <Border Classes="Banner BannerAvviso" IsVisible="{Binding LockDetenutoDaAltri}" Margin="0,12,0,0">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="{Binding LockInfoTesto, StringFormat='🔒 {0}'}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ForzaSbloccoBtn}" Classes="Link" Command="{Binding ForzaSbloccoCommand}" />
+                </Grid>
+            </Border>
+
+            <Border Classes="Banner BannerErrore" IsVisible="{Binding HaMessaggioErrore}" Margin="0,12,0,0">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{Binding MessaggioErrore}" TextWrapping="Wrap" AutomationProperties.AutomationId="Componente_MessaggioErrore_Text" />
+                    <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RiprovaIndice}" Classes="Link" Command="{Binding RiprovaRilascioLockCommand}" IsVisible="{Binding RilascioLockInAttesa}" AutomationProperties.AutomationId="Componente_RiprovaRilascioLock_Button" />
+                </Grid>
+            </Border>
+
+            <StackPanel Margin="0,12,0,0" Spacing="6">
+                <Border Classes="Banner BannerSuccesso" IsVisible="{Binding HaMessaggio}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Classes="BannerSuccessoTesto" Text="{Binding Messaggio}" />
+                        <Button Grid.Column="1" Classes="BannerChiudi" Content="✕" Command="{Binding CancellaMessaggioCommand}" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ChiudiMessaggioTip}" AutomationProperties.Name="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ChiudiMessaggioTip}" />
+                    </Grid>
+                </Border>
+                <Border Classes="Banner BannerSuccesso" IsVisible="{Binding HaReportImport}" Margin="0,8,0,0">
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="BannerSuccessoTesto" Text="{Binding ReportImport}" TextWrapping="Wrap" AutomationProperties.AutomationId="Componente_ReportImport_Text" />
+                        <WrapPanel>
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImportReportCopia}" Classes="Secondary" Command="{Binding CopiaReportImportCommand}" AutomationProperties.AutomationId="Componente_CopiaReportImport_Button" />
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImportReportAnnullaUltimo}" Classes="Secondary" Command="{Binding AnnullaUltimoImportCommand}" IsVisible="{Binding PuoAnnullareUltimoImport}" AutomationProperties.AutomationId="Componente_AnnullaUltimoImport_Button" />
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImportReportRiprova}" Classes="Secondary" Command="{Binding RiprovaImportCommand}" IsVisible="{Binding PuoRiprovareImport}" AutomationProperties.AutomationId="Componente_RiprovaImport_Button" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+                <Border Classes="Banner BannerAvviso" IsVisible="{Binding MostraAvvisoModificaLimitata}">
+                    <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterDataModificaLimitataPagina}" TextWrapping="Wrap" />
+                </Border>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Zona sopra la tabella: altezza limitata e scorrevole, cosi' la griglia principale mantiene sempre
+             un'altezza minima utile (NON mettere mai la DataGrid dentro questo ScrollViewer: spezza la virtualizzazione). -->
+        <ScrollViewer Grid.Row="2" MaxHeight="{Binding #Root.Bounds.Height, Converter={x:Static local:AltezzaResiduaConverter.Instance}, ConverterParameter=400}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,0">
+                    <TextBox Grid.Column="0" Classes="Field" Text="{Binding FiltroTesto}" AutomationProperties.AutomationId="Componente_Cerca_TextBox"
+                              PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CercaMasterDataPlaceholder}">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding ConfermaRicercaCommand}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
+                    <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RimuoviFiltriBtn}" Classes="Link"
+                            Margin="8,0,0,0" Command="{Binding ReimpostaFiltriCommand}" IsVisible="{Binding HaFiltriAttivi}" />
+                </Grid>
+
+
+                <!-- Unisci/Rinomina/Dividi (spec 2026-09-23): coppie sospette + pannello azioni sulla riga selezionata. -->
+
+                <Expander Margin="0,12,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False" IsVisible="{Binding Unione.MostraPannello}" Header="{Binding Unione.TitoloPannello}" AutomationProperties.AutomationId="ComponenteUnioneExpander">
+                    <StackPanel Spacing="4" Margin="0,4,0,0">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterUnioneNessunaSelezione}" Classes="Muted" IsVisible="{Binding !Unione.HaSelezione}" />
+                        <Border Classes="Banner BannerErrore" IsVisible="{Binding Unione.HaErroreOperazione}"><TextBlock Text="{Binding Unione.ErroreOperazione}" TextWrapping="Wrap" AutomationProperties.AutomationId="ComponenteUnioneErrore_Text" /></Border>
+                        <Border Classes="Banner BannerSuccesso" IsVisible="{Binding Unione.HaMessaggioEsito}"><TextBlock Classes="BannerSuccessoTesto" Text="{Binding Unione.MessaggioEsito}" AutomationProperties.AutomationId="ComponenteUnioneEsito_Text" /></Border>
+                        <TextBlock Text="{Binding Unione.ProgressoTesto}" Classes="Muted" TextWrapping="Wrap" IsVisible="{Binding Unione.IsBusy}" AutomationProperties.AutomationId="ComponenteUnioneAvanzamento" />
+                        <StackPanel Spacing="4" IsEnabled="{Binding Unione.PannelloAbilitato}">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding Unione.HaSelezione}">
+                            <ComboBox Grid.Column="0" Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding Unione.AltreVociPerUnione}" SelectedItem="{Binding Unione.VocePerUnioneSelezionata}"
+                                      PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterUnisciInPlaceholder}"
+                                      AutomationProperties.AutomationId="ComponenteComboUnisciIn"
+                                      IsVisible="{Binding Unione.AltreVociPerUnione, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}" />
+                            <Button Grid.Column="0" Classes="Secondary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding Unione.VocePerUnioneTesto}" Command="{Binding Unione.ScegliVocePerUnioneCommand}"
+                                    IsVisible="{Binding Unione.AltreVociPerUnione, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}" AutomationProperties.AutomationId="ComponenteBtnScegliUnisciIn" />
+                            <Button Grid.Column="1" Classes="Secondary" AutomationProperties.AutomationId="ComponenteBtnUnisci"
+                                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterUnisciBtn}"
+                                    Command="{Binding Unione.UnisciSelezionataCommand}" IsEnabled="{Binding Unione.VocePerUnioneSelezionata, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding Unione.HaSelezione}">
+                            <TextBox Grid.Column="0" Classes="Field" Text="{Binding Unione.NuovoNomeRinomina}"
+                                     PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterRinominaInPlaceholder}"
+                                     AutomationProperties.AutomationId="ComponenteTextRinominaIn" />
+                            <Button Grid.Column="1" Classes="Secondary" AutomationProperties.AutomationId="ComponenteBtnRinomina"
+                                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterRinominaBtn}"
+                                    Command="{Binding Unione.RinominaSelezionataCommand}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding Unione.HaSelezione}">
+                            <TextBox Grid.Column="0" Classes="Field" Text="{Binding Unione.VociDivisioneTesto}"
+                                     PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterDividiInPlaceholder}"
+                                     AutomationProperties.AutomationId="ComponenteTextDividiIn" />
+                            <Button Grid.Column="1" Classes="Secondary" AutomationProperties.AutomationId="ComponenteBtnDividi"
+                                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterDividiBtn}"
+                                    Command="{Binding Unione.DividiSelezionataCommand}" />
+                        </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </Expander>
+                <Border Classes="Banner BannerAvviso" Margin="0,12,0,0" IsVisible="{Binding Unione.MostraCoppieSospette}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterUnioneCoppieSospetteTitolo}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MasterUnioneCoppieSospetteSottotitolo}" Classes="Muted" FontSize="13" TextWrapping="Wrap" />
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Unione.CoppieSospette}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:CoppiaSospettaMaster">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                                            <TextBlock Grid.Column="0" TextWrapping="Wrap" VerticalAlignment="Center">
+                                                <Run Text="{Binding A}" FontWeight="SemiBold" /><Run Text=" ↔ " /><Run Text="{Binding B}" FontWeight="SemiBold" />
+                                            </TextBlock>
+                                            <Button Grid.Column="1" Classes="Secondary" Padding="8,4" Margin="8,0,0,0" AutomationProperties.AutomationId="ComponenteBtnUnisciRapido"
+                                                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=WuUnisciRapidoBtn}"
+                                                    Command="{Binding #Root.((vm:EcuViewModel)DataContext).Unione.UnisciCoppiaSospettaCommand}" CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+
+        <!-- RowHeight fisso: senza, il pannello virtualizzante stima l'altezza dalle sole righe realizzate e
+             su un catalogo ad alta crescita la scrollbar può "saltare" invece di scorrere con continuità. -->
+        <DataGrid x:Name="GridPrincipale" BeginningEdit="OnGridBeginningEdit" services:TableLayoutPreferences.TableId="componente" CanUserResizeColumns="True" Grid.Row="3" MinHeight="200" Margin="0,16,0,0" ItemsSource="{Binding ItemsAttivi}" IsReadOnly="{Binding !InModifica}"
+                  SelectedItem="{Binding ElementoSelezionato}"
+                  RowHeight="48"
+                  AutoGenerateColumns="False" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EcuColNome}" Binding="{Binding Nome}" SortMemberPath="Nome" Width="*" MinWidth="160" />
+                <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColVeicoliAssociati}" Width="180">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="models:Componente">
+                            <Button x:Name="VeicoliBtn" AutomationProperties.AutomationId="Componente_Veicoli_Button" Content="{Binding VeicoliAssociatiTesto}" Classes="Link" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Click="OnScegliVeicoli" Tag="{Binding}" ToolTip.Tip="{Binding VeicoliAssociatiTesto}"
+                                    IsEnabled="{Binding #Root.((vm:EcuViewModel)DataContext).InModifica}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColUltimaModifica}" Binding="{Binding UltimaModifica, Mode=OneWay, StringFormat={}{0:dd/MM/yy HH:mm}}" Width="150" IsReadOnly="True" />
+                <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDa}" Binding="{Binding ModificatoDa}" Width="100" IsReadOnly="True" />
+                <DataGridTemplateColumn Width="90">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="models:Componente">
+                            <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ArchiviaBtn}" Classes="Link"
+                                    IsEnabled="{Binding #Root.((vm:EcuViewModel)DataContext).InModifica}"
+                                    Command="{Binding #Root.((vm:EcuViewModel)DataContext).ArchiviaCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="Componente_RigaArchivia_Button" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Stato vuoto: sovrapposto alla griglia, non intercetta i click. -->
+        <StackPanel Grid.Row="3" Classes="ElencoVuotoOverlay" Margin="0,40,0,0">
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ElencoVuoto}" Classes="Muted" HorizontalAlignment="Center" IsVisible="{Binding MostraElencoVuoto}" AutomationProperties.AutomationId="Componente_ElencoVuoto_Text" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ElencoVuotoFiltrato}" Classes="Muted" HorizontalAlignment="Center" IsVisible="{Binding MostraElencoVuotoFiltrato}" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ElencoVuotoSuggerimento}" Classes="Muted" HorizontalAlignment="Center" IsVisible="{Binding MostraSuggerimentoElencoVuoto}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0" IsVisible="{Binding MostraControlliPaginazione}">
+            <Button Content="‹" Classes="Secondary" AutomationProperties.AutomationId="Componente_PaginaPrec_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaPrecedenteTip}" AutomationProperties.Name="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaPrecedenteTip}" Command="{Binding PaginaPrecedenteCommand}" IsEnabled="{Binding PaginaPrecedenteDisponibile}" MinWidth="42" />
+            <TextBlock Text="{Binding PaginaCorrente}" AutomationProperties.AutomationId="Componente_PaginaCorrente_Text" VerticalAlignment="Center" Classes="Muted" MinWidth="28" TextAlignment="Center" />
+            <Button Content="›" Classes="Secondary" AutomationProperties.AutomationId="Componente_PaginaSucc_Button" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaSuccessivaTip}" AutomationProperties.Name="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListPaginaSuccessivaTip}" Command="{Binding PaginaSuccessivaCommand}" IsEnabled="{Binding PaginaSuccessivaDisponibile}" MinWidth="42" />
+        </StackPanel>
+    </Grid>
+</UserControl>

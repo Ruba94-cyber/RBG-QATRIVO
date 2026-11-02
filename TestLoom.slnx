@@ -1,9 +1,9 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/TestLoom.Core/TestLoom.Core.csproj" />
-    <Project Path="src/TestLoom.Core.Tests/TestLoom.Core.Tests.csproj" />
-    <Project Path="src/TestLoom.Core.Smoke/TestLoom.Core.Smoke.csproj" />
-    <Project Path="src/TestLoom.Desktop/TestLoom.Desktop.csproj" />
-    <Project Path="src/TestLoom.Desktop.Tests/TestLoom.Desktop.Tests.csproj" />
+    <Project Path="src/TestLoom.App/TestLoom.App.csproj" />
+    <Project Path="src/TestLoom.App.MultiPcHost/TestLoom.App.MultiPcHost.csproj" />
+    <Project Path="src/TestLoom.App.Tests/TestLoom.App.Tests.csproj" />
+    <Project Path="src/TestLoom.App.Tests.Headless/TestLoom.App.Tests.Headless.csproj" />
+    <Project Path="src/TestLoom.App.UITests/TestLoom.App.UITests.csproj" />
   </Folder>
 </Solution>

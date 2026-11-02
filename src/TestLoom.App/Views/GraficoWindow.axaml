@@ -1,0 +1,68 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:TestLoom.App.ViewModels"
+        xmlns:services="using:TestLoom.App.Services"
+        xmlns:conv="using:Avalonia.Data.Converters"
+        x:Class="TestLoom.App.Views.GraficoWindow"
+        x:DataType="vm:GraficoWindowViewModel"
+        Title="{Binding Titolo}"
+        Width="980" Height="640"
+        MinWidth="520" MinHeight="360"
+        CanResize="True"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        WindowStartupLocation="CenterOwner"
+        AutomationProperties.AutomationId="GraficoFinestra_Window">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="12">
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+            <Button Classes="Secondary"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoEsportaPng}"
+                    Click="OnEsportaPng"
+                    AutomationProperties.AutomationId="GraficoFinestra_EsportaPng_Button" />
+            <Button Classes="Secondary"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoCopia}"
+                    Click="OnCopia"
+                    AutomationProperties.AutomationId="GraficoFinestra_Copia_Button" />
+        </StackPanel>
+
+        <Border x:Name="Contenitore" Grid.Row="1" Background="#FFFFFF" CornerRadius="8" Padding="8">
+            <Grid>
+                <!-- Il render segue l'area del Border (contenitore): l'Image senza sorgente vale 0x0 e non puo' guidarlo. -->
+                <Image x:Name="ImmagineGrafico"
+                       Source="{Binding Immagine}"
+                       Stretch="Uniform"
+                       IsVisible="{Binding !NonDisponibile}"
+                       AutomationProperties.AutomationId="GraficoFinestra_Immagine"
+                       AutomationProperties.Name="{Binding Snapshot.Titolo}" />
+                <!-- Rendering fallito (eccezione o PNG non decodificato): messaggio al posto dell'area vuota. -->
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoNonDisponibile}"
+                           Classes="Muted" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           IsVisible="{Binding NonDisponibile}"
+                           AutomationProperties.AutomationId="GraficoFinestra_NonDisponibile" />
+            </Grid>
+        </Border>
+        <Expander Grid.Row="2" IsVisible="{Binding HaLegendaTortaCompleta}"
+                  Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoLegendaCompleta}"
+                  AutomationProperties.AutomationId="GraficoFinestra_LegendaCompleta_Expander">
+            <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding LegendaTortaCompleta}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:VoceLegendaCompletaGrafico">
+                            <Grid Margin="2">
+                                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding Intestazione}">
+                                    <Border Width="12" Height="12" VerticalAlignment="Center" Background="{Binding Colore}"
+                                            IsVisible="{Binding Colore, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+                                    <TextBlock Text="{Binding Testo}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !Intestazione}">
+                                    <Border Width="12" Height="12" VerticalAlignment="Center" Background="{Binding Colore}" />
+                                    <TextBlock Text="{Binding Testo}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Expander>
+    </Grid>
+</Window>

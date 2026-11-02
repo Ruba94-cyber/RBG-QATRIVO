@@ -1,0 +1,26 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:TestLoom.App.Services"
+        x:Class="TestLoom.App.Views.ListaOpzioniEditorWindow"
+        Width="440" Height="480" MinWidth="360" MinHeight="320" CanResize="True"
+        WindowStartupLocation="CenterOwner"
+        AutomationProperties.AutomationId="ListaOpzioni_Finestra_Window">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+        <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,14">
+            <TextBlock x:Name="TitoloText" FontSize="16" FontWeight="Bold" />
+            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ListaOpzioniEditorSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <TextBox x:Name="TestoBox" Grid.Row="1" AcceptsReturn="True" TextWrapping="NoWrap"
+                 AutomationProperties.AutomationId="ListaOpzioni_Testo_TextBox"
+                 VerticalContentAlignment="Top" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 FontFamily="Consolas,monospace" />
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,14,0,0">
+            <Button x:Name="AnnullaButton" Classes="Secondary" AutomationProperties.AutomationId="ListaOpzioni_Annulla_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" />
+            <Button x:Name="SalvaButton" Classes="Primary" AutomationProperties.AutomationId="ListaOpzioni_Salva_Button"
+                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Salva}" />
+        </StackPanel>
+    </Grid>
+</Window>

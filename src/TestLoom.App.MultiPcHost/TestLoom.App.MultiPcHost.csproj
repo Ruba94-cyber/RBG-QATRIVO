@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    FASE 4 (multi-PC 6.4.2): host di test headless che simula UN PC reale come processo separato, con la
+    propria identità device e il proprio "%LOCALAPPDATA%" (via WorkspaceLocalPaths.LocalApplicationDataOverrideForTests,
+    reso accessibile a questo progetto con InternalsVisibleTo in src/TestLoom.App/TestAssemblyAccess.cs),
+    ospitando un AppState reale senza UI. Riceve comandi JSON via stdin, risponde JSON via stdout: usato da
+    MultiPcSyncTests per orchestrare due (o più) processi indipendenti sulla STESSA cartella condivisa, cosa
+    che un singolo processo .NET non può simulare perché DeviceIdentityService/WorkspaceLocalPaths sono
+    statici per processo. NON incluso nel pacchetto di rilascio: solo per test.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Deve corrispondere a TestLoom.App.csproj (SelfContained/win-x64): un eseguibile non self-contained
+         non può referenziare un eseguibile self-contained (NETSDK1151). -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TestLoom.App\TestLoom.App.csproj" />
+  </ItemGroup>
+
+</Project>
