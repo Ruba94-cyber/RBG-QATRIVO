@@ -26,6 +26,11 @@ company-specific vocabulary with neutral words, so the two share the same code a
 - **Backup and archive** of the workspace data.
 - **English, Italian and French** user interface.
 
+## Download and guide
+
+A signed Windows build (single self-contained `TestLoom.exe`) is attached to each [release](../../releases). Read the
+[user guide](GUIDE.md) ([italiano](GUIDA.md)) and [SIGNING.md](SIGNING.md) for how to verify the signature.
+
 ## Build and run
 
 ```sh
