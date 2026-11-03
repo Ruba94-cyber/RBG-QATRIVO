@@ -1,12 +1,12 @@
-# Guida utente di TestLoom
+# Guida utente di RBG - QATRIVO
 
-Questa guida spiega come installare TestLoom, preparare un'area di lavoro condivisa e usarlo ogni giorno. La versione
+Questa guida spiega come installare RBG - QATRIVO, preparare un'area di lavoro condivisa e usarlo ogni giorno. La versione
 inglese è in [GUIDE.md](GUIDE.md).
 
 ## 1. Installazione
 
-1. Scarica `TestLoom-<versione>-win-x64.zip` dalla pagina [Releases](../../releases) e decomprimilo dove vuoi.
-2. Avvia `TestLoom.exe`: è un unico file autonomo, senza installer e senza bisogno del runtime .NET.
+1. Scarica `RBG-QATRIVO-<versione>-win-x64.zip` dalla pagina [Releases](../../releases) e decomprimilo dove vuoi.
+2. Avvia `RBG - QATRIVO.exe`: è un unico file autonomo, senza installer e senza bisogno del runtime .NET.
 3. Il programma è firmato con il certificato personale dell'autore (autofirmato, soggetto "Paolo Rubagotti"). Windows può
    mostrare "Autore sconosciuto" o un avviso SmartScreen, perché il certificato non è emesso da un'autorità pubblica.
    Per far riconoscere la firma al tuo PC, importa prima il certificato pubblico:
@@ -19,7 +19,7 @@ inglese è in [GUIDE.md](GUIDE.md).
 
 ## 2. Primo avvio e cartella dei dati
 
-Al primo avvio TestLoom chiede la **cartella dei dati**. Tutti i dati sono salvati lì come normali file.
+Al primo avvio RBG - QATRIVO chiede la **cartella dei dati**. Tutti i dati sono salvati lì come normali file.
 
 - **Lavori da solo:** scegli una cartella vuota sul tuo disco.
 - **Lavori in squadra (multi-PC):** scegli la *stessa* cartella su ogni PC: una condivisione di rete o una cartella
@@ -49,12 +49,12 @@ creato nulla in una cartella che contiene già dati.
   modificano insieme non si rovinano il lavoro a vicenda.
 - Un indice SQLite locale su ogni PC mantiene veloci gli archivi grandi. Si ricostruisce dai file condivisi e non li
   sostituisce mai: i file nella cartella sono i dati di riferimento.
-- Se un client di sincronizzazione produce copie in conflitto, TestLoom le unisce invece di perdere modifiche.
+- Se un client di sincronizzazione produce copie in conflitto, RBG - QATRIVO le unisce invece di perdere modifiche.
 - Usa una cartella sempre raggiungibile e fai backup regolari.
 
 ## 5. Buone pratiche
 
-- Fai un backup prima di aggiornare TestLoom e porta alla stessa versione tutti i PC che condividono la cartella.
+- Fai un backup prima di aggiornare RBG - QATRIVO e porta alla stessa versione tutti i PC che condividono la cartella.
 - Chiunque abbia accesso alla cartella può leggerne il contenuto: nomi di tester e responsabili, note, file di evidenza
   e traccia di audit.
 - È una versione pubblica iniziale: considerala un'anteprima e conserva i backup.
@@ -69,4 +69,4 @@ creato nulla in una cartella che contiene già dati.
 
 ## 7. Licenza e crediti
 
-PolyForm Shield 1.0.0; vedi [LICENSE](LICENSE) e [NOTICE](NOTICE). Basato su TestLoom di Paolo Rubagotti.
+PolyForm Shield 1.0.0; vedi [LICENSE](LICENSE) e [NOTICE](NOTICE). Basato su RBG - QATRIVO di Paolo Rubagotti.

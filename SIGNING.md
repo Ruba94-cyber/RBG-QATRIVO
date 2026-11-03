@@ -17,5 +17,5 @@ To trust it on your PC, compare the fingerprint above with the one in the releas
 download), then run the `Import-Certificate.ps1` script shipped in the release zip next to the `.cer`. Only trust the
 certificate after the fingerprints match.
 
-Verify a downloaded file with `Get-AuthenticodeSignature .\TestLoom.exe` (the signer thumbprint must match) and with the
+Verify a downloaded file with `Get-AuthenticodeSignature .\RBG - QATRIVO.exe` (the signer thumbprint must match) and with the
 `SHA256SUMS.txt` published in the release.

@@ -1,12 +1,12 @@
-# TestLoom
+# RBG - QATRIVO
 
 **A desktop test-management workspace for teams: requirements, test cases and their executions, anomalies, change
 requests, audit and reports, kept in a folder your team shares.**
 
-TestLoom is built with .NET 10 and Avalonia (Windows is the tested platform). It is the general-purpose edition of a
+RBG - QATRIVO is built with .NET 10 and Avalonia (Windows is the tested platform). It is the general-purpose edition of a
 test-management application that its author develops for and uses with a team. That application stays the place where
-new features are written; TestLoom is generated from it by an automatic, repeatable process that replaces the
-company-specific vocabulary with neutral words, so the two share the same code and TestLoom follows every improvement.
+new features are written; RBG - QATRIVO is generated from it by an automatic, repeatable process that replaces the
+company-specific vocabulary with neutral words, so the two share the same code and RBG - QATRIVO follows every improvement.
 
 > Status: early public release. The generated edition builds, its test suites run, and the application starts and passes
 > the first end-to-end checks that drive the real program through UI Automation. It has not had the long field use of the
@@ -28,8 +28,12 @@ company-specific vocabulary with neutral words, so the two share the same code a
 
 ## Download and guide
 
-A signed Windows build (single self-contained `TestLoom.exe`) is attached to each [release](../../releases). Read the
+A signed Windows build (single self-contained `RBG - QATRIVO.exe`) is attached to each [release](../../releases). Read the
 [user guide](GUIDE.md) ([italiano](GUIDA.md)) and [SIGNING.md](SIGNING.md) for how to verify the signature.
+
+## Compatibility and upgrade
+
+RBG - QATRIVO is the new public name of TestLoom. The internal .NET namespaces and existing data/configuration paths remain unchanged deliberately to preserve workspaces. Back up the workspace before upgrading. The repository URL may temporarily retain its previous name.
 
 ## Build and run
 
@@ -49,7 +53,7 @@ dotnet test src/TestLoom.App.Tests.Headless/TestLoom.App.Tests.Headless.csproj -
 dotnet test src/TestLoom.App.UITests/TestLoom.App.UITests.csproj -c Release
 ```
 
-The UI tests (FlaUI) start the real `TestLoom.exe` and drive it through UI Automation on Windows; they need a desktop
+The UI tests (FlaUI) start the real `RBG - QATRIVO.exe` and drive it through UI Automation on Windows; they need a desktop
 session and a built application.
 
 ## About the generated edition
@@ -72,20 +76,20 @@ nothing is created in a folder that already holds data.
 
 ## License
 
-TestLoom is source-available under the [PolyForm Shield License 1.0.0](LICENSE). In short: you may use, modify and share
-it, including inside a company, but you may not use it to provide a product that competes with TestLoom. The license
+RBG - QATRIVO is source-available under the [PolyForm Shield License 1.0.0](LICENSE). In short: you may use, modify and share
+it, including inside a company, but you may not use it to provide a product that competes with RBG - QATRIVO. The license
 text is authoritative; this summary is not legal advice. For a commercial license or questions about attribution,
 contact paolo.ruba.1913@gmail.com.
 
 Keep the `LICENSE` and `NOTICE` files, including the `Required Notice` line, with any copy of the software, and credit
-the author, for example "Based on TestLoom by Paolo Rubagotti". The name "TestLoom" and its icon are not licensed for
+the author, for example "Based on RBG - QATRIVO by Paolo Rubagotti". The name "RBG - QATRIVO" and its icon are not licensed for
 use as the name or branding of another product.
 
 ## Third-party software
 
-TestLoom uses open-source packages under their own licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+RBG - QATRIVO uses open-source packages under their own licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Security and privacy
 
-See [SECURITY.md](SECURITY.md). TestLoom sends nothing anywhere. In a shared folder, everyone with access can see what is
+See [SECURITY.md](SECURITY.md). RBG - QATRIVO sends nothing anywhere. In a shared folder, everyone with access can see what is
 stored there: names typed as testers or owners, notes, evidence files and the audit trail.

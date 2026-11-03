@@ -1,6 +1,6 @@
 # Security policy
 
-TestLoom stores its data as files in a folder the user chooses (on the PC or shared between PCs) and keeps a local
+RBG - QATRIVO stores its data as files in a folder the user chooses (on the PC or shared between PCs) and keeps a local
 SQLite index of them. It has no network code of its own (a shared folder is reached through the operating system) and
 does not collect telemetry.
 
