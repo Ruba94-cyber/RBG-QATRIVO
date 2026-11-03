@@ -29,7 +29,7 @@
     <!-- Solo per riusare AppState/AppConfigService/Models/Services allo scopo di seminare un workspace di
          test isolato con dati noti (stesso principio già usato da TestLoom.App.Tests) — MAI per pilotare
          l'app dallo stesso processo: TestLoom viene sempre avviato come processo esterno reale (Process.Start su
-         TestLoom.exe) così FlaUI parla con la vera UI Avalonia via UI Automation, non con oggetti in-process. -->
+         RBG - QATRIVO.exe) così FlaUI parla con la vera UI Avalonia via UI Automation, non con oggetti in-process. -->
     <ProjectReference Include="..\TestLoom.App\TestLoom.App.csproj" />
   </ItemGroup>
 

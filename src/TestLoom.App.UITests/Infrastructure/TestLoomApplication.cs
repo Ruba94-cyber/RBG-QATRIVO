@@ -5,11 +5,11 @@ using FlaUI.UIA3;
 namespace TestLoom.App.UITests.Infrastructure;
 
 /// <summary>
-/// Avvia TestLoom.exe come processo esterno reale (mai in-process) puntato su un <see cref="TestWorkspace"/>
+/// Avvia RBG - QATRIVO.exe come processo esterno reale (mai in-process) puntato su un <see cref="TestWorkspace"/>
 /// isolato tramite l'argomento <c>--config</c> già previsto da App.axaml.cs proprio per i collaudi end-to-end
 /// isolati, e parla con la sua UI reale via UI Automation (UIA3, il default richiesto). Vive per la durata di
 /// un singolo test: <see cref="Dispose"/> chiude la finestra e, se non si chiude entro pochi secondi, termina
-/// il processo — un test non deve mai lasciare un TestLoom.exe orfano che tenga occupato il mutex single-instance
+/// il processo — un test non deve mai lasciare un RBG - QATRIVO.exe orfano che tenga occupato il mutex single-instance
 /// per i test successivi.
 /// </summary>
 public sealed class TestLoomApplication : IDisposable
@@ -78,7 +78,7 @@ public sealed class TestLoomApplication : IDisposable
                 if (_app.HasExited) return null;
                 var windows = _app.GetAllTopLevelWindows(_automation);
                 return windows.FirstOrDefault(w =>
-                        (w.Title == "TestLoom" || w.Title.StartsWith("TestLoom")) && w.AutomationId != AvvioWindowAutomationId)
+                        (w.Title == "RBG - QATRIVO" || w.Title.StartsWith("RBG - QATRIVO")) && w.AutomationId != AvvioWindowAutomationId)
                     ?? _app.GetMainWindow(_automation, TimeSpan.FromMilliseconds(500));
             },
             w => w != null && w.AutomationId != "Input Indicator overlay window" && w.AutomationId != AvvioWindowAutomationId,
@@ -93,7 +93,7 @@ public sealed class TestLoomApplication : IDisposable
         {
             if (_app.HasExited) return null;
             var windows = _app.GetAllTopLevelWindows(_automation);
-            return windows.FirstOrDefault(w => w.Title == "TestLoom" || w.Title.StartsWith("TestLoom"))
+            return windows.FirstOrDefault(w => w.Title == "RBG - QATRIVO" || w.Title.StartsWith("RBG - QATRIVO"))
                 ?? _app.GetMainWindow(_automation, TimeSpan.FromMilliseconds(500));
         }
         catch { return null; }

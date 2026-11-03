@@ -11,9 +11,9 @@ namespace TestLoom.App.UITests.Infrastructure;
 /// Questo guard lo rileva PRIMA di lanciare il processo di test e fallisce con un messaggio chiaro invece di
 /// lasciare che il sintomo emerga confuso più a valle.
 /// <para>
-/// Un TestLoom.exe avviato da un'altra esecuzione di test (una cartella <c>src\TestLoom.App\bin</c> di un worktree o del
+/// Un RBG - QATRIVO.exe avviato da un'altra esecuzione di test (una cartella <c>src\TestLoom.App\bin</c> di un worktree o del
 /// checkout) non è un'istanza dell'utente: il guard ne attende la fine per un tempo limitato (fino a 20 minuti), senza mai terminarla. Un
-/// TestLoom.exe di altra origine fa fallire subito, come prima.
+/// RBG - QATRIVO.exe di altra origine fa fallire subito, come prima.
 /// </para>
 /// </summary>
 public static class TestLoomProcessGuard
@@ -26,7 +26,7 @@ public static class TestLoomProcessGuard
         var inizio = DateTime.UtcNow;
         while (true)
         {
-            var running = Process.GetProcessesByName("TestLoom");
+            var running = Process.GetProcessesByName("RBG - QATRIVO");
             if (running.Length == 0) return;
 
             var istanzeReali = running.Where(p => !IsIstanzaDiTest(p)).ToArray();
@@ -34,7 +34,7 @@ public static class TestLoomProcessGuard
             {
                 var pids = string.Join(", ", running.Select(p => p.Id));
                 throw new InvalidOperationException(
-                    $"È già in esecuzione un'istanza reale di TestLoom.exe (PID: {pids}). TestLoom applica un lock singolo per " +
+                    $"È già in esecuzione un'istanza reale di RBG - QATRIVO.exe (PID: {pids}). TestLoom applica un lock singolo per " +
                     "PC (SingleInstanceService): un secondo avvio non aprirebbe alcuna finestra e i test UI andrebbero " +
                     "in timeout in modo incomprensibile. Chiudi ogni istanza di TestLoom aperta su questo PC (compresa " +
                     "un'eventuale icona nella tray/area di notifica: TestLoom può restare in esecuzione minimizzato) prima " +
@@ -46,7 +46,7 @@ public static class TestLoomProcessGuard
         }
     }
 
-    /// <summary>Vero se il processo è un TestLoom.exe di una build di test (cartella src\TestLoom.App\bin) oppure è già uscito
+    /// <summary>Vero se il processo è un RBG - QATRIVO.exe di una build di test (cartella src\TestLoom.App\bin) oppure è già uscito
     /// (il ciclo lo rivede e lo scarta). Un processo vivo il cui percorso non è leggibile conta come istanza reale.</summary>
     private static bool IsIstanzaDiTest(Process processo)
     {
