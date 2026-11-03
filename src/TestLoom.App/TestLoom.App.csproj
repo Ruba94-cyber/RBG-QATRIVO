@@ -7,7 +7,6 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\rbg-qatrivo.ico</ApplicationIcon>
     <AssemblyName>TestLoom</AssemblyName>
-    <TargetName>RBG - QATRIVO</TargetName>
     <Product>RBG - QATRIVO</Product>
     <Authors>Paolo Rubagotti</Authors>
     <Version>6.10.0</Version>
@@ -41,4 +40,12 @@
     <PackageReference Include="QuestPDF" Version="2026.7.3" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.12" />
   </ItemGroup>
+
+  <!-- Public executable name; keep AssemblyName=TestLoom for Avalonia resource/data compatibility. -->
+  <Target Name="RbgQatrivoBuildAlias" AfterTargets="Build" Condition="Exists('$(TargetDir)TestLoom.exe')">
+    <Copy SourceFiles="$(TargetDir)TestLoom.exe" DestinationFiles="$(TargetDir)RBG - QATRIVO.exe" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="RbgQatrivoPublishExe" AfterTargets="Publish" Condition="Exists('$(PublishDir)TestLoom.exe')">
+    <Move SourceFiles="$(PublishDir)TestLoom.exe" DestinationFiles="$(PublishDir)RBG - QATRIVO.exe" />
+  </Target>
 </Project>
