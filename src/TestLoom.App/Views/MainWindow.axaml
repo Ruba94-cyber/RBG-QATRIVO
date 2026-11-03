@@ -9,8 +9,8 @@
         mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="860"
         x:Class="TestLoom.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Icon="/Assets/testloom.ico"
-        Title="TestLoom"
+        Icon="/Assets/rbg-qatrivo.ico"
+        Title="RBG - QATRIVO"
         Width="1400" Height="860" MinWidth="1000" MinHeight="560"
         WindowState="Maximized"
         x:Name="MainRoot">

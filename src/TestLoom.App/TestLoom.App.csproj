@@ -5,9 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>Assets\testloom.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\rbg-qatrivo.ico</ApplicationIcon>
     <AssemblyName>TestLoom</AssemblyName>
-    <Product>TestLoom</Product>
+    <TargetName>RBG - QATRIVO</TargetName>
+    <Product>RBG - QATRIVO</Product>
     <Authors>Paolo Rubagotti</Authors>
     <Version>6.10.0</Version>
     <AssemblyVersion>6.10.0.0</AssemblyVersion>

@@ -7,7 +7,7 @@
         mc:Ignorable="d" d:DesignWidth="460" d:DesignHeight="220"
         x:Class="TestLoom.App.Views.AvvioWindow"
         x:DataType="vm:AvvioViewModel"
-        Icon="/Assets/testloom.ico"
+        Icon="/Assets/rbg-qatrivo.ico"
         Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AvvioTitolo}"
         Width="460" Height="220" CanResize="True"
         WindowStartupLocation="CenterScreen"
@@ -21,7 +21,7 @@
 
     <Border Background="{DynamicResource AppDarkBrush}" Padding="28">
         <StackPanel Spacing="14" VerticalAlignment="Center">
-            <TextBlock Text="TestLoom" Foreground="{DynamicResource TextOnDarkBrush}" FontSize="20" FontWeight="Bold" />
+            <TextBlock Text="RBG - QATRIVO" Foreground="{DynamicResource TextOnDarkBrush}" FontSize="20" FontWeight="Bold" />
 
             <TextBlock Text="{Binding Messaggio}" Foreground="{DynamicResource TextOnDarkSoftBrush}" FontSize="14"
                        TextWrapping="Wrap"

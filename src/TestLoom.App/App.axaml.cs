@@ -117,7 +117,7 @@ public partial class App : Application
             // edits (including dynamically generated Test/NC/CR controls).
             UiInteractionTraceService.Attach(mainWindow, "Main");
 
-            var apri = new NativeMenuItem("Apri TestLoom");
+            var apri = new NativeMenuItem("Apri RBG - QATRIVO");
             apri.Click += (_, _) => mainWindow.MostraDaTray();
             var esci = new NativeMenuItem("Esci");
             esci.Click += async (_, _) => await UiExceptionGuard.Esegui(async () =>
@@ -127,8 +127,8 @@ public partial class App : Application
             var menu = new NativeMenu(); menu.Add(apri); menu.Add(new NativeMenuItemSeparator()); menu.Add(esci);
             var tray = new TrayIcon
             {
-                ToolTipText = "TestLoom · Test diagnostici",
-                Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://TestLoom/Assets/testloom.ico"))),
+                ToolTipText = "RBG - QATRIVO · Gestione test e qualità",
+                Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://TestLoom/Assets/rbg-qatrivo.ico"))),
                 Menu = menu, IsVisible = true
             };
             tray.Clicked += (_, _) => mainWindow.MostraDaTray();
