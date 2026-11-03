@@ -11,7 +11,7 @@ namespace TestLoom.App.UITests.Tests;
 /// Paginazione della Lista Test oltre la pagina singola (250 risultati per pagina): con 255 Test seminati le pagine
 /// sono due. Si verifica il testo di paginazione e il passaggio con "Successiva", "Precedente" e "Prima pagina". Le
 /// righe della griglia sono virtualizzate, quindi il conteggio si basa sul testo e sugli Id visibili, non su tutte le
-/// righe. La semina avviene prima dell'avvio di TestLoom.exe (255 file JSON sintetici nel workspace isolato).
+/// righe. La semina avviene prima dell'avvio di RBG - QATRIVO.exe (255 file JSON sintetici nel workspace isolato).
 /// </summary>
 [Collection("TestLoom UI")]
 [Trait("Category", "CRUD")]

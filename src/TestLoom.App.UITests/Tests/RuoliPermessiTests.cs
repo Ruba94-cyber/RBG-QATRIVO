@@ -6,7 +6,7 @@ using TestLoom.App.UITests.PageObjects;
 namespace TestLoom.App.UITests.Tests;
 
 /// <summary>Copertura P1 per i permessi Master vs operatore non Master: fino a questa iterazione ogni test
-/// FlaUI avviava TestLoom.exe come Master (<see cref="TestWorkspace.CreateLoggedIn"/>), quindi nessuno verificava
+/// FlaUI avviava RBG - QATRIVO.exe come Master (<see cref="TestWorkspace.CreateLoggedIn"/>), quindi nessuno verificava
 /// mai dalla UI reale la sola lettura di un operatore Standard/Viewer. Usa il nuovo
 /// <see cref="TestWorkspace.CreateLoggedInAs"/>.</summary>
 [Collection("TestLoom UI")]

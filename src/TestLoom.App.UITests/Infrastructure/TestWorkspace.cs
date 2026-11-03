@@ -6,13 +6,13 @@ namespace TestLoom.App.UITests.Infrastructure;
 /// <summary>
 /// Un workspace TestLoom completamente isolato per un singolo test: cartella condivisa temporanea + config.json
 /// locale temporaneo (mai %AppData%\TestLoom.App\config.json, mai i dati reali dell'utente), con un
-/// operatore Master già pronto e "ricordato" (Config.OperatoreAttivo) così TestLoom.exe atterra direttamente
+/// operatore Master già pronto e "ricordato" (Config.OperatoreAttivo) così RBG - QATRIVO.exe atterra direttamente
 /// sulla Home senza dover pilotare la schermata di login per ogni test — vedi anche <see cref="LoginScreenAvailable"/>
 /// per i pochi test che devono verificare davvero la UI di login.
 ///
 /// La semina usa AppState/AppConfigService/MasterDataRepository dello stesso assembly TestLoom.App (stessa
 /// tecnica già usata da TestLoom.App.Tests): NON pilota mai la UI da qui, serve solo a scrivere JSON noti sul
-/// disco prima che il processo TestLoom.exe reale venga avviato.
+/// disco prima che il processo RBG - QATRIVO.exe reale venga avviato.
 /// </summary>
 public sealed class TestWorkspace : IDisposable
 {
@@ -123,7 +123,7 @@ public sealed class TestWorkspace : IDisposable
     public const string RoleOperatorPin = "9191";
 
     /// <summary>Come <see cref="CreateLoggedIn"/> ma l'operatore attivo (quello "già loggato" all'avvio di
-    /// TestLoom.exe) ha il ruolo richiesto invece di essere sempre Master — necessario per verificare dalla UI
+    /// RBG - QATRIVO.exe) ha il ruolo richiesto invece di essere sempre Master — necessario per verificare dalla UI
     /// reale cosa un operatore Standard/Viewer vede e puo' fare (sola lettura, PIN/chiave di recupero altrui
     /// nascosti in Operatori, azioni Master-only disabilitate...), non solo a livello di ViewModel/unit test.
     /// Il nome dell'operatore include il ruolo (es. "QA Standard") per restare distinguibile a colpo d'occhio
@@ -157,7 +157,7 @@ public sealed class TestWorkspace : IDisposable
         return ws;
     }
 
-    /// <summary>Workspace con operatori già pronti sul disco ma Config.OperatoreAttivo vuoto: TestLoom.exe mostra
+    /// <summary>Workspace con operatori già pronti sul disco ma Config.OperatoreAttivo vuoto: RBG - QATRIVO.exe mostra
     /// davvero la schermata di login (FirstRunView, EPrimoAccesso=false perché la cartella non è vuota) invece
     /// di saltarla — usato solo dai test che esercitano la UI di accesso stessa.</summary>
     public static TestWorkspace CreateLoggedOut(string namePrefix)
@@ -175,7 +175,7 @@ public sealed class TestWorkspace : IDisposable
         return ws;
     }
 
-    /// <summary>Cartella condivisa completamente vuota e nessun operatore: TestLoom.exe mostra il primo avvio con
+    /// <summary>Cartella condivisa completamente vuota e nessun operatore: RBG - QATRIVO.exe mostra il primo avvio con
     /// "Carica demo completa" (FirstRunViewModel.PuoInizializzareDemo).</summary>
     public static TestWorkspace CreateEmptyFirstRun(string namePrefix)
     {

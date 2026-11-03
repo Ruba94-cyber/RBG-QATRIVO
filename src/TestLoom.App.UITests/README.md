@@ -1,6 +1,6 @@
 # TestLoom.App.UITests — suite di UI automation per TestLoom
 
-Suite FlaUI (UIA3) che avvia il vero `TestLoom.exe` come processo esterno e lo pilota tramite UI Automation, per
+Suite FlaUI (UIA3) che avvia il vero `RBG - QATRIVO.exe` come processo esterno e lo pilota tramite UI Automation, per
 verificare che un utente reale possa avviare l'app, navigare, creare/modificare/cercare Test, gestire dialog e
 modifiche non salvate, e ritrovare i dati dopo un riavvio. Non è un sostituto di `TestLoom.App.Tests` (unit/
 integration test sul motore, incluse le scale industriali a 100k record): questa suite copre lo strato che
@@ -16,7 +16,7 @@ integration test sul motore, incluse le scale industriali a 100k record): questa
   incomprensibile — ma è comunque necessario chiudere ogni sessione TestLoom reale (anche ridotta a icona/tray)
   prima di lanciare la suite.
 - **`src/TestLoom.App/TestLoom.App.csproj` già compilato** (Debug o Release): la suite non ricompila l'app,
-  cerca l'eseguibile già presente sotto `src/TestLoom.App/bin/{Debug|Release}/net10.0/win-x64/TestLoom.exe`
+  cerca l'eseguibile già presente sotto `src/TestLoom.App/bin/{Debug|Release}/net10.0/win-x64/RBG - QATRIVO.exe`
   (preferisce il più recente se esistono entrambi). Override esplicito: variabile d'ambiente `TestLoom_EXE_PATH`.
 - .NET SDK in grado di compilare `net10.0-windows` (lo stesso SDK usato per il resto della solution).
 
@@ -40,7 +40,7 @@ pwsh tools/validation/Run-Flaui-Post653.ps1 -All     # intera regressione
 pwsh tools/validation/Run-Flaui-Post653.ps1 -Smoke   # smoke esistente
 ```
 
-**Non eseguire come servizio headless**, non aprire TestLoom.exe reale nello stesso
+**Non eseguire come servizio headless**, non aprire RBG - QATRIVO.exe reale nello stesso
 momento e non assumere che un test UI isolato dimostri sincronizzazione OneDrive
 completata. Le prove multi-PC sono un gate separato e obbligatorio.
 Sviluppo test-first: ad ogni nuova funzione/bugfix di questo branch aggiungere
@@ -92,7 +92,7 @@ Ogni test crea un `TestWorkspace` (`Infrastructure/TestWorkspace.cs`) sotto
 locale temporaneo, mai il config reale dell'utente (`%AppData%\TestLoom.App\config.json`) e mai la cartella
 condivisa vera. Il seeding (un operatore Master, un template minimo, un componente e un veicolo) avviene istanziando
 direttamente `AppState`/`AppConfigService` dallo stesso assembly `TestLoom.App` — la stessa tecnica già usata
-da `TestLoom.App.Tests` — **mai** pilotando l'app per crearli. TestLoom.exe viene poi avviato con
+da `TestLoom.App.Tests` — **mai** pilotando l'app per crearli. RBG - QATRIVO.exe viene poi avviato con
 `--config <percorso-isolato>`, un argomento CLI già previsto da `App.axaml.cs` proprio per i collaudi end-to-end
 isolati. Il workspace viene eliminato a fine test (`Dispose`, best-effort).
 
@@ -113,7 +113,7 @@ AutomationId, sono ripetizioni dello stesso DataTemplate).
 ## Struttura
 
 ```
-Infrastructure/   Avvio/arresto TestLoom.exe, workspace isolato, wait/retry, screenshot su failure, guard single-instance
+Infrastructure/   Avvio/arresto RBG - QATRIVO.exe, workspace isolato, wait/retry, screenshot su failure, guard single-instance
 PageObjects/      Un Page Object per area funzionale reale (Login, Shell, Home, Test List, Editor, dialog...)
 Flows/            Sequenze multi-schermata riusate da più test (es. creare un Test Case end-to-end)
 Helpers/          Estensioni di localizzazione locator/azioni (click robusto, selezione ComboBox/ListBox per testo)
@@ -199,10 +199,10 @@ vedi `PersistenceTests`) scrive sotto `TestResults/UIFailures/<NomeTest>/<timest
 ## Cleanup
 
 Ogni `TestWorkspace.Dispose()` elimina la propria cartella temporanea (best-effort: un file ancora bloccato da
-un TestLoom.exe non ancora terminato non fa fallire il test). Ogni `TestLoomApplication.Dispose()` chiude la finestra
-e, se il processo non termina entro 5s, lo termina (`Kill`) — nessun test deve lasciare un TestLoom.exe orfano che
+un RBG - QATRIVO.exe non ancora terminato non fa fallire il test). Ogni `TestLoomApplication.Dispose()` chiude la finestra
+e, se il processo non termina entro 5s, lo termina (`Kill`) — nessun test deve lasciare un RBG - QATRIVO.exe orfano che
 tenga occupato il mutex single-instance per la prova successiva. Un'interruzione anomala della suite (es. Ctrl+C
-durante l'esecuzione) può comunque lasciare un processo TestLoom.exe orfano: verificarlo da Gestione attività prima
+durante l'esecuzione) può comunque lasciare un processo RBG - QATRIVO.exe orfano: verificarlo da Gestione attività prima
 di rilanciare i test.
 
 ## Debugging di un test che fallisce in locale

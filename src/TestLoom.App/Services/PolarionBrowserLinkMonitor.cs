@@ -70,7 +70,7 @@ public sealed class PolarionBrowserLinkMonitor : IDisposable
         if (settings.ErroreCaricamento is not null || !settings.LetturaAbilitata || !settings.HaToken) return;
         var pending = new PolarionCreationReceiptStore(_state.Paths).PendingBrowserReceipts()
             .Where(r => string.Equals(r.OperatorAtHandoff, _state.Config.OperatoreAttivo,
-                StringComparison.OrdinalIgnoreCase))
+                StringComparison.OrdinalIgnoreCase) && IsStillWatched(r, DateTimeOffset.UtcNow))
             .ToList();
         // Rotating bounded scan: never starve a newly saved TICKET when more than
         // eight old browser drafts are pending in the same workspace.
@@ -114,6 +114,14 @@ public sealed class PolarionBrowserLinkMonitor : IDisposable
             }
         }
     }
+
+    /// <summary>Automatic polling for a draft stops after this long: an unsaved draft must not be searched forever.
+    /// The receipt is kept; the dialog can still verify it by ID or discard it.</summary>
+    internal static readonly TimeSpan WatchWindow = TimeSpan.FromHours(24);
+
+    /// <summary>A verified-created receipt (cleanup interrupted) is always retried; a never-saved draft expires.</summary>
+    internal static bool IsStillWatched(PolarionCreationReceiptStore.Receipt receipt, DateTimeOffset nowUtc) =>
+        receipt.CreatedTicketId is not null || nowUtc - receipt.StartedUtc <= WatchWindow;
 
     /// <summary>Fair, bounded round-robin selection independent of Ticketing availability.</summary>
     internal static IReadOnlyList<PolarionCreationReceiptStore.Receipt> SelectBatch(

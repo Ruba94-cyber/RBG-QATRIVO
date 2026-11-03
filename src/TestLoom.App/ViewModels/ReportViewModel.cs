@@ -39,9 +39,10 @@ public sealed partial class DimensioneMatriceOpzione : ObservableObject
 public sealed partial class SegmentoIntestazione : ObservableObject
 {
     public SegmentoIntestazione(string etichetta, double larghezza, double altezza, bool comprimibile, bool compressa,
-        string? chiaveComando, string? chiaveDimensione, int span)
+        string? chiaveComando, string? chiaveDimensione, int span, string? testo = null)
     {
         Etichetta = etichetta;
+        Testo = string.IsNullOrEmpty(testo) ? etichetta : testo;
         Larghezza = larghezza;
         Altezza = altezza;
         Comprimibile = comprimibile;
@@ -51,7 +52,10 @@ public sealed partial class SegmentoIntestazione : ObservableObject
         Span = span;
     }
 
+    /// <summary>Nome completo (tooltip, nome di automazione).</summary>
     public string Etichetta { get; }
+    /// <summary>Testo mostrato nell'intestazione: per i componenti la sola sigla, per ridurre la larghezza della matrice.</summary>
+    public string Testo { get; }
     [ObservableProperty] private double larghezza;
     [ObservableProperty] private double altezza;
     public bool Comprimibile { get; }
@@ -157,6 +161,35 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
     public ObservableCollection<FiltroCampoCustom> FiltriCampiCustomReport { get; } = new();
     public ObservableCollection<DimensioneMatriceOpzione> OpzioniDimensioniMatrice { get; } = new();
     public ObservableCollection<FiltroDimensioneMatrice> FiltriMatrice { get; } = new();
+
+    /// <summary>Filtro per stato della matrice (multi-selezione, nessuna selezione = tutti gli stati visibili): nasconde le righe e le
+    /// colonne in cui nessuna cella ha uno degli stati scelti. A differenza della maschera "Nascondi voci di stato" agisce sugli assi.</summary>
+    public FiltroMultiSelect FiltroStatiMatrice { get; } = new();
+
+    private const string ChiaveVistaFiltroStatiMatrice = "Report.FiltroStatiMatrice";
+
+    private static readonly (StatoCellaMatrice Stato, string ChiaveEtichetta)[] StatiFiltrabiliMatrice =
+    [
+        (StatoCellaMatrice.Conforme, "MatriceLegendaConforme"),
+        (StatoCellaMatrice.NonConforme, "MatriceLegendaNonConforme"),
+        (StatoCellaMatrice.ConformeConDeviazioni, "MatriceLegendaDeviazioni"),
+        (StatoCellaMatrice.DaEseguire, "MatriceLegendaDaEseguire"),
+        (StatoCellaMatrice.NonTestato, "MatriceLegendaNonTestato"),
+        (StatoCellaMatrice.DaDecidere, "MatriceLegendaDecidere"),
+    ];
+
+    /// <summary>Stati selezionati nel filtro (vuoto = nessun filtro).</summary>
+    internal HashSet<StatoCellaMatrice> StatiFiltroMatriceSelezionati() =>
+        FiltroStatiMatrice.Selezionati
+            .Select(v => Enum.TryParse<StatoCellaMatrice>(v, out var stato) ? stato : (StatoCellaMatrice?)null)
+            .OfType<StatoCellaMatrice>().ToHashSet();
+
+    /// <summary>Cambio lingua: ritraduce le etichette del filtro stati mantenendo la selezione (Ripopola non fa nulla se invariate).</summary>
+    private void RietichettaFiltroStatiMatrice() =>
+        FiltroStatiMatrice.Ripopola(StatiFiltrabiliMatrice.Select(s => (s.Stato.ToString(), LocalizationService.Instance.Traduci(s.ChiaveEtichetta))).ToList());
+
+    private void PopolaFiltroStatiMatrice() =>
+        FiltroStatiMatrice.Popola(StatiFiltrabiliMatrice.Select(s => (s.Stato.ToString(), LocalizationService.Instance.Traduci(s.ChiaveEtichetta))).ToList());
     /// <summary>Campi dell'asse X (colonne) e dell'asse Y (righe), in ordine di annidamento (6.6.1: da 0 a 3 per asse; almeno
     /// un campo in tutta la matrice).</summary>
     public ObservableCollection<CampoAsseMatrice> CampiXMatrice { get; } = new();
@@ -303,12 +336,15 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
 
                 var chiaveDimensione = !righe && fascia.Livello == fasceLivelli.Count && span == 1 && indice < ColonneMatrice.Count
                     ? ChiaveColonnaNormalizzata(ColonneMatrice[indice]) : null;
+                var campiAsse = righe ? CampiYMatrice : CampiXMatrice;
+                var campoLivello = fascia.Livello >= 1 && fascia.Livello <= campiAsse.Count ? campiAsse[fascia.Livello - 1] : null;
+                var testoMostrato = campoLivello?.Dimensione?.Id == DimensioniMatrice.Componente ? PolarionTicketTitle.SiglaEcu(fascia.Etichetta) : null;
                 segmenti.Add(new SegmentoIntestazione(fascia.Etichetta,
                     righe ? LarghezzaLivelloRigaMatrice : misura,
                     righe ? misura : AltezzaLivelloColonnaMatrice,
                     fascia.Comprimibile, fascia.Compressa,
                     fascia.Comprimibile ? ReportMatriceService.ChiaveCompressione(righe, fascia.Chiave) : null,
-                    righe ? null : chiaveDimensione, span));
+                    righe ? null : chiaveDimensione, span, testoMostrato));
                 indice += span;
             }
             risultato.Add(segmenti);
@@ -745,7 +781,7 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
 
     public bool HaFiltriAttivi => FiltroEcu != null || FiltroVeicolo != null || DataDa != null || DataA != null || FiltroTemplate.HaSelezione
         || FiltriCampiCustomReport.Any(f => f.Filtro.HaSelezione)
-        || FiltriMatrice.Any(f => f.Filtro.HaSelezione)
+        || FiltriMatrice.Any(f => f.Filtro.HaSelezione) || FiltroStatiMatrice.HaSelezione
         || FiltroTempoOperazioneAttivo != null || FiltroTempoTotaleTestAttivo != null;
 
     /// <summary>Rende visibili le selezioni attive anche quando il pannello dei filtri avanzati è chiuso.</summary>
@@ -764,6 +800,8 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
                 attivi.Add($"{filtro.Etichetta}: {string.Join(", ", filtro.Filtro.Selezionati)}");
             foreach (var filtro in FiltriMatrice.Where(f => f.Filtro.HaSelezione))
                 attivi.Add($"{filtro.Dimensione.Etichetta}: {string.Join(", ", filtro.Filtro.Selezionati)}");
+            if (FiltroStatiMatrice.HaSelezione)
+                attivi.Add($"{LocalizationService.Instance.Traduci("MatriceFiltroStatiLabel")}: {string.Join(", ", FiltroStatiMatrice.Opzioni.Where(o => o.Selezionato).Select(o => o.Etichetta))}");
             if (FiltroTempoOperazioneAttivo is { } operazione)
                 attivi.Add($"{LocalizationService.Instance.Traduci("FiltroTempoOperazioneLabel")}: {operazione.Etichetta}");
             if (FiltroTempoTotaleTestAttivo is { } totale)
@@ -832,6 +870,7 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
             if (args.PropertyName == nameof(LocalizationService.Lingua))
             {
                 pagina.AggiornaEtichetteDimensioniMatrice();
+                pagina.RietichettaFiltroStatiMatrice();
                 pagina.OnPropertyChanged(nameof(RiepilogoFiltriAttivi));
             }
         };
@@ -842,6 +881,9 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
         // Phase D sul thread UI. Il giro in background apre la propria lettura sul pool.
         using var letturaMaster = MasterLetturaScope.Apri();
         FiltroTemplate.Cambiato += GeneraAnteprima;
+        PopolaFiltroStatiMatrice();
+        FiltroStatiMatrice.LegaPersistenza(_state, ChiaveVistaFiltroStatiMatrice);
+        FiltroStatiMatrice.Cambiato += GeneraMatrice;
 
         CreaStrutturaMatrice();
         // Filtri e dimensioni dei campi di sistema: stesso allineamento di ogni giro (vedi ConciliaCampiCustom). Gli assi salvati
@@ -1387,6 +1429,10 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
             Filtri = FiltriMatrice.ToDictionary(f => f.Dimensione.Id, f => f.Filtro.Selezionati, StringComparer.OrdinalIgnoreCase),
             Ordini = ordini,
             GruppiCompressi = new HashSet<string>(GruppiCompressiMatrice, StringComparer.Ordinal),
+            StatiFiltroRigheColonne = StatiFiltroMatriceSelezionati(),
+            EcuRistrettePerRequisito = campiX.Concat(campiY).Contains(DimensioniMatrice.Requisito) && campiX.Concat(campiY).Contains(DimensioniMatrice.Componente)
+                ? RequisitoApplicabilita.EcuRistrettePerRequisito(_state.Master.Requisiti.Load())
+                : new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase),
         };
     }
 
@@ -1656,6 +1702,7 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
             FiltroTemplate.DeselezionaTutto();
             foreach (var f in FiltriCampiCustomReport) f.Filtro.DeselezionaTutto();
             foreach (var f in FiltriMatrice) f.Filtro.DeselezionaTutto();
+            FiltroStatiMatrice.DeselezionaTutto();
             TestoFiltroTempoOperazione = "";
             TestoFiltroTempoTotaleTest = "";
             OperatoreFiltroTempoOperazione = 0;
@@ -1720,6 +1767,7 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
             new ExportFiltroMultiplo("template", loc.Traduci("TipoTestLabel"), FiltroTemplate),
         };
         filtri.AddRange(FiltriMatrice.Select(f => new ExportFiltroMultiplo("matrice-" + f.Dimensione.Id, f.Dimensione.Etichetta, f.Filtro)));
+        filtri.Add(new ExportFiltroMultiplo("matrice-stati", loc.Traduci("MatriceFiltroStatiLabel"), FiltroStatiMatrice));
         filtri.AddRange(FiltriCampiCustomReport.Select(f => new ExportFiltroMultiplo("campo-" + f.Chiave, f.Etichetta, f.Filtro)));
         var campiPivot = ReportExportArricchimentiService.CampiPivotPersonalizzata();
         var fontiPivot = new[] {
@@ -2093,6 +2141,7 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
             _linguaCambiata = null;
         }
         FiltroTemplate.Cambiato -= GeneraAnteprima;
+        FiltroStatiMatrice.Cambiato -= GeneraMatrice;
         foreach (var filtro in FiltriMatrice) filtro.Filtro.Cambiato -= GeneraMatrice;
         foreach (var filtro in FiltriCampiCustomReport) filtro.Filtro.Cambiato -= GeneraAnteprima;
     }

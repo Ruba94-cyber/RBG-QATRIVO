@@ -85,7 +85,7 @@ public class LocalizationUiTests
     [Theory]
     [InlineData("AuditTitolo", "Audit di conformità", "Conformity audit")]
     [InlineData("OrdinePannelliTitolo", "Ordine pannelli", "Panel order")]
-    [InlineData("OnboardingIntestazione", "TestLoom · TOUR GUIDATO", "TestLoom · GUIDED TOUR")]
+    [InlineData("OnboardingIntestazione", "RBG - QATRIVO · TOUR GUIDATO", "RBG - QATRIVO · GUIDED TOUR")]
     [InlineData("CambioPinDemoTitolo", "Proteggi l'account demo", "Secure the demo account")]
     [InlineData("CercaNellaGuida", "Cerca nella guida…", "Search help…")]
     [InlineData("NavAudit", "Audit", "Audit")]

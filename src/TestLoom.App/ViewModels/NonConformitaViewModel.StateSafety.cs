@@ -81,6 +81,61 @@ public partial class NonConformitaViewModel
         Ricarica();
     }
 
+    /// <summary>Archiviazione NC dalla lista (sostituisce l'eliminazione): stessi guard di ArchiviaCrSicuro.</summary>
+    [RelayCommand]
+    private async Task ArchiviaAnomaliaSicuro(NcRiga? riga)
+    {
+        if (riga == null || riga.Nc.Archiviata || !_state.EMaster || !_state.PuoScrivere) return;
+        var loc = LocalizationService.Instance;
+        if (!await ConfirmService.Chiedi(loc.Traduci("ArchiviaAnomaliaConfermaTitolo"),
+                string.Format(loc.Traduci("ArchiviaAnomaliaConfermaBodyFmt"), riga.Nc.Id), loc.Traduci("ArchiviaBtn"), loc.Traduci("Annulla")))
+            return;
+        if (!_state.EMaster || !_state.PuoScrivere)
+        {
+            MessaggioErrore = loc.Traduci("ArchivioAzioneNonAutorizzata");
+            return;
+        }
+        try { _state.NonConformita.Archivia(riga.Nc, _state.Config.OperatoreAttivo); }
+        catch (Exception ex)
+        {
+            MessaggioErrore = string.Format(loc.Traduci("SalvataggioNonRiuscitoFmt"), ex.Message);
+            Ricarica();
+            return;
+        }
+        MessaggioErrore = null;
+        _state.RicaricaTutto();
+        Ricarica();
+    }
+
+    /// <summary>
+    /// Archiviazione di una CR dalla lista, con gli stessi guard di Elimina: ruolo Master e workspace scrivibile
+    /// rivalutati DOPO la conferma; il repository clona la CR e salva con controllo di revisione.
+    /// </summary>
+    [RelayCommand]
+    private async Task ArchiviaCrSicuro(ChangeRequest? cr)
+    {
+        if (cr == null || cr.Archiviata || !_state.EMaster || !_state.PuoScrivere) return;
+        var loc = LocalizationService.Instance;
+        if (!await ConfirmService.Chiedi(loc.Traduci("CrEdArchiviaTitolo"),
+                string.Format(loc.Traduci("CrEdArchiviaBodyFmt"), cr.Id), loc.Traduci("CrEdArchiviaBtn"), loc.Traduci("Annulla")))
+            return;
+        if (!_state.EMaster || !_state.PuoScrivere)
+        {
+            MessaggioErrore = loc.Traduci("ArchivioAzioneNonAutorizzata");
+            return;
+        }
+        try { _state.ChangeRequests.Archivia(cr, _state.Config.OperatoreAttivo); }
+        catch (Exception ex)
+        {
+            MessaggioErrore = string.Format(loc.Traduci("SalvataggioNonRiuscitoFmt"), ex.Message);
+            Ricarica();
+            return;
+        }
+        MessaggioErrore = null;
+        _state.RicaricaTutto();
+        Ricarica();
+    }
+
     /// <summary>
     /// Collega a posteriori una NC nata senza Test (tipicamente una segnalazione dalla rete assistenziale,
     /// feedback utente 2026-09-08) a un Test creato/eseguito per indagarla. I campi propri della segnalazione

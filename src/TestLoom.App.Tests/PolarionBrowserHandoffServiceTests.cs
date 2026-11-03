@@ -73,6 +73,75 @@ public sealed class PolarionBrowserHandoffServiceTests
         Assert.Null(Assert.Single(fixture.Receipts.PendingBrowserReceipts()).CreatedTicketId);
     }
 
+    [Fact]
+    public async Task DiscardUnsavedDropsReceiptOnlyWhenSearchRanAndFoundNothing()
+    {
+        using var fixture = new ReconcileFixture(false, false);
+        using var http = fixture.Client(_ => "{\"data\":[]}");
+        var result = await PolarionBrowserHandoffService.TryDiscardUnsavedAsync(fixture.State, fixture.Receipt,
+            clientFactory: () => new PolarionReadClient(http, fixture.ApiRoot, "synthetic-token"));
+        Assert.Equal(PolarionBrowserHandoffService.DiscardOutcome.Discarded, result.Outcome);
+        Assert.Empty(fixture.Receipts.PendingBrowserReceipts());
+    }
+
+    [Fact]
+    public async Task DiscardUnsavedKeepsReceiptWhenSearchFindsMultipleCandidates()
+    {
+        using var fixture = new ReconcileFixture(false, false);
+        using var http = fixture.Client(_ => "{\"data\":[{\"id\":\"TICKET-123\"},{\"id\":\"TICKET-124\"}]}");
+        var result = await PolarionBrowserHandoffService.TryDiscardUnsavedAsync(fixture.State, fixture.Receipt,
+            clientFactory: () => new PolarionReadClient(http, fixture.ApiRoot, "synthetic-token"));
+        Assert.Equal(PolarionBrowserHandoffService.DiscardOutcome.MustVerify, result.Outcome);
+        Assert.Single(fixture.Receipts.PendingBrowserReceipts());
+    }
+
+    [Fact]
+    public async Task DiscardUnsavedLinksInsteadOfDiscardingWhenTicketWasActuallySaved()
+    {
+        using var fixture = new ReconcileFixture(false, false);
+        using var http = fixture.Client(req => req.RequestUri!.AbsolutePath.EndsWith("/workitems", StringComparison.Ordinal)
+            ? "{\"data\":[{\"id\":\"TICKET_Tickets/TICKET-123\"}]}" : fixture.TicketJson());
+        var result = await PolarionBrowserHandoffService.TryDiscardUnsavedAsync(fixture.State, fixture.Receipt,
+            clientFactory: () => new PolarionReadClient(http, fixture.ApiRoot, "synthetic-token"));
+        Assert.Equal(PolarionBrowserHandoffService.DiscardOutcome.Linked, result.Outcome);
+        fixture.AssertLinked();
+    }
+
+    [Fact]
+    public void MonitorStopsWatchingStaleUnsavedDraftsButNeverAnInterruptedLink()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var fresh = new PolarionCreationReceiptStore.Receipt { StartedUtc = now.AddHours(-1) };
+        var stale = new PolarionCreationReceiptStore.Receipt { StartedUtc = now.AddHours(-25) };
+        var staleButCreated = new PolarionCreationReceiptStore.Receipt
+        { StartedUtc = now.AddHours(-25), CreatedTicketId = "TICKET-1" };
+        Assert.True(PolarionBrowserLinkMonitor.IsStillWatched(fresh, now));
+        Assert.False(PolarionBrowserLinkMonitor.IsStillWatched(stale, now));
+        Assert.True(PolarionBrowserLinkMonitor.IsStillWatched(staleButCreated, now));
+    }
+
+    [Fact]
+    public void ReopenUsesTheSamePendingDraftWithoutCreatingAnotherReceiptOrPutDataInTheUrl()
+    {
+        using var fixture = new ReconcileFixture(false, false);
+        var first = PolarionBrowserHandoffService.Reopen(fixture.State, fixture.Receipt, "[Daily] titolo", "descrizione");
+        var second = PolarionBrowserHandoffService.Reopen(fixture.State, fixture.Receipt, "[Daily] titolo", "descrizione");
+        Assert.Same(fixture.Receipt, first.Receipt);
+        Assert.Equal(first.BrowserUrl, second.BrowserUrl);
+        Assert.Single(fixture.Receipts.PendingBrowserReceipts());
+        Assert.DoesNotContain(fixture.Receipt.BrowserCorrelationMarker!, Uri.UnescapeDataString(first.BrowserUrl.AbsoluteUri));
+        Assert.Contains(fixture.Receipt.BrowserCorrelationMarker!, first.ClipboardText);
+    }
+
+    [Fact]
+    public void ReopenIsRefusedOnceATicketWasVerifiedForTheDraft()
+    {
+        using var fixture = new ReconcileFixture(false, false);
+        fixture.Receipt.CreatedTicketId = "TICKET-123";
+        Assert.Throws<InvalidOperationException>(() =>
+            PolarionBrowserHandoffService.Reopen(fixture.State, fixture.Receipt, "t", "d"));
+    }
+
     private sealed class ReconcileFixture : IDisposable
     {
         private readonly string _root = Path.Combine(Path.GetTempPath(), "TestLoom-Reconcile-" + Guid.NewGuid().ToString("N"));
@@ -235,53 +304,6 @@ public sealed class PolarionBrowserHandoffServiceTests
     {
         Assert.Throws<ArgumentException>(() =>
             PolarionBrowserHandoffService.BuildCreateFormUrl(new Uri(root), project, title));
-    }
-
-    [Theory]
-    [InlineData("bug", "P1", "50.0")]
-    [InlineData("new_request", "P3", "25.0")]
-    [InlineData("bug", "P5", "16.0")]
-    public void ExperimentalFullPrefillCarriesAllAvailableEstaFields(
-        string subtype, string priority, string expectedPriority)
-    {
-        var marker = "TestLoomREF" + new string('A', 32);
-        var description = "Source: NC-1\\nDetailed test evidence & diagnostics\\n" + marker;
-        var url = PolarionBrowserHandoffService.BuildExperimentalCreateFormUrl(
-            new Uri("https://ticketing.example.invalid/ticketing/rest/v1"),
-            "TICKET_Tickets", "CAN & safety", description,
-            subtype, priority, "Major", "external.user").AbsoluteUri;
-        var decoded = Uri.UnescapeDataString(url);
-
-        Assert.Contains("form_mode=create", decoded);
-        Assert.Contains("form_field_type=TICKET_Ticket", decoded);
-        Assert.Contains("form_field_title=CAN & safety", decoded);
-        Assert.Contains("form_field_description=Source: NC-1", decoded);
-        Assert.Contains(marker, decoded);
-        Assert.Contains("form_field_TICKET_tck_type=" + subtype, decoded);
-        Assert.Contains("form_field_priority=" + expectedPriority, decoded);
-        Assert.Contains("form_field_severity=major", decoded);
-        Assert.Contains("form_field_TICKET_tkc_assign_to=external.user", decoded);
-        Assert.DoesNotContain("/ticketing/rest/", url);
-        Assert.DoesNotContain("Bearer", url);
-    }
-
-    [Fact]
-    public void ExperimentalFullPrefillRejectsOversizedDescriptionInsteadOfTruncatingMarker()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            PolarionBrowserHandoffService.BuildExperimentalCreateFormUrl(
-                new Uri("https://ticketing.example.invalid/ticketing/rest/v1"),
-                "TICKET_Tickets", "Test", new string('X', 20000) + "TestLoomREF" + new string('B', 32),
-                "bug", "P2", "Normal", "external.user"));
-    }
-
-    [Fact]
-    public void ExperimentalFullPrefillDoesNotAllowUnknownTicketSubtype()
-    {
-        Assert.Throws<ArgumentException>(() =>
-            PolarionBrowserHandoffService.BuildExperimentalCreateFormUrl(
-                new Uri("https://ticketing.example.invalid/ticketing/rest/v1"),
-                "TICKET_Tickets", "Test", "Text", "new_request_execution", "P2", "Normal", ""));
     }
 
     [Fact]

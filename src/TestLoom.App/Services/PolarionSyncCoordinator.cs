@@ -20,6 +20,8 @@ internal sealed class PolarionSyncCoordinator
         _locks = locks ?? new LockService(Guid.NewGuid().ToString("N"));
     }
 
+    internal static readonly TimeSpan IncompleteRetryDelay = TimeSpan.FromMinutes(5);
+
     private sealed class Schedule { public DateTimeOffset LastAttemptUtc { get; set; } }
 
     internal Lease? TryBegin(TimeSpan interval, DateTimeOffset nowUtc)
@@ -85,6 +87,18 @@ internal sealed class PolarionSyncCoordinator
                 _lost.Cancel();
                 return false;
             }
+        }
+
+        /// <summary>After an incomplete pass: make the next scheduled pass due after <paramref name="delay"/>
+        /// instead of a full interval. Best effort; only while this lease still owns the schedule.</summary>
+        internal void ScheduleRetry(TimeSpan interval, TimeSpan delay)
+        {
+            try
+            {
+                if (delay >= interval || !ConfirmOwnership()) return;
+                JsonIo.WriteAtomic(_path, new Schedule { LastAttemptUtc = DateTimeOffset.UtcNow - interval + delay });
+            }
+            catch (Exception) { /* best effort: never mask the original outcome of the pass */ }
         }
 
         internal void StartHeartbeat() => _ = Task.Run(async () =>

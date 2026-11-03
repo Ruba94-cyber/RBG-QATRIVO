@@ -59,6 +59,10 @@ public class CellaMatriceAudit
     /// Phase D non ancora riparata con valori discordanti (fix 6.4.0) — la pagina Audit la mostra come
     /// conflitto da rivedere, non come un valore ordinario.</summary>
     public bool ConflittoCollisioneCella { get; set; }
+
+    /// <summary>Requisito Extra relativo ad altre componente (coppie veicolo-componente, RequisitoApplicabilita.SiApplicaAllaEcu): la cella e'
+    /// N.A. (Stato resta DaTestare, solo per compatibilita') e non entra nei KPI. Derivato dai dati, mai persistito.</summary>
+    public bool NonApplicabileEcu { get; set; }
 }
 
 /// <summary>
@@ -72,6 +76,20 @@ public static class AuditMatriceService
     public static List<string> EcuDelSottoveicolo(IReadOnlyList<Componente> tutteLeEcu, string veicoloNome) =>
         tutteLeEcu.Where(e => !e.Archiviata && e.VeicoliAssociati.Contains(veicoloNome))
             .Select(e => e.Nome).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+
+    /// <summary>Toglie dalle colonne i componenti le cui celle sono tutte N.A. (requisiti Extra relativi ad altre componente). I componenti senza celle
+    /// (nessun requisito) restano: nessun cambio rispetto a prima.</summary>
+    public static List<string> EcuConAlmenoUnaCellaApplicabile(IReadOnlyList<string> componente, IEnumerable<CellaMatriceAudit> celle)
+    {
+        var conCelle = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var applicabili = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var c in celle)
+        {
+            conCelle.Add(c.Componente);
+            if (!c.NonApplicabileEcu) applicabili.Add(c.Componente);
+        }
+        return componente.Where(e => !conCelle.Contains(e) || applicabili.Contains(e)).ToList();
+    }
 
     public static Dictionary<(string Componente, string ReqId), List<TestCase>> IndicizzaTestPerEcuERequisito(IReadOnlyList<TestCase> testCases)
     {
@@ -249,6 +267,11 @@ public static class AuditMatriceService
         foreach (var componente in ecuDelSottoveicolo)
         foreach (var req in requisitiAttivi)
         {
+            if (!RequisitoApplicabilita.SiApplicaAllaEcu(req, componente, veicoloNome))
+            {
+                risultato.Add(new CellaMatriceAudit { Componente = componente, RequisitoId = req.Id, Veicolo = veicoloNome, Stato = StatoCellaAudit.DaTestare, NonApplicabileEcu = true });
+                continue;
+            }
             var testDellaCoppia = perCoppia.TryGetValue((componente, req.Id), out var lista) ? lista : (IReadOnlyList<TestCase>)Array.Empty<TestCase>();
             var valutazioniDellaCoppia = valutazioniPerCoppiaGrezze.TryGetValue((componente, req.Id), out var righeGrezze)
                 ? righeGrezze
@@ -402,13 +425,21 @@ public static class AuditMatriceService
             if (!ecuPerVeicolo.TryGetValue(v.Nome, out var ecuList) || ecuList.Count == 0) continue;
 
             int reqsVeicoloCount = standardReqsCount;
+            long celleD4dRistrette = 0;
             for (int i = 0; i < d4dReqs.Count; i++)
             {
-                if (RequisitoApplicabilita.SiApplicaAlSottoveicolo(d4dReqs[i], v.Nome))
-                    reqsVeicoloCount++;
+                if (!RequisitoApplicabilita.SiApplicaAlSottoveicolo(d4dReqs[i], v.Nome)) continue;
+                if (d4dReqs[i].VeicoliEcuD4D is { Count: > 0 })
+                {
+                    // Requisito relativo ad alcune componente: le celle verso le altre sono N.A. e non contano nel totale.
+                    var req4 = d4dReqs[i];
+                    celleD4dRistrette += ecuList.Count(e => RequisitoApplicabilita.SiApplicaAllaEcu(req4, e, v.Nome));
+                    continue;
+                }
+                reqsVeicoloCount++;
             }
 
-            totaleCelle += (long)ecuList.Count * reqsVeicoloCount;
+            totaleCelle += (long)ecuList.Count * reqsVeicoloCount + celleD4dRistrette;
 
             foreach (var componente in ecuList)
             {
@@ -418,6 +449,7 @@ public static class AuditMatriceService
                 {
                     if (!requisitiMap.TryGetValue(reqId, out var req)) continue;
                     if (RequisitoApplicabilita.ED4D(req) && !RequisitoApplicabilita.SiApplicaAlSottoveicolo(req, v.Nome)) continue;
+                    if (!RequisitoApplicabilita.SiApplicaAllaEcu(req, componente, v.Nome)) continue; // N.A.: fuori dai KPI
 
                     var chiaveCoppiaAudit = (componente, req.Id);
                     var testDellaCoppiaAudit = perCoppia.TryGetValue(chiaveCoppiaAudit, out var testAudit)

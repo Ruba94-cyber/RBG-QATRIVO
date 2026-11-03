@@ -120,6 +120,12 @@ public sealed class PolarionReadClient
             Severity = Value(attrs, "severity"),
             Created = Date(attrs, "created"),
             Updated = Date(attrs, "updated"),
+            ResolvedOn = Date(attrs, "resolvedOn"),
+            TicketEndDate = Value(attrs, "TICKET_ticket_end_date"),
+            WorkingUnit = RichText(attrs, "TICKET_working_unit"),
+            Invoice = RichText(attrs, "TICKET_invoice"),
+            Components = AttributeIds(attrs, "TICKET_component"),
+            Componenti = AttributeIds(attrs, "TICKET_ecu"),
             RetrievedAtUtc = DateTimeOffset.UtcNow,
             Assignees = UserIds(RelationIds(item, "assignee")),
             // Ticketing project custom fields can appear in attributes or as JSON:API

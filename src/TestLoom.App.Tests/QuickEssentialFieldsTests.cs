@@ -37,7 +37,8 @@ public sealed class QuickEssentialFieldsTests : IDisposable
     public void QuickShowsEveryRequiredFieldAndNoOptionalOne_FullIsUnchanged()
     {
         var vm = CreaVm();
-        Assert.True(vm.ModoEditorRapido);
+        Assert.False(vm.ModoEditorRapido); // complete version is the default
+        vm.AttivaModalitaRapidaCommand.Execute(null);
         var quick = Visibili(vm);
 
         var obbligatori = new Dictionary<string, bool>

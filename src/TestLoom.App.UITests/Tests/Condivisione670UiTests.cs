@@ -12,7 +12,7 @@ namespace TestLoom.App.UITests.Tests;
 /// sincronizzata" (Impostazioni, ComboBox + Applica), cambio della cartella dati da Impostazioni, riavvio, modifica
 /// esterna del workspace con TestLoom aperto, cartella resa non disponibile mentre l'app gira, diagnostica (Centro
 /// Integrita').
-/// Ogni test usa un workspace temporaneo isolato (TestWorkspace) e un processo TestLoom.exe proprio: il lock di istanza
+/// Ogni test usa un workspace temporaneo isolato (TestWorkspace) e un processo RBG - QATRIVO.exe proprio: il lock di istanza
 /// singola impedisce due sessioni dell'app sullo stesso PC, quindi le modifiche "da un altro PC" vengono simulate
 /// scrivendo sul disco condiviso dal processo di test (stessi repository dell'app, come gia' fa TestCoverageSeed).
 /// </summary>

@@ -393,7 +393,8 @@
                                         <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Center">
                                             <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriChangeRequestBtn}" Classes="Secondary" FontSize="12" Padding="5,0" MinWidth="60" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaDettaglioSolaLetturaTip}" Click="OnApriDettaglioSolaLettura" AutomationProperties.AutomationId="Anomalie_Riga_Dettaglio_Button" />
                                             <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaRapidaAzione}" Classes="Primary" FontSize="12" Padding="5,0" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaRapidaAzione}" Click="OnModificaRapidaNc" AutomationProperties.AutomationId="Anomalie_Riga_ModificaRapida_Button" />
-                                             <Button Content="TICKET ⏱" Classes="Secondary" FontSize="11" Padding="5,0" IsVisible="{Binding HaTicketPolarionNc}" Click="OnApriTimelineEstaNc" ToolTip.Tip="Timeline e report TICKET collegati alla NC" AutomationProperties.AutomationId="Anomalie_EstaTimeline_Button" />
+                                             <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ArchiviaBtn}" Classes="Secondary" FontSize="11" Padding="5,0" IsVisible="{Binding #Root.((vm:NonConformitaViewModel)DataContext).EMaster}" Command="{Binding #Root.((vm:NonConformitaViewModel)DataContext).ArchiviaAnomaliaSicuroCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="Anomalie_Riga_Archivia_Button" />
+                                            <Button Content="TICKET ⏱" Classes="Secondary" FontSize="11" Padding="5,0" IsVisible="{Binding HaTicketPolarionNc}" Click="OnApriTimelineEstaNc" ToolTip.Tip="Timeline e report TICKET collegati alla NC" AutomationProperties.AutomationId="Anomalie_EstaTimeline_Button" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -455,7 +456,9 @@
                         </StackPanel>
                       </ScrollViewer>
                     </Grid>
-                    <!-- Tabella CR con lo stesso layout personalizzabile delle altre griglie: ordine e larghezze sono salvati per operatore. -->
+                    <!-- Tabella CR con lo stesso layout personalizzabile delle altre griglie: ordine e larghezze sono salvati per operatore.
+                         Nessuna colonna Star (come nella tabella NC): con una colonna Star e contenuto piu' largo della vista il DataGrid
+                         comprime tutte le colonne al MinWidth e rifiuta il ridimensionamento. Test: ColonneAnomalieECr_NonUsanoStar... -->
                             <DataGrid x:Name="ListaCr" services:TableLayoutPreferences.TableId="change-requests" Grid.Row="2" MinHeight="52" Margin="0,0,0,4" ItemsSource="{Binding ChangeRequests}"
                               AutomationProperties.AutomationId="Anomalie_Cr_Lista_ListBox"
                               AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True" CanUserResizeColumns="True" CanUserReorderColumns="True"
@@ -478,7 +481,7 @@
                                 <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaId_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
                                 <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding Id}" FontWeight="Bold" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaId_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Titolo" SortMemberPath="Titolo" CanUserSort="True" Width="*" MinWidth="160">
+                            <DataGridTemplateColumn Header="Titolo" SortMemberPath="Titolo" CanUserSort="True" Width="240" MinWidth="160">
                                 <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaTitolo_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
                                 <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding Titolo}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Titolo}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaTitolo_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -616,7 +619,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn services:TableLayoutPreferences.OrdineIniziale="1" Header="Azioni" Width="310" MinWidth="280">
+                            <DataGridTemplateColumn services:TableLayoutPreferences.OrdineIniziale="1" Header="Azioni" Tag="Azioni" Width="310" MinWidth="280">
                                 <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaAzioni_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="models:ChangeRequest">
@@ -624,7 +627,8 @@
                                           <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Center">
                                             <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ApriChangeRequestBtn}" Classes="Secondary" FontSize="12" Padding="5,0" MinWidth="60" Command="{Binding #Root.((vm:NonConformitaViewModel)DataContext).ApriChangeRequestCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_Apri_Button" />
                                             <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaRapidaAzione}" Classes="Primary" FontSize="12" Padding="5,0" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaRapidaAzione}" AutomationProperties.Name="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModificaRapidaAzione}" Click="OnModificaRapidaChangeRequest" AutomationProperties.AutomationId="Anomalie_Cr_ModificaRapida_Button" />
-                                             <Button Content="TICKET ⏱" Classes="Secondary" FontSize="11" Padding="5,0" IsVisible="{Binding TicketCollegati.Count}" Click="OnApriTimelineEstaCr" ToolTip.Tip="Timeline e report TICKET collegati alla CR" AutomationProperties.AutomationId="Anomalie_Cr_EstaTimeline_Button" />
+                                             <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdArchiviaBtn}" Classes="Secondary" FontSize="11" Padding="5,0" IsVisible="{Binding #Root.((vm:NonConformitaViewModel)DataContext).EMaster}" Command="{Binding #Root.((vm:NonConformitaViewModel)DataContext).ArchiviaCrSicuroCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_Archivia_Button" />
+                                            <Button Content="TICKET ⏱" Classes="Secondary" FontSize="11" Padding="5,0" IsVisible="{Binding TicketCollegati.Count}" Click="OnApriTimelineEstaCr" ToolTip.Tip="Timeline e report TICKET collegati alla CR" AutomationProperties.AutomationId="Anomalie_Cr_EstaTimeline_Button" />
                                           </StackPanel>
                                         </Grid>
                                     </DataTemplate>

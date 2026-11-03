@@ -258,6 +258,21 @@ public partial class ChangeRequestEditorView : UserControl
         catch (Exception ex) { CrashLogService.Registra("Selezione allegati CR", ex); }
     }
 
+    /// <summary>Apre direttamente l'anteprima di creazione TICKET (come per le segnalazioni di rete), senza passare dall'export del pacchetto.</summary>
+    private async void OnPreparaEsta(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ChangeRequestEditorViewModel vm) return;
+        if (TopLevel.GetTopLevel(this) is not Window proprietario) return;
+        if (vm.ModificheNonSalvate)
+        {
+            vm.Errore = LocalizationService.Instance.Traduci("CrEdSalvaPrimaEsta");
+            return;
+        }
+        await UiExceptionGuard.Esegui(
+            () => PolarionCreateTicketDialog.OpenCrAsync(proprietario, vm.StatoApp, vm.ChangeRequest),
+            "Preparazione ticket TICKET da CR");
+    }
+
     private async void OnEsportaPacchetto(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not ChangeRequestEditorViewModel vm) return;

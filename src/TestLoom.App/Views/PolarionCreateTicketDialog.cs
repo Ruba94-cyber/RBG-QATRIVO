@@ -21,9 +21,17 @@ internal static class PolarionCreateTicketDialog
     public static Task OpenNcAsync(Window owner, AppState state, NonConformita nc, TestCase? sourceTest,
         string? selectedTestContext = null)
     {
-        var title = !string.IsNullOrWhiteSpace(nc.DescrizioneBreveSegnalata)
+        var test = sourceTest ?? (string.IsNullOrWhiteSpace(nc.TestCaseId) ? null : state.TestCases.GetById(nc.TestCaseId));
+        var shortDescription = !string.IsNullOrWhiteSpace(nc.DescrizioneBreveSegnalata)
             ? nc.DescrizioneBreveSegnalata
-            : sourceTest?.DescrizioneBreve ?? "";
+            : test?.DescrizioneBreve ?? "";
+        var veicoli = nc.DaSegnalazioneRete || test is null ? nc.VeicoliSegnalati : test.VeicoliEffettivi;
+        var componente = nc.DaSegnalazioneRete || test is null ? nc.EcuSegnalate : test.Componente;
+        var funzionalita = nc.DaSegnalazioneRete || test is null ? nc.FunzionalitaSegnalate : test.Funzionalita;
+        var strumenti = !string.IsNullOrWhiteSpace(nc.StrumentoSegnalato) ? new[] { nc.StrumentoSegnalato }
+            : test?.StrumentiUsati.ToArray() ?? Array.Empty<string>();
+        var title = PolarionTicketTitle.Build(strumenti, PolarionTicketTitle.GammaDi(state, veicoli), veicoli, componente,
+            funzionalita, shortDescription);
         if (string.IsNullOrWhiteSpace(title)) title = "NC " + nc.Id;
         var sections = sourceTest is null
             ? TicketExportService.GeneraTesto(nc, state, NcSezioni.Tutte.Where(x => x != NcSezioni.Allegati).ToHashSet())
@@ -49,7 +57,11 @@ internal static class PolarionCreateTicketDialog
             TicketExportService.GeneraTesto(cr, state, CrSezioni.Tutte.Where(x => x != CrSezioni.Allegati).ToHashSet());
         if (!string.IsNullOrWhiteSpace(selectedTestContext))
             text += "\n\n--- TestLoom Test evidence selected by the user ---\n" + selectedTestContext;
-        return OpenAsync(owner, state, cr.Id, cr.Uid, true, cr.Titolo, text, "", "",
+        var title = PolarionTicketTitle.Build(cr.StrumentiImpattati, PolarionTicketTitle.GammaDi(state, cr.VeicoliImpattati),
+            cr.VeicoliImpattati, cr.EcuImpattate, cr.FunzionalitaImpattate,
+            string.IsNullOrWhiteSpace(cr.DescrizioneBreve) ? cr.Titolo : cr.DescrizioneBreve);
+        if (string.IsNullOrWhiteSpace(title)) title = cr.Titolo;
+        return OpenAsync(owner, state, cr.Id, cr.Uid, true, title, text, "", "",
             cr.TicketCollegati.Select(x => x.Riferimento).ToList(), sourceTest);
     }
 
@@ -97,9 +109,9 @@ internal static class PolarionCreateTicketDialog
                     "Previous TICKET creation awaiting reconciliation. ",
                     "Création TICKET précédente en attente de rapprochement. ") +
                     (pendingReceipt.CreatedTicketId is null
-                        ? L("Verifica in Ticketing prima di riprovare.",
-                            "Check Ticketing before trying again.",
-                            "Vérifiez dans Ticketing avant de réessayer.")
+                        ? L("Se hai chiuso il modulo senza salvare, riaprilo con il pulsante qui sotto (stessa bozza) oppure annullala; se hai salvato, usa la verifica.",
+                            "If you closed the form without saving, reopen it with the button below (same draft) or discard it; if you saved, use the verification.",
+                            "Si vous avez fermé le formulaire sans enregistrer, rouvrez-le avec le bouton ci-dessous (même brouillon) ou annulez-le ; si vous avez enregistré, utilisez la vérification.")
                         : L("ID TICKET creato: ", "Created TICKET ID: ", "ID TICKET créé : ") +
                           pendingReceipt.CreatedTicketId +
                           L(". Completa il collegamento con TestLoom prima di crearne un altro.",
@@ -143,17 +155,6 @@ internal static class PolarionCreateTicketDialog
             "Responsable Ticketing (facultatif ; vérifier dans le navigateur)"), browserAssignee);
         layout.Children.Add(new TextBlock
         {
-            Text = L(
-                "Precompilazione sperimentale: TestLoom prova a inserire tipo, titolo, descrizione, sottotipo, priorità, severità e assegnatario. " +
-                "Alcuni campi personalizzati potrebbero restare vuoti. Descrizione e TestLoomREF compaiono nell'URL del browser, anche nella cronologia locale. Verifica i campi prima di premere Salva.",
-                "Experimental prefill: TestLoom attempts to fill type, title, description, subtype, priority, severity and assignee. " +
-                "Some custom fields may remain empty. The description and TestLoomREF appear in the browser URL and local history. Check every field before clicking Save.",
-                "Préremplissage expérimental : TestLoom tente de remplir le type, le titre, la description, le sous-type, la priorité, la gravité et le responsable. " +
-                "Certains champs personnalisés peuvent rester vides. La description et TestLoomREF figurent dans l'URL et l'historique local. Vérifiez les champs avant d'enregistrer."),
-            Classes = { "Muted" }, TextWrapping = TextWrapping.Wrap
-        });
-        layout.Children.Add(new TextBlock
-        {
             Text = loc.Scegli("Con la modalità browser il salvataggio avviene con l'utente autenticato su Ticketing; il token condiviso serve solo alle letture TestLoom.",
                 "Browser saves use your signed-in Ticketing account; the shared token is used for TestLoom reads only.",
                 "En mode navigateur, l'enregistrement utilise le compte connecté à Ticketing; le jeton partagé sert uniquement à la lecture TestLoom."),
@@ -171,13 +172,17 @@ internal static class PolarionCreateTicketDialog
         var cancel = new Button { Content = loc.Scegli("Chiudi", "Close", "Fermer"), Classes = { "Secondary" } };
         var browser = new Button
         {
-            Content = L("Apri nuovo TICKET precompilato in Ticketing", "Open prefilled TICKET form in Ticketing",
-                "Ouvrir le formulaire TICKET prérempli dans Ticketing"), Classes = { "Primary" },
-            IsEnabled = !receiptIsCorrupt && pendingReceipt is null &&
+            Content = L("Compila in automatico (profilo browser TestLoom)", "Fill automatically (TestLoom browser profile)",
+                "Remplir automatiquement (profil navigateur TestLoom)"), Classes = { "Secondary" },
+            IsEnabled = !receiptIsCorrupt && (pendingReceipt is null || CanReopen(pendingReceipt)) &&
                 settings.ErroreCaricamento is null &&
                 Uri.TryCreate(settings.ApiRoot, UriKind.Absolute, out var browserHost) &&
                 browserHost.Scheme == Uri.UriSchemeHttps
         };
+        var ReopenLabel = L("Riapri e ricompila (profilo TestLoom, stessa bozza)",
+            "Reopen and fill again (TestLoom profile, same draft)",
+            "Rouvrir et remplir à nouveau (profil TestLoom, même brouillon)");
+        if (pendingReceipt is not null && CanReopen(pendingReceipt)) browser.Content = ReopenLabel;
         AutomationProperties.SetAutomationId(browser, "PolarionCreate_OpenBrowser");
         var copyRow = new WrapPanel { Orientation = Avalonia.Layout.Orientation.Horizontal };
         Button CopyFieldButton(string label, string automationId, Func<string> content)
@@ -221,13 +226,26 @@ internal static class PolarionCreateTicketDialog
         layout.Children.Add(new TextBlock
         {
             Text = L(
-                "TestLoom tenta la precompilazione tramite URL. Se Ticketing ignora alcuni campi, usa i pulsanti di copia senza ricreare il ticket. La descrizione con TestLoomREF è disponibile negli appunti.",
-                "TestLoom attempts URL prefill. If Ticketing ignores some fields, use the copy buttons without starting a second creation. The TestLoomREF description is available on the clipboard.",
-                "TestLoom tente le préremplissage via URL. Si Ticketing ignore certains champs, utilisez les boutons de copie sans recréer le ticket. La description TestLoomREF est disponible dans le presse-papiers."),
+                "TestLoom apre il modulo in Edge e compila titolo e descrizione con il codice TestLoomREF; gli altri campi restano da impostare in Ticketing. Se la compilazione non riesce, o preferisci la tua sessione del browser, usa \"Apri nel mio browser\" e i pulsanti di copia.",
+                "TestLoom opens the form in Edge and fills title and description with the TestLoomREF code; the other fields are set in Ticketing. If filling fails, use the copy buttons.",
+                "TestLoom ouvre le formulaire dans Edge et remplit le titre et la description avec le code TestLoomREF ; les autres champs se règlent dans Ticketing. Si le remplissage échoue, utilisez les boutons de copie."),
             Classes = { "Muted" }, TextWrapping = TextWrapping.Wrap
         });
         layout.Children.Add(copyRow);
         actions.Children.Add(cancel);
+        // Second, always available way: open the link in the operator's own (already signed-in) browser and paste.
+        var browserPlain = new Button
+        {
+            Content = L("Apri in Ticketing nel mio browser (consigliato)", "Open in Ticketing in my own browser (recommended)",
+                "Ouvrir dans Ticketing avec mon navigateur (recommandé)"),
+            Classes = { "Primary" }, IsEnabled = browser.IsEnabled
+        };
+        AutomationProperties.SetAutomationId(browserPlain, "PolarionCreate_OpenBrowserPlain");
+        browser.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Button.IsEnabledProperty) browserPlain.IsEnabled = browser.IsEnabled;
+        };
+        actions.Children.Add(browserPlain);
         actions.Children.Add(browser);
         // No REST-submit button in this dialog; the only save is in Ticketing.
         cancel.Click += (_, _) => dialog.Close();
@@ -249,9 +267,25 @@ internal static class PolarionCreateTicketDialog
         };
         AutomationProperties.SetAutomationId(verify, "PolarionCreate_VerifyBrowser");
         layout.Children.Add(verify);
+        var discard = new Button
+        {
+            Content = L("Annulla bozza non salvata", "Discard unsaved draft", "Annuler le brouillon non enregistré"),
+            Classes = { "Secondary" }, IsEnabled = pendingReceipt is not null && !receiptIsCorrupt
+        };
+        AutomationProperties.SetAutomationId(discard, "PolarionCreate_DiscardUnsaved");
+        layout.Children.Add(discard);
         dialog.Content = new ScrollViewer { Content = layout };
 
-        browser.Click += async (_, _) =>
+        var closing = new CancellationTokenSource();
+        dialog.Closed += (_, _) => closing.Cancel();
+        async Task<AutofillResult> RunAutofillAsync(Uri url, string title, string text)
+        {
+            try { return await PolarionFormAutofill.RunAsync(url, title, text, closing.Token,
+                browserExe: PolarionBrowserLauncher.EseguibileProfiloDitm(state.Config)); }
+            catch (OperationCanceledException) { return new AutofillResult(AutofillOutcome.OpenedNotFilled, "dialog-closed"); }
+        }
+
+        async Task OpenFormAsync(bool autofill)
         {
             if (string.IsNullOrWhiteSpace(titleBox.Text) || string.IsNullOrWhiteSpace(description.Text))
             {
@@ -265,7 +299,10 @@ internal static class PolarionCreateTicketDialog
             {
                 DiagnosticTraceService.Registra("TICKET.BrowserDraft", "prepare source=" + sourceId +
                     " kind=" + (isCr ? "CR" : "NC"));
-                var handoff = PolarionBrowserHandoffService.Prepare(state, isCr, sourceId, sourceUid,
+                var existing = receiptStore.Read(isCr, sourceId, sourceUid);
+                var handoff = existing is not null
+                    ? PolarionBrowserHandoffService.Reopen(state, existing, titleBox.Text, description.Text)
+                    : PolarionBrowserHandoffService.Prepare(state, isCr, sourceId, sourceUid,
                     titleBox.Text, description.Text,
                     priorityBox.SelectedItem as string, severityBox.SelectedItem as string,
                     browserAssignee.SelectedItem as string, sourceTest);
@@ -277,11 +314,15 @@ internal static class PolarionCreateTicketDialog
                 frozenAssignee = browserAssignee.SelectedItem as string ?? "";
                 foreach (var copy in copies) copy.IsEnabled = true;
                 var clipboard = TopLevel.GetTopLevel(dialog)?.Clipboard;
+                var clipboardOk = false;
                 try
                 {
                     if (clipboard is not null)
+                    {
                         await clipboard.SetTextAsync(PolarionBrowserHandoffService.DescriptionWithMarker(
                             frozenDescription, handoff.Receipt));
+                        clipboardOk = true;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -290,28 +331,48 @@ internal static class PolarionCreateTicketDialog
                     DiagnosticTraceService.Registra("TICKET.BrowserDraft",
                         "clipboard-unavailable kind=" + ex.GetType().Name);
                 }
-                Process.Start(new ProcessStartInfo(handoff.BrowserUrl.AbsoluteUri) { UseShellExecute = true });
+                status.Text = !autofill
+                    ? L("Apro Ticketing nel tuo browser...", "Opening Ticketing in your browser...", "Ouverture de Ticketing dans votre navigateur...")
+                    : L("Apro Ticketing nel browser: se richiesto accedi, TestLoom compilerà titolo e descrizione appena il modulo è pronto (fino a 3 minuti)...",
+                    "Opening Ticketing in the browser: sign in if asked, TestLoom fills title and description as soon as the form is ready (up to 3 minutes)...",
+                    "Ouverture de Ticketing dans le navigateur : connectez-vous si nécessaire, TestLoom remplit le titre et la description dès que le formulaire est prêt (jusqu'à 3 minutes)...");
+                status.Foreground = Brushes.DarkOrange;
+                var fill = autofill
+                    ? await RunAutofillAsync(handoff.BrowserUrl, frozenTitle,
+                        PolarionBrowserHandoffService.DescriptionWithMarker(frozenDescription, handoff.Receipt))
+                    : new AutofillResult(AutofillOutcome.NotLaunched, "manual-paste");
+                if (fill.Outcome == AutofillOutcome.NotLaunched)
+                    Process.Start(new ProcessStartInfo(handoff.BrowserUrl.AbsoluteUri) { UseShellExecute = true });
                 DiagnosticTraceService.Registra("TICKET.BrowserDraft", "opened create form for source=" + sourceId +
-                    " prefill-attempted=" + handoff.FullPrefillAttempted);
-                status.Text = handoff.FullPrefillAttempted
-                    ? L(
-                        "Modulo TICKET aperto con precompilazione sperimentale. Controlla sottotipo, descrizione con TestLoomREF, priorità, severità e assegnatario. " +
-                        "Se tutti i campi sono corretti, premi Salva in Ticketing. TestLoom collegherà automaticamente l'TICKET " +
-                            (sourceTest is null ? "alla NC/CR." : "alla NC/CR e al Test di origine."),
-                        "TICKET form opened with experimental prefill. Check subtype, description with TestLoomREF, priority, severity and assignee. " +
-                        "If all fields are correct, click Save in Ticketing. TestLoom will automatically link the TICKET " +
-                            (sourceTest is null ? "to the NC/CR." : "to the NC/CR and originating Test."),
-                        "Formulaire TICKET ouvert avec préremplissage expérimental. Vérifiez le sous-type, la description TestLoomREF, la priorité, la gravité et le responsable. " +
-                        "Si tout est correct, enregistrez dans Ticketing. TestLoom associera automatiquement l'TICKET " +
-                            (sourceTest is null ? "à la NC/CR." : "à la NC/CR et au Test d'origine."))
-                    : L("Ticketing aperto con precompilazione parziale. ",
-                        "Ticketing opened with partial prefill. ",
-                        "Ticketing ouvert avec préremplissage partiel. ") +
-                      (handoff.PrefillNotice ?? "") +
-                      L(" Usa Copia descrizione + TestLoomREF e completa i campi mancanti prima di salvare.",
-                        " Use Copy description + TestLoomREF and complete missing fields before saving.",
-                        " Utilisez Copier description + TestLoomREF et complétez les champs manquants avant l'enregistrement.");
-                status.Foreground = Brushes.DarkGreen;
+                    " autofill=" + fill.Outcome);
+                status.Text = !autofill && !clipboardOk
+                    ? L("Ticketing aperto nel tuo browser, ma gli appunti non sono disponibili: usa \"Copia titolo\" e \"Copia descrizione + TestLoomREF\" e incolla in Ticketing prima di salvare.",
+                        "Ticketing opened in your browser, but the clipboard is unavailable: use \"Copy title\" and \"Copy description + TestLoomREF\" and paste into Ticketing before saving.",
+                        "Ticketing ouvert dans votre navigateur, mais le presse-papiers est indisponible : utilisez « Copier le titre » et « Copier description + TestLoomREF » et collez dans Ticketing avant d'enregistrer.")
+                    : !autofill
+                    ? L("Ticketing aperto nel tuo browser. La descrizione con TestLoomREF è negli appunti: incollala in Ticketing, usa \"Copia titolo\" per il titolo e premi Salva. " +
+                        "Se Ticketing mostra la pagina precedente, usa di nuovo il pulsante per riaprire il link.",
+                        "Ticketing opened in your browser. The description with TestLoomREF is on the clipboard: paste it into Ticketing, use \"Copy title\" for the title and click Save. " +
+                        "If Ticketing shows the previous page, press the button again to reopen the link.",
+                        "Ticketing ouvert dans votre navigateur. La description avec TestLoomREF est dans le presse-papiers : collez-la dans Ticketing, utilisez « Copier le titre » pour le titre et enregistrez. " +
+                        "Si Ticketing affiche la page précédente, appuyez à nouveau sur le bouton pour rouvrir le lien.")
+                    : fill.Outcome == AutofillOutcome.Filled
+                    ? L("Titolo e descrizione (con TestLoomREF) compilati in Ticketing. Controlla, completa gli altri campi e premi Salva: TestLoom collegherà l'TICKET dopo il salvataggio. " +
+                        "Se chiudi il modulo senza salvare, usa \"Annulla bozza non salvata\".",
+                        "Title and description (with TestLoomREF) filled in Ticketing. Review, complete the other fields and click Save: TestLoom will link the TICKET after you save. " +
+                        "If you close the form without saving, use \"Discard unsaved draft\".",
+                        "Titre et description (avec TestLoomREF) remplis dans Ticketing. Vérifiez, complétez les autres champs et enregistrez : TestLoom associera l'TICKET après l'enregistrement. " +
+                        "Si vous fermez le formulaire sans enregistrer, utilisez « Annuler le brouillon non enregistré ».")
+                    : L("Ticketing aperto ma i campi non sono stati compilati automaticamente. ",
+                        "Ticketing opened but the fields were not filled automatically. ",
+                        "Ticketing ouvert mais les champs n'ont pas été remplis automatiquement. ") +
+                      L("Usa Copia titolo e Copia descrizione + TestLoomREF e incolla in Ticketing prima di salvare.",
+                        "Use Copy title and Copy description + TestLoomREF and paste into Ticketing before saving.",
+                        "Utilisez Copier le titre et Copier description + TestLoomREF et collez dans Ticketing avant d'enregistrer.");
+                discard.IsEnabled = true;
+                browser.IsEnabled = true;
+                browser.Content = ReopenLabel;
+                status.Foreground = fill.Outcome == AutofillOutcome.Filled ? Brushes.DarkGreen : Brushes.DarkOrange;
             }
             catch (Exception ex)
             {
@@ -327,12 +388,14 @@ internal static class PolarionCreateTicketDialog
                 // Validation failures before receipt creation can be corrected
                 // in the same dialog. Never allow another Prepare if a marker
                 // was already persisted and the browser may have opened.
-                try { browser.IsEnabled = receiptStore.Read(isCr, sourceId, sourceUid) is null; }
+                try { var left = receiptStore.Read(isCr, sourceId, sourceUid); browser.IsEnabled = left is null || CanReopen(left); }
                 catch (Exception) { browser.IsEnabled = false; }
                 DiagnosticTraceService.Registra("TICKET.BrowserDraft",
                     "prepare-failed kind=" + ex.GetType().Name + " retry-allowed=" + browser.IsEnabled);
             }
-        };
+        }
+        browser.Click += async (_, _) => await OpenFormAsync(true);
+        browserPlain.Click += async (_, _) => await OpenFormAsync(false);
 
         verify.Click += async (_, _) =>
         {
@@ -370,8 +433,44 @@ internal static class PolarionCreateTicketDialog
             finally { verify.IsEnabled = true; }
         };
 
+        discard.Click += async (_, _) =>
+        {
+            discard.IsEnabled = false;
+            try
+            {
+                var receipt = receiptStore.Read(isCr, sourceId, sourceUid);
+                if (receipt is null)
+                {
+                    status.Text = L("Nessuna bozza in attesa per questa NC/CR.", "No pending draft for this NC/CR.",
+                        "Aucun brouillon en attente pour cette NC/CR.");
+                    browser.IsEnabled = !receiptIsCorrupt;
+                    return;
+                }
+                var result = await PolarionBrowserHandoffService.TryDiscardUnsavedAsync(state, receipt);
+                status.Text = result.Message;
+                status.Foreground = result.Outcome == PolarionBrowserHandoffService.DiscardOutcome.MustVerify
+                    ? Brushes.DarkOrange : Brushes.DarkGreen;
+                if (result.Outcome == PolarionBrowserHandoffService.DiscardOutcome.Discarded)
+                    browser.IsEnabled = !receiptIsCorrupt && settings.ErroreCaricamento is null &&
+                        settings.LetturaAbilitata && settings.HaToken;
+                else discard.IsEnabled = result.Outcome == PolarionBrowserHandoffService.DiscardOutcome.MustVerify;
+            }
+            catch (Exception ex)
+            {
+                status.Text = L("Impossibile annullare ora (", "Cannot discard now (", "Impossible d'annuler maintenant (") +
+                    ex.GetType().Name + L("). Riprova o verifica con l'ID del ticket.", "). Retry or verify with the ticket ID.",
+                        "). Réessayez ou vérifiez avec l'ID du ticket.");
+                status.Foreground = Brushes.Firebrick;
+                discard.IsEnabled = true;
+            }
+        };
+
         await dialog.ShowDialog<bool>(owner);
     }
+
+    /// <summary>A pending draft whose ticket was never verified can be reopened any number of times.</summary>
+    private static bool CanReopen(PolarionCreationReceiptStore.Receipt receipt) =>
+        receipt.CreatedTicketId is null && receipt.BrowserCorrelationMarker is not null;
 
     private static void AddField(Panel panel, string label, Control control)
     {

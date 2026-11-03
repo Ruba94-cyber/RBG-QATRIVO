@@ -109,6 +109,37 @@ public static class RequisitoApplicabilita
     public static bool RiferisceEcu(Requisito requisito, string componente) =>
         requisito.VeicoliEcuD4D?.Any(a => string.Equals(a.Componente, componente, StringComparison.OrdinalIgnoreCase)) == true;
 
+    /// <summary>
+    /// Un requisito Extra con coppie veicolo-componente dichiarate riguarda solo quelle componente; senza coppie (e Standard) vale per ogni componente.
+    /// Con <paramref name="veicolo"/>, se il requisito ha coppie per quel veicolo contano solo quelle; altrimenti l'unione dei componenti
+    /// di tutte le coppie. Solo lettura/visualizzazione: i dati persistiti non cambiano.
+    /// </summary>
+    public static bool SiApplicaAllaEcu(Requisito requisito, string componente, string? veicolo = null)
+    {
+        if (!ED4D(requisito) || requisito.VeicoliEcuD4D is not { Count: > 0 } coppie) return true;
+        if (veicolo != null)
+        {
+            var delVeicolo = coppie.Where(c => string.Equals(c.Veicolo, veicolo, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (delVeicolo.Count > 0)
+                return delVeicolo.Any(c => string.Equals(c.Componente, componente, StringComparison.OrdinalIgnoreCase));
+        }
+        return coppie.Any(c => string.Equals(c.Componente, componente, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Requisiti non archiviati ristretti ad alcune componente: id requisito -> componente a cui si applica (insieme delle coppie Extra).</summary>
+    public static Dictionary<string, HashSet<string>> EcuRistrettePerRequisito(IEnumerable<Requisito> requisiti)
+    {
+        var mappa = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in requisiti)
+        {
+            if (r.Archiviata || !ED4D(r) || r.VeicoliEcuD4D is not { Count: > 0 } coppie) continue;
+            var componente = coppie.Select(c => c.Componente).Where(e => !string.IsNullOrWhiteSpace(e))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (componente.Count > 0) mappa[r.Id] = componente;
+        }
+        return mappa;
+    }
+
     public static bool RiferisceVeicolo(Requisito requisito, string veicolo) =>
         SottoveicoliDi(requisito).Contains(veicolo, StringComparer.OrdinalIgnoreCase) ||
         requisito.VeicoliEcuD4D?.Any(a => string.Equals(a.Veicolo, veicolo, StringComparison.OrdinalIgnoreCase)) == true;

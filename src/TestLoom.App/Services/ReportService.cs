@@ -673,7 +673,7 @@ public static class ReportService
     private static void ScriviLegenda(XLWorkbook wb, string autore)
     {
         var ws = wb.Worksheets.Add("Legenda");
-        ws.Cell(1, 1).Value = "TestLoom - Report Test Diagnostici CS";
+        ws.Cell(1, 1).Value = "RBG - QATRIVO - Report Test Diagnostici CS";
         ws.Cell(1, 1).Style.Font.SetBold().Font.FontSize = 16;
         ws.Cell(2, 1).Value = $"Generato il {DateTime.Now:dd/MM/yyyy HH:mm} da {autore}";
         ws.Cell(4, 1).Value = "Esiti ammessi: Conforme / Non Conforme / Conforme con deviazioni / Non eseguito-N.A. / Da rivedere.";

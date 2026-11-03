@@ -18,7 +18,8 @@ public static class PolarionBrowserHandoffService
     private static readonly Regex Marker = new(@"^TestLoomREF[A-F0-9]{32}$", RegexOptions.CultureInvariant);
     public sealed record Prepared(PolarionCreationReceiptStore.Receipt Receipt, string ClipboardText,
         Uri BrowserUrl, bool FullPrefillAttempted = false, string? PrefillNotice = null);
-    public sealed record CheckResult(bool Linked, bool Pending, string? TicketId, string Message);
+    public sealed record CheckResult(bool Linked, bool Pending, string? TicketId, string Message,
+        bool NotFound = false);
 
     /// <summary>
     /// Ticketing 2512 browser form deep link: form_mode=create and form_field_*
@@ -40,59 +41,6 @@ public static class PolarionBrowserHandoffService
             "&form_field_title=" + Uri.EscapeDataString(title.Trim());
         return new Uri(new Uri(apiRoot.GetLeftPart(UriPartial.Authority)), form);
     }
-
-    // This is a best-effort, local browser-fragment transport, not a guaranteed
-    // Ticketing field-edit API. Stay below a conservative browser history URL size.
-    // The fragment is not sent in the HTTP request but can remain in local history.
-    private const int MaxFormUrlLength = 16000;
-
-    /// <summary>
-    /// Experimental full form prefill. Ticketing documentation guarantees only type
-    /// and string-field URL defaults; enum, rich-text and multi-user fields may be
-    /// ignored by the corporate form. No REST writes or synthetic browser clicks.
-    /// </summary>
-    public static Uri BuildExperimentalCreateFormUrl(Uri apiRoot, string projectId,
-        string title, string descriptionWithMarker, string ticketSubtype,
-        string? priority, string? severity, string? assigneeId)
-    {
-        if (!PolarionTicketClassification.MatchesNc(ticketSubtype) &&
-            !PolarionTicketClassification.MatchesCr(ticketSubtype))
-            throw new ArgumentException("Unsupported TICKET subtype.", nameof(ticketSubtype));
-        if (string.IsNullOrWhiteSpace(descriptionWithMarker) ||
-            descriptionWithMarker.Length > 250000)
-            throw new ArgumentException("A complete TICKET description is required.", nameof(descriptionWithMarker));
-        var basic = BuildCreateFormUrl(apiRoot, projectId, title).AbsoluteUri;
-        var sb = new StringBuilder(basic);
-        static void Append(StringBuilder sb, string name, string value)
-        {
-            if (string.IsNullOrWhiteSpace(value)) return;
-            sb.Append('&').Append(name).Append('=').Append(Uri.EscapeDataString(value));
-        }
-        // MUST include the TestLoomREF marker for read-only post-save reconciliation.
-        Append(sb, "form_field_description", descriptionWithMarker);
-        Append(sb, "form_field_TICKET_tck_type", ticketSubtype);
-        // Ticketing priority enum identifiers observed in the corporate REST audit.
-        Append(sb, "form_field_priority", ToPolarionPriority(priority));
-        Append(sb, "form_field_severity", severity?.Trim().ToLowerInvariant() ?? "");
-        // The project-specific multi-assignee field may not be URL-prefillable.
-        Append(sb, "form_field_TICKET_tkc_assign_to", assigneeId?.Trim() ?? "");
-        var uri = sb.ToString();
-        if (uri.Length > MaxFormUrlLength)
-            throw new ArgumentOutOfRangeException(nameof(descriptionWithMarker),
-                "Full browser prefill exceeds the safe URL length; fallback is required.");
-        return new Uri(uri, UriKind.Absolute);
-    }
-
-    private static string ToPolarionPriority(string? value) =>
-        value?.Trim().ToUpperInvariant() switch
-        {
-            "P1" or "50" or "50.0" => "50.0",
-            "P2" or "33" or "33.0" => "33.0",
-            "P3" or "25" or "25.0" => "25.0",
-            "P4" or "20" or "20.0" => "20.0",
-            "P5" or "16" or "16.0" => "16.0",
-            _ => ""
-        };
 
     /// <summary>Exactly the text that must be saved in the Ticketing description for verification.</summary>
     public static string DescriptionWithMarker(string description,
@@ -177,38 +125,7 @@ public static class PolarionBrowserHandoffService
             {
                 SourceId = sourceId, BrowserCorrelationMarker = marker
             });
-        var customUrl = !string.IsNullOrWhiteSpace(settings.BrowserCreateUrl);
-        Uri uri;
-        var fullPrefillAttempted = false;
-        string? prefillNotice = null;
-        if (customUrl)
-        {
-            uri = new Uri(settings.BrowserCreateUrl, UriKind.Absolute);
-            prefillNotice = L("Collegamento Ticketing personalizzato: la precompilazione dei campi non è garantita.",
-                "Custom Ticketing link: field prefill is not guaranteed.",
-                "Lien Ticketing personnalisé : le préremplissage des champs n’est pas garanti.");
-        }
-        else
-        {
-            try
-            {
-                uri = BuildExperimentalCreateFormUrl(api, settings.ProjectId, title,
-                    descriptionForPolarion, ticketType, priority, severity, assigneeId);
-                fullPrefillAttempted = true;
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                // A huge selected Test package may exceed a safe URL length.
-                // Never truncate description/TestLoomREF without telling the user.
-                uri = BuildCreateFormUrl(api, settings.ProjectId, title);
-                prefillNotice = L(
-                    "La descrizione supera la lunghezza sicura dell'URL. Incolla la descrizione preparata con TestLoomREF e verifica gli altri campi.",
-                    "Description exceeds the safe URL length. Paste the prepared description with TestLoomREF and review other fields.",
-                    "La description dépasse la longueur sûre de l'URL. Collez la description préparée avec TestLoomREF et vérifiez les autres champs.");
-            }
-        }
-        if (uri.Scheme != Uri.UriSchemeHttps || uri.Host != api.Host || uri.Port != api.Port)
-            throw new InvalidOperationException("Browser creation URL must belong to the Ticketing host.");
+        var (uri, prefillNotice) = ResolveCreateUrl(settings, api, title);
         var store = new PolarionCreationReceiptStore(state.Paths);
         var receipt = store.BeginBrowser(isCr, sourceId, sourceUid, marker, ticketType, assigneeId,
             state.Config.OperatoreAttivo, sourceTest?.Uid, sourceTest?.Id);
@@ -237,7 +154,65 @@ public static class PolarionBrowserHandoffService
         // Direct form URL documented in Ticketing 2512. A Master-verified
         // custom URL can override it for a customized corporate form.
         // Rich text and custom enum fields stay out of the URL.
-        return new Prepared(receipt, clipboard, uri, fullPrefillAttempted, prefillNotice);
+        return new Prepared(receipt, clipboard, uri, false, prefillNotice);
+    }
+
+    private static (Uri Url, string? Notice) ResolveCreateUrl(PolarionApiSettings settings, Uri api, string title)
+    {
+        Uri uri;
+        string? notice;
+        if (!string.IsNullOrWhiteSpace(settings.BrowserCreateUrl))
+        {
+            uri = new Uri(settings.BrowserCreateUrl, UriKind.Absolute);
+            notice = L("Collegamento Ticketing personalizzato: la precompilazione dei campi non è garantita.",
+                "Custom Ticketing link: field prefill is not guaranteed.",
+                "Lien Ticketing personnalisé : le préremplissage des champs n’est pas garanti.");
+        }
+        else
+        {
+            // Verified on the corporate Ticketing 2512 form (autotest, 12 URL variants): the create
+            // form ignores every form_field_* parameter, even title. Do not claim or attempt prefill
+            // and keep description/evidence out of the URL; TestLoom fills the DOM fields or the operator pastes.
+            uri = BuildCreateFormUrl(api, settings.ProjectId, title);
+            notice = L(
+                "Ticketing non precompila i campi da URL: incolla titolo e descrizione con TestLoomREF dalle copie preparate e imposta gli altri campi.",
+                "Ticketing does not prefill fields from the URL: paste the title and description with TestLoomREF from the prepared copies and set the other fields.",
+                "Ticketing ne préremplit pas les champs depuis l'URL : collez le titre et la description avec TestLoomREF depuis les copies préparées et renseignez les autres champs.");
+        }
+        if (uri.Scheme != Uri.UriSchemeHttps || uri.Host != api.Host || uri.Port != api.Port)
+            throw new InvalidOperationException("Browser creation URL must belong to the Ticketing host.");
+        return (uri, notice);
+    }
+
+    /// <summary>
+    /// Reopens the form for the SAME pending draft (same TestLoomREF, no new receipt): the operator closed the
+    /// Ticketing page without saving. Refused once a ticket was verified for this receipt or when the
+    /// receipt belongs to another operator.
+    /// </summary>
+    public static Prepared Reopen(AppState state, PolarionCreationReceiptStore.Receipt receipt,
+        string title, string description)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(receipt);
+        if (!state.PuoScrivere || state.OperatoreCorrente is null)
+            throw new UnauthorizedAccessException("TestLoom workspace is read-only.");
+        if (receipt.CreatedTicketId is not null || receipt.BrowserCorrelationMarker is null ||
+            !string.Equals(receipt.OperatorAtHandoff, state.Config.OperatoreAttivo, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("This draft cannot be reopened: verify it or discard it.");
+        if (string.IsNullOrWhiteSpace(title) || title.Length > 512 ||
+            string.IsNullOrWhiteSpace(description) || description.Length > 250000)
+            throw new ArgumentException("TICKET title and description are required.");
+        var current = new PolarionCreationReceiptStore(state.Paths)
+            .Read(receipt.IsCr, receipt.SourceId, receipt.SourceUid);
+        if (current is null || current.OperationId != receipt.OperationId)
+            throw new InvalidOperationException("The pending draft changed: reopen the dialog.");
+        var settings = PolarionApiSettingsService.Load(state.Paths);
+        if (settings.ErroreCaricamento is not null || !settings.LetturaAbilitata || !settings.HaToken ||
+            !Uri.TryCreate(settings.ApiRoot, UriKind.Absolute, out var api))
+            throw new InvalidOperationException("Enable and configure Ticketing READ access before browser handoff.");
+        var (uri, notice) = ResolveCreateUrl(settings, api, title);
+        var text = title.Trim() + "\n\n" + DescriptionWithMarker(description, receipt);
+        return new Prepared(receipt, text, uri, false, notice);
     }
 
     internal enum CandidateVerification { Match, TypeMarkerOrDateMismatch, AssigneeMismatch }
@@ -304,7 +279,8 @@ public static class PolarionBrowserHandoffService
             return new CheckResult(false, true, null, L(
                 "TICKET non ancora salvato o indicizzato. Salva in Ticketing e conserva TestLoomREF nella descrizione.",
                 "TICKET not saved or indexed yet. Save in Ticketing and keep TestLoomREF in the description.",
-                "TICKET pas encore enregistré ou indexé. Enregistrez dans Ticketing et conservez TestLoomREF dans la description."));
+                "TICKET pas encore enregistré ou indexé. Enregistrez dans Ticketing et conservez TestLoomREF dans la description."),
+                NotFound: true);
         if (candidates.Count > 1)
             return new CheckResult(false, true, null, L(
                 "Trovati più TICKET possibili: serve una verifica manuale.",
@@ -354,6 +330,36 @@ public static class PolarionBrowserHandoffService
                     "TICKET verified and linked to its TestLoom NC/CR and Test.",
                     "TICKET vérifié et associé à la NC/CR et au Test dans TestLoom."));
     }
+    public enum DiscardOutcome { Discarded, Linked, MustVerify }
+
+    /// <summary>
+    /// Operator says the Ticketing form was closed without saving. One last read-only search runs first:
+    /// the draft is dropped only if the marker search succeeded and found nothing. A found, ambiguous,
+    /// unreadable or already-created ticket keeps the receipt (nothing is deleted on doubt).
+    /// </summary>
+    public static async Task<(DiscardOutcome Outcome, string Message)> TryDiscardUnsavedAsync(
+        AppState state, PolarionCreationReceiptStore.Receipt receipt, CancellationToken cancellationToken = default,
+        Func<PolarionReadClient>? clientFactory = null)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(receipt);
+        if (receipt.CreatedTicketId is not null)
+            return (DiscardOutcome.MustVerify, L(
+                "Un TICKET risulta già creato: completa il collegamento, non annullare.",
+                "An TICKET is already created: complete the link instead of discarding.",
+                "Un TICKET est déjà créé : terminez l'association au lieu d'annuler."));
+        var check = await TryReconcileAsync(state, receipt, cancellationToken, clientFactory).ConfigureAwait(false);
+        if (check.Linked) return (DiscardOutcome.Linked, check.Message);
+        if (!check.NotFound)
+            return (DiscardOutcome.MustVerify, check.Message);
+        new PolarionCreationReceiptStore(state.Paths).Clear(receipt);
+        DiagnosticTraceService.Registra("TICKET.BrowserDraft", "discarded-unsaved source=" + receipt.SourceId);
+        return (DiscardOutcome.Discarded, L(
+            "Bozza non salvata annullata: puoi preparare un nuovo TICKET.",
+            "Unsaved draft discarded: you can prepare a new TICKET.",
+            "Brouillon non enregistré annulé : vous pouvez préparer un nouvel TICKET."));
+    }
+
     internal static (PolarionCreatedTicketLinkService.Outcome Source, PolarionCreatedTicketLinkService.Outcome? Test)
         ApplyVerifiedLinks(AppState state, PolarionCreationReceiptStore.Receipt receipt,
             PolarionWriteService.Created verified)

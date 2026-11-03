@@ -6,7 +6,7 @@ using TestLoom.App.UITests.PageObjects;
 namespace TestLoom.App.UITests.Tests;
 
 /// <summary>
-/// Verifica sul TestLoom.exe reale che le copie di recupero rimangano locali,
+/// Verifica sul RBG - QATRIVO.exe reale che le copie di recupero rimangano locali,
 /// consultabili e immutate. 31 record validi + 1 corrotto, per verificare
 /// paginazione a 30 elementi, errore sicuro e isolamento dal dataset.
 /// </summary>

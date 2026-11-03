@@ -48,8 +48,14 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="vm:VoceArchivio">
                             <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RipristinaBtn}" Classes="Link"
-                                    IsVisible="{Binding #Root.((vm:ArchivioViewModel)DataContext).PuoModificare}"
-                                    Command="{Binding #Root.((vm:ArchivioViewModel)DataContext).RipristinaVoceCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="Archivio_Ripristina_Button" />
+                                    Command="{Binding #Root.((vm:ArchivioViewModel)DataContext).RipristinaVoceCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="Archivio_Ripristina_Button">
+                                <Button.IsVisible>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <Binding Path="#Root.((vm:ArchivioViewModel)DataContext).PuoModificare" />
+                                        <Binding Path="RipristinoDisponibile" />
+                                    </MultiBinding>
+                                </Button.IsVisible>
+                            </Button>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

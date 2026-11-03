@@ -1055,9 +1055,12 @@ public class NonConformita
     /// parte, mai risincronizzato quando StatoWorkflow veniva cambiato dal pannello anomalie del Test —
     /// un'anomalia poteva restare "Aperta" qui anche dopo aver raggiunto StatoWorkflow=Conclusa a mano, invece
     /// di sparire dalla lista delle anomalie aperte. Un solo stato scritto, questo è sempre coerente con esso.</summary>
-    public StatoNonConformita Stato => StatoWorkflow == StatoAnomalia.Conclusa ? StatoNonConformita.Chiusa : StatoNonConformita.Aperta;
+    public StatoNonConformita Stato => Archiviata || StatoWorkflow == StatoAnomalia.Conclusa ? StatoNonConformita.Chiusa : StatoNonConformita.Aperta;
     public DateTime DataApertura { get; set; }
     public DateTime? DataChiusura { get; set; }
+    /// <summary>Archiviazione come per le CR: la NC esce dalle liste attive ma resta nei dati (nessuna cancellazione). Una NC archiviata non e' mai "aperta" (contatori e collegamenti ai Test).</summary>
+    public bool Archiviata { get; set; }
+    public DateTime? DataArchiviazione { get; set; }
     public string Owner { get; set; } = "";
     public StatoAnomalia StatoWorkflow { get; set; } = StatoAnomalia.InVerifica;
     public SeveritaAnomalia? Severita { get; set; }

@@ -9,7 +9,7 @@ Ogni funzionalità nuova o modificata deve avere almeno un test unitario di
 dominio e, quando ha un controllo grafico, una prova FlaUI end-to-end sulla UI
 Avalonia reale. Il test non deve cambiare il comportamento dell'app né
 introdurre sincronizzazioni false, bypass, reset di dati o modifiche di workflow.
-Usare sempre `TestLoom.exe` reale, `UIA3Automation`, AutomationId stabili,
+Usare sempre `RBG - QATRIVO.exe` reale, `UIA3Automation`, AutomationId stabili,
 `Wait.ForCondition` con timeout e workspace di prova isolati.
 Nessun `Thread.Sleep` arbitrario nei **nuovi** test: usare il polling bounded
 di `Infrastructure/Wait.cs`.
@@ -67,7 +67,7 @@ per accomodare i test: gli AutomationId non devono mutare le logiche.
 
 ## Esecuzione reale su Windows
 
-1. Chiudere TestLoom.exe eventualmente già in esecuzione (single-instance).
+1. Chiudere RBG - QATRIVO.exe eventualmente già in esecuzione (single-instance).
 2. Aprire una sessione desktop **interattiva**; niente runner come servizio/headless.
 3. Usare `pwsh tools/validation/Run-Flaui-Post653.ps1` (build app, build UI tests,
    esecuzione 89 scenari nuovi con report TRX).

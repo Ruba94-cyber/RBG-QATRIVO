@@ -19,7 +19,7 @@
         <vm:AvvioViewModel />
     </Design.DataContext>
 
-    <Border Background="{DynamicResource AppDarkBrush}" Padding="28">
+    <Border Background="{DynamicResource SplashBackgroundBrush}" Padding="28">
         <StackPanel Spacing="14" VerticalAlignment="Center">
             <TextBlock Text="RBG - QATRIVO" Foreground="{DynamicResource TextOnDarkBrush}" FontSize="20" FontWeight="Bold" />
 

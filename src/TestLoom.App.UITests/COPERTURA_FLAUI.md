@@ -240,7 +240,7 @@ Audit: "Esportazione CSV del dettaglio guasto" e' gia' coperta da `MasterGapsCov
 | Modifiche non salvate (Impostazioni: cambio sotto-sezione) | `Tests/ImpostazioniModificheNonSalvateTests.cs` | |
 | Modifiche non salvate (editor CR) | `Tests/ChangeRequestModificheNonSalvateTests.cs` | |
 | Modifiche non salvate (editor Segnalazione rete) | — | **GAP (P2)**: stesso schema di CR, non ancora scritto per limiti di tempo. |
-| MergeConflittoDialog | — | **GAP (P1)**: conflitto di merge multi-PC non testato via UI (coperto solo a livello unit/integration in `TestLoom.App.Tests`, fuori scope di questa suite: richiederebbe due processi TestLoom.exe concorrenti sulla stessa cartella condivisa). |
+| MergeConflittoDialog | — | **GAP (P1)**: conflitto di merge multi-PC non testato via UI (coperto solo a livello unit/integration in `TestLoom.App.Tests`, fuori scope di questa suite: richiederebbe due processi RBG - QATRIVO.exe concorrenti sulla stessa cartella condivisa). |
 
 ## Scala / prestazioni (per contesto, non oggetto di questa iterazione)
 

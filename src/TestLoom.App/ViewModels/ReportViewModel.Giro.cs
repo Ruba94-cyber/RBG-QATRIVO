@@ -668,6 +668,8 @@ public partial class ReportViewModel
         OrdineAsseX = c.OrdineAsseX?.ToList(),
         OrdineAsseY = c.OrdineAsseY?.ToList(),
         GruppiCompressi = new HashSet<string>(c.GruppiCompressi, StringComparer.Ordinal),
+        StatiFiltroRigheColonne = new HashSet<StatoCellaMatrice>(c.StatiFiltroRigheColonne),
+        EcuRistrettePerRequisito = c.EcuRistrettePerRequisito.ToDictionary(x => x.Key, x => new HashSet<string>(x.Value, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase),
     };
 
     // ------------------------------------------------ strutture del giro
@@ -768,6 +770,8 @@ public partial class ReportViewModel
         OrdineAsseX = c.OrdineAsseX?.ToList(),
         OrdineAsseY = c.OrdineAsseY?.ToList(),
         GruppiCompressi = new HashSet<string>(c.GruppiCompressi, StringComparer.Ordinal),
+        StatiFiltroRigheColonne = new HashSet<StatoCellaMatrice>(c.StatiFiltroRigheColonne),
+        EcuRistrettePerRequisito = c.EcuRistrettePerRequisito.ToDictionary(x => x.Key, x => new HashSet<string>(x.Value, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase),
     };
 
     private sealed class ListeGiroReport

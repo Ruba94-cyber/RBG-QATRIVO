@@ -16,13 +16,13 @@
          rende l'aspetto dell'app indipendente dalle impostazioni della macchina di chi la usa. -->
     <Application.Resources>
         <ResourceDictionary>
-            <Color x:Key="SystemAccentColor">#2563EB</Color>
-            <Color x:Key="SystemAccentColorLight1">#3B82F6</Color>
-            <Color x:Key="SystemAccentColorLight2">#60A5FA</Color>
-            <Color x:Key="SystemAccentColorLight3">#93C5FD</Color>
-            <Color x:Key="SystemAccentColorDark1">#1D4ED8</Color>
-            <Color x:Key="SystemAccentColorDark2">#1E40AF</Color>
-            <Color x:Key="SystemAccentColorDark3">#1E3A8A</Color>
+            <Color x:Key="SystemAccentColor">#467786</Color>
+            <Color x:Key="SystemAccentColorLight1">#6396A2</Color>
+            <Color x:Key="SystemAccentColorLight2">#85ADB8</Color>
+            <Color x:Key="SystemAccentColorLight3">#B1D1D8</Color>
+            <Color x:Key="SystemAccentColorDark1">#365D6A</Color>
+            <Color x:Key="SystemAccentColorDark2">#2A4E5C</Color>
+            <Color x:Key="SystemAccentColorDark3">#203B48</Color>
 
             <!-- Token del layout adattivo (6.6.1): usare sempre {DynamicResource ...}, perche' MainWindow aggiorna questi
                  valori al cambio di modo (Ampio/Standard/Compatto/Minimo, vedi Services/LayoutAdattivo.cs). I valori qui
@@ -38,12 +38,15 @@
             <x:Double x:Key="MaxLarghezzaPagina">1180</x:Double>
             <x:Double x:Key="AltezzaMinimaTabella">200</x:Double>
 
+            <!-- La preferenza Light/Dark/Default è applicata localmente sul PC, senza cambiare gli archivi condivisi. -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
             <!-- Banner di esito positivo: stessa famiglia di BannerAvviso/BannerErrore in Styles.axaml. -->
             <SolidColorBrush x:Key="SuccessBrush">#166534</SolidColorBrush>
             <SolidColorBrush x:Key="SuccessBackgroundBrush">#DCFCE7</SolidColorBrush>
             <SolidColorBrush x:Key="SuccessBorderBrush">#16A34A</SolidColorBrush>
 
-            <!-- Palette condivisa (UX2): colori prima scritti come esadecimali nei singoli XAML. Tema fisso Light. -->
+            <!-- Palette condivisa: i token sono risolti per ThemeVariant senza toccare i dati. -->
             <SolidColorBrush x:Key="SurfaceBrush">#FFFFFF</SolidColorBrush>
             <SolidColorBrush x:Key="SurfaceMutedBrush">#F8FAFC</SolidColorBrush>
             <!-- Sfondo opaco di ogni finestra, dialoghi compresi. Senza sfondo la finestra e' trasparente e lascia vedere
@@ -86,6 +89,88 @@
             <SolidColorBrush x:Key="AuditCellaNaBrush">#E2E8F0</SolidColorBrush>
             <SolidColorBrush x:Key="AuditCellaConflittoBrush">#FCA5A5</SolidColorBrush>
             <SolidColorBrush x:Key="AuditCellaPropagabileBrush">#FDBA74</SolidColorBrush>
+            <SolidColorBrush x:Key="PrimaryTextBrush">#1E293B</SolidColorBrush>
+            <SolidColorBrush x:Key="SecondaryTextBrush">#334155</SolidColorBrush>
+            <SolidColorBrush x:Key="DangerBackgroundBrush">#FEE2E2</SolidColorBrush>
+            <SolidColorBrush x:Key="PurpleTextBrush">#5B21B6</SolidColorBrush>
+            <!-- Reusable high-contrast interaction tokens. Keep the light edition stable. -->
+            <SolidColorBrush x:Key="SplashBackgroundBrush">#101820</SolidColorBrush>
+            <!-- Printed/chart PNGs use a fixed dark-ink palette; their canvas must stay white in both variants. -->
+            <SolidColorBrush x:Key="ChartCanvasBrush">#FFFFFF</SolidColorBrush>
+            <SolidColorBrush x:Key="PrimaryButtonBrush">#2563EB</SolidColorBrush>
+            <SolidColorBrush x:Key="PrimaryHoverBrush">#1D4ED8</SolidColorBrush>
+            <SolidColorBrush x:Key="LinkHoverBrush">#1D4ED8</SolidColorBrush>
+            <SolidColorBrush x:Key="ChipBackgroundBrush">#EEF2FF</SolidColorBrush>
+            <SolidColorBrush x:Key="ChipBorderBrush">#C7D2FE</SolidColorBrush>
+            <SolidColorBrush x:Key="SelectionBrush">#2563EB</SolidColorBrush>
+            <SolidColorBrush x:Key="LoadingOverlayBrush">#DCF8FAFC</SolidColorBrush>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+            <!-- Banner di esito positivo: stessa famiglia di BannerAvviso/BannerErrore in Styles.axaml. -->
+            <SolidColorBrush x:Key="SuccessBrush">#85DBB3</SolidColorBrush>
+            <SolidColorBrush x:Key="SuccessBackgroundBrush">#18392E</SolidColorBrush>
+            <SolidColorBrush x:Key="SuccessBorderBrush">#399E79</SolidColorBrush>
+
+            <!-- Palette condivisa: i token sono risolti per ThemeVariant senza toccare i dati. -->
+            <SolidColorBrush x:Key="SurfaceBrush">#1B222B</SolidColorBrush>
+            <SolidColorBrush x:Key="SurfaceMutedBrush">#141B23</SolidColorBrush>
+            <!-- Sfondo opaco di ogni finestra, dialoghi compresi. Senza sfondo la finestra e' trasparente e lascia vedere
+                 cio' che c'e' sotto (es. Campi: Pianificazione). Lo applica lo stile "Window" in Styles.axaml; un test XAML
+                 controlla che il colore resti opaco. -->
+            <SolidColorBrush x:Key="WindowBackgroundBrush">#0D1218</SolidColorBrush>
+            <SolidColorBrush x:Key="SurfaceSubtleBrush">#293540</SolidColorBrush>
+            <SolidColorBrush x:Key="BorderSubtleBrush">#3B4B5B</SolidColorBrush>
+            <SolidColorBrush x:Key="BorderStrongBrush">#576B7C</SolidColorBrush>
+            <SolidColorBrush x:Key="TextMutedBrush">#B4C2CF</SolidColorBrush>
+            <SolidColorBrush x:Key="AccentBrush">#A4CBD5</SolidColorBrush>
+            <SolidColorBrush x:Key="AppDarkBrush">#EDF2F5</SolidColorBrush>
+            <SolidColorBrush x:Key="TextOnDarkBrush">#FFFFFF</SolidColorBrush>
+            <SolidColorBrush x:Key="TextOnDarkSoftBrush">#E2E8F0</SolidColorBrush>
+            <SolidColorBrush x:Key="TextOnDarkMutedBrush">#9EADBE</SolidColorBrush>
+            <SolidColorBrush x:Key="InfoBackgroundBrush">#163149</SolidColorBrush>
+            <SolidColorBrush x:Key="InfoBorderBrush">#4288D6</SolidColorBrush>
+            <SolidColorBrush x:Key="WarningBackgroundBrush">#3D2F1B</SolidColorBrush>
+            <SolidColorBrush x:Key="WarningBorderBrush">#D6A24F</SolidColorBrush>
+            <SolidColorBrush x:Key="WarningTextBrush">#F2C679</SolidColorBrush>
+            <SolidColorBrush x:Key="DangerBrush">#F17D82</SolidColorBrush>
+            <SolidColorBrush x:Key="DangerDarkBrush">#CA5964</SolidColorBrush>
+            <SolidColorBrush x:Key="DangerDeepBrush">#A54452</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeSoftBrush">#3A291B</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeBorderBrush">#E8934D</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeBorderSoftBrush">#D3A06E</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeStrongBrush">#F4B27D</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeDarkBrush">#C7875F</SolidColorBrush>
+            <SolidColorBrush x:Key="OrangeDeepBrush">#A56D4F</SolidColorBrush>
+            <SolidColorBrush x:Key="IndigoSoftBrush">#222B44</SolidColorBrush>
+            <SolidColorBrush x:Key="IndigoBadgeBrush">#2A3658</SolidColorBrush>
+            <SolidColorBrush x:Key="IndigoTextBrush">#C2C8FF</SolidColorBrush>
+            <SolidColorBrush x:Key="PurpleBadgeBrush">#342845</SolidColorBrush>
+            <!-- Legenda matrice Audit: stessi valori di CellaMatriceAudit.Colore (AuditViewModel); un test ne verifica la coerenza. -->
+            <SolidColorBrush x:Key="AuditCellaDaTestareBrush">#F1F5F9</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaTestCreatoBrush">#FEF3C7</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaOttimoBrush">#BBF7D0</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaMedioBrush">#FDE68A</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaBassoBrush">#FECACA</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaNaBrush">#E2E8F0</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaConflittoBrush">#FCA5A5</SolidColorBrush>
+            <SolidColorBrush x:Key="AuditCellaPropagabileBrush">#FDBA74</SolidColorBrush>
+            <SolidColorBrush x:Key="PrimaryTextBrush">#EDF2F5</SolidColorBrush>
+            <SolidColorBrush x:Key="SecondaryTextBrush">#D0DCE7</SolidColorBrush>
+            <SolidColorBrush x:Key="DangerBackgroundBrush">#41242C</SolidColorBrush>
+            <SolidColorBrush x:Key="PurpleTextBrush">#D8C4FF</SolidColorBrush>
+            <!-- Graphite premium palette: readable text, muted metal/teal highlights. -->
+            <SolidColorBrush x:Key="SplashBackgroundBrush">#101820</SolidColorBrush>
+            <!-- Printed/chart PNGs use a fixed dark-ink palette; their canvas must stay white in both variants. -->
+            <SolidColorBrush x:Key="ChartCanvasBrush">#FFFFFF</SolidColorBrush>
+            <SolidColorBrush x:Key="PrimaryButtonBrush">#366474</SolidColorBrush>
+            <SolidColorBrush x:Key="PrimaryHoverBrush">#467787</SolidColorBrush>
+            <SolidColorBrush x:Key="LinkHoverBrush">#B5DBE4</SolidColorBrush>
+            <SolidColorBrush x:Key="ChipBackgroundBrush">#253541</SolidColorBrush>
+            <SolidColorBrush x:Key="ChipBorderBrush">#526778</SolidColorBrush>
+            <SolidColorBrush x:Key="SelectionBrush">#365F70</SolidColorBrush>
+            <SolidColorBrush x:Key="LoadingOverlayBrush">#DE0D1218</SolidColorBrush>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 

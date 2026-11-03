@@ -42,6 +42,51 @@ public sealed class PolarionReadClientTests
     }
 
     [Fact]
+    public async Task ReadsResolutionDateAndEstaCustomFieldsFromTheCorporateTicketShape()
+    {
+        var client = Client(req => Json(req.RequestUri!.AbsolutePath.EndsWith("/comments", StringComparison.Ordinal)
+            ? """{"data":[]}"""
+            : """{"data":{"id":"TICKET_Tickets/TICKET-18654","type":"workitems","attributes":{"type":"TICKET_Ticket","title":"t","status":"closed","resolution":"done","resolvedOn":"2026-02-05T09:23:47.669Z","created":"2025-10-29T08:23:21.879Z","updated":"2026-02-05T09:23:47.766Z","TICKET_tck_type":"new_request","TICKET_component":["unitlogger"],"TICKET_ecu":["MD1-CE101"],"TICKET_ticket_end_date":"2025-11-28","TICKET_working_unit":{"type":"text/plain","value":"DAILY_MY21.PM_BCM Rev. 3612"},"TICKET_invoice":{"type":"text/plain","value":"P0-25382"}}}}"""));
+        var snapshot = await client.GetTicketAsync("TICKET_Tickets", "TICKET-18654");
+        Assert.Equal(DateTimeOffset.Parse("2026-02-05T09:23:47.669Z"), snapshot.ResolvedOn);
+        Assert.Equal("unitlogger", Assert.Single(snapshot.Components));
+        Assert.Equal("MD1-CE101", Assert.Single(snapshot.Componenti));
+        Assert.Equal("2025-11-28", snapshot.TicketEndDate);
+        Assert.Equal("DAILY_MY21.PM_BCM Rev. 3612", snapshot.WorkingUnit);
+        Assert.Equal("P0-25382", snapshot.Invoice);
+    }
+
+    [Fact]
+    public async Task MissingOptionalEstaFieldsStayEmptyInsteadOfFailing()
+    {
+        var client = Client(req => Json(req.RequestUri!.AbsolutePath.EndsWith("/comments", StringComparison.Ordinal)
+            ? """{"data":[]}"""
+            : """{"data":{"id":"TICKET_Tickets/TICKET-1","type":"workitems","attributes":{"title":"t","status":"open"}}}"""));
+        var snapshot = await client.GetTicketAsync("TICKET_Tickets", "TICKET-1");
+        Assert.Null(snapshot.ResolvedOn);
+        Assert.Empty(snapshot.Components);
+        Assert.Empty(snapshot.Componenti);
+        Assert.Null(snapshot.WorkingUnit);
+    }
+
+    [Fact]
+    public void SnapshotCachedBeforeTheNewFieldsStillLoadsWithEmptyDefaults()
+    {
+        var file = Path.Combine(Path.GetTempPath(), "TestLoom_oldsnap_" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            File.WriteAllText(file, """{"ProjectId":"TICKET_Tickets","Id":"TICKET-9","Status":"closed","RetrievedAtUtc":"2026-10-01T10:00:00+00:00","Assignees":["a"],"Comments":[]}""");
+            var snapshot = JsonIo.TryRead<TestLoom.App.Models.PolarionTicketSnapshot>(file, out var error);
+            Assert.Null(error);
+            Assert.NotNull(snapshot);
+            Assert.Equal("closed", snapshot!.Status);
+            Assert.Null(snapshot.ResolvedOn);
+            Assert.Empty(snapshot.Components);
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Fact]
     public async Task BrowserVerificationUsesOnlyOneGetAndNeverRequiresComments()
     {
         var calls = new List<string>();

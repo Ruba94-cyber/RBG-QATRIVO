@@ -31,7 +31,7 @@
                 </Border>
 
                 <Border Classes="Card" IsVisible="{Binding !PuoScrivere}">
-                    <TextBlock Text="{Binding SolaLetturaTesto}" Foreground="#B45309" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding SolaLetturaTesto}" Foreground="{DynamicResource WarningTextBrush}" TextWrapping="Wrap" />
                 </Border>
 
                 <!-- Lettura in background (app reale): finche' gira l'elenco e' ancora vuoto, quindi niente "nessun elemento". -->
@@ -104,7 +104,7 @@
                                              proposito, questa è l'azione Master esplicita e separata che la completa). -->
                                         <Button Content="{Binding PurgaTesto}"
                                                 Classes="Link"
-                                                Foreground="#DC2626"
+                                                Foreground="{DynamicResource DangerBrush}"
                                                 IsEnabled="{Binding PuoPurgare}"
                                                 Command="{Binding #Root.((vm:RecoveryBinViewModel)DataContext).PurgaCommand}"
                                                 CommandParameter="{Binding}"
@@ -120,8 +120,8 @@
                              IsIndeterminate="True"
                              IsVisible="{Binding RipristinoInCorso}"
                              HorizontalAlignment="Left" />
-                <TextBlock Text="{Binding Messaggio}" Foreground="#166534" IsVisible="{Binding HaMessaggio}" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding MessaggioErrore}" Foreground="#DC2626" IsVisible="{Binding HaMessaggioErrore}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Messaggio}" Foreground="{DynamicResource SuccessBrush}" IsVisible="{Binding HaMessaggio}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding MessaggioErrore}" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding HaMessaggioErrore}" TextWrapping="Wrap" />
             </StackPanel>
         </ScrollViewer>
 

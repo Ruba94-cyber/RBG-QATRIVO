@@ -134,7 +134,8 @@ public sealed class AnomalieCrCoverageListaUiTests : UiTestBase
     private static IReadOnlyList<AutomationElement> IntestazioniCr(Window window) =>
         ElementFinders.WaitById(window, "Anomalie_Cr_Lista_ListBox")
             .FindAllDescendants(cf => cf.ByControlType(ControlType.HeaderItem))
-            .Where(h => h.BoundingRectangle.Width > 0)
+            // Le colonne TICKET (non ordinabili, a destra) hanno ora intestazione propria: il test riguarda le sette colonne base.
+            .Where(h => h.BoundingRectangle.Width > 0 && !h.Name.Contains("TICKET", StringComparison.Ordinal))
             .OrderBy(h => h.BoundingRectangle.Left)
             // UIA espone la colonna Azioni anche come intestazione duplicata a destra: si contano le colonne per nome, non gli elementi.
             .DistinctBy(h => h.Name).ToList();

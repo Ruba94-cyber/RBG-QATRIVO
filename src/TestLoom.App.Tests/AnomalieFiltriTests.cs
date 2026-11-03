@@ -344,6 +344,28 @@ public sealed class AnomalieIndiceFiltriTests : IDisposable
     }
 
     [Fact]
+    public void NcArchiviata_EsceDalleListeAttive_IndiceEMemoriaConcordano()
+    {
+        var store = new LocalNonConformitaIndexStore(_shared, _local);
+        var attiva = new NonConformita { Uid = Guid.NewGuid(), Id = "NC-A", DataApertura = new DateTime(2026, 3, 1) };
+        var archiviata = new NonConformita { Uid = Guid.NewGuid(), Id = "NC-B", DataApertura = new DateTime(2026, 3, 2) };
+        archiviata.Archiviata = true;
+        store.Upsert(Path.Combine(_shared, "nc_NC-A.json"), DateTime.UtcNow, 1, attiva);
+        store.Upsert(Path.Combine(_shared, "nc_NC-B.json"), DateTime.UtcNow, 1, archiviata);
+
+        Assert.Equal(1, store.Conta(new AnomalieFiltroNc()));
+        Assert.Equal(2, store.Conta(new AnomalieFiltroNc { IncludiArchiviate = true }));
+        Assert.True(new AnomalieFiltroNc().Corrisponde(attiva));
+        Assert.False(new AnomalieFiltroNc().Corrisponde(archiviata));
+        Assert.True(new AnomalieFiltroNc { IncludiArchiviate = true }.Corrisponde(archiviata));
+
+        // Archiviare dopo un upsert precedente aggiorna la riga (la firma include il flag).
+        attiva.Archiviata = true;
+        store.Upsert(Path.Combine(_shared, "nc_NC-A.json"), DateTime.UtcNow, 1, attiva);
+        Assert.Equal(0, store.Conta(new AnomalieFiltroNc()));
+    }
+
+    [Fact]
     public void Upsert_AggiornaLeColonneDiFiltro_RemoveLeToglie()
     {
         var store = new LocalNonConformitaIndexStore(_shared, _local);

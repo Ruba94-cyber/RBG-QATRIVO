@@ -1026,6 +1026,8 @@ public partial class ChangeRequestEditorViewModel : ViewModelBase, IScorciatoieP
     /// <summary>Pulsante "Esporta pacchetto": CR gia salvata e nessuna generazione in corso.</summary>
     public bool PuoEsportarePacchetto => !IsNew && !PacchettoInCorso;
 
+    internal AppState StatoApp => _state;
+
     partial void OnPacchettoInCorsoChanged(bool value) => OnPropertyChanged(nameof(PuoEsportarePacchetto));
 
     [RelayCommand]

@@ -30,6 +30,12 @@ public sealed class ConfigurazioneMatriceReport
 {
     /// <summary>Stati nascosti solo nella resa della matrice. I conteggi e i denominatori non vengono filtrati.</summary>
     public HashSet<StatoCellaMatrice> StatiNascostiPresentazione { get; set; } = [];
+    /// <summary>Filtro per stato (vuoto = nessun filtro): restano visibili solo le righe e le colonne con almeno una cella
+    /// (non N.A.) in uno di questi stati. Agisce sugli assi, quindi vale anche per l'export; i totali non cambiano.</summary>
+    public HashSet<StatoCellaMatrice> StatiFiltroRigheColonne { get; set; } = [];
+    /// <summary>Requisiti ristretti ad alcune componente (id requisito -> componente ammesse, solo Extra con coppie veicolo-componente): le celle verso le
+    /// altre componente sono N.A. e i componenti senza alcun requisito applicabile escono dalla matrice. Derivato dai dati, mai persistito.</summary>
+    public Dictionary<string, HashSet<string>> EcuRistrettePerRequisito { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Decisione utente 6.6.1: fino a tre campi per asse, annidati (il primo è il livello esterno).</summary>
     public const int MassimoCampiPerAsse = 3;
 
@@ -1982,6 +1988,7 @@ public static partial class ReportMatriceService
             combinazioniCore, celleToccatePerCore, entitaTest,
             testIdsVista, testUidsVista, config.CampiX, config.CampiY, dimensione => OrdineDi(config, dimensione),
             modalitaStato, modalitaTestPercentuale, config.StatiNascostiPresentazione, universoAgg, materializzaUniverso, enumeraUniversoExport);
+        preparata.ConfiguraVisibilita(config);
         // TIME: valori temporali con le stesse chiavi della matrice, solo nelle modalita' temporali (il costo resta fuori dallo Stato).
         if (ModalitaTempo(config.ModalitaCella))
         {
@@ -2127,6 +2134,77 @@ public static partial class ReportMatriceService
             _asseY = RiordinaAsse(_asseY, _dimensioniY, ordineRighe);
         }
 
+        /// <summary>Applicabilita' requisito x componente derivata dai dati (null se non serve): celle N.A. e componente non coinvolte nascoste.</summary>
+        private ApplicabilitaEcuMatrice? _applicabilitaEcu;
+
+        /// <summary>Applica la visibilita' derivata dalla configurazione: (1) componente non applicabili a nessun requisito dell'altro asse
+        /// nascoste; (2) con un filtro per stato, righe e colonne senza alcuna cella (non N.A.) negli stati scelti nascoste.
+        /// Toglie solo foglie dagli assi: conteggi, totali e dati sorgente restano identici. Chiamata una volta in Prepara.</summary>
+        internal void ConfiguraVisibilita(ConfigurazioneMatriceReport config)
+        {
+            _applicabilitaEcu = ApplicabilitaEcuMatrice.Crea(config);
+            var applicabilita = _applicabilitaEcu;
+            var stati = config.StatiFiltroRigheColonne;
+            if (applicabilita == null && stati.Count == 0) return;
+
+            var nascostiX = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var nascostiY = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (applicabilita != null)
+            {
+                // Un componente senza alcun requisito applicabile nell'altro asse non e' coinvolta: fuori dalla matrice.
+                if (applicabilita.EcuSuX && _asseX.Livelli > 0 && _asseY.Foglie.Count > 0)
+                    foreach (var x in _asseX.Foglie)
+                        if (_asseY.Foglie.All(y => applicabilita.NonApplicabile(x, y))) nascostiX.Add(x);
+                if (!applicabilita.EcuSuX && _asseY.Livelli > 0 && _asseX.Foglie.Count > 0)
+                    foreach (var y in _asseY.Foglie)
+                        if (_asseX.Foglie.All(x => applicabilita.NonApplicabile(x, y))) nascostiY.Add(y);
+            }
+
+            if (stati.Count > 0)
+            {
+                bool Selezionato(StatiMatrice s) =>
+                    (stati.Contains(StatoCellaMatrice.Conforme) && s.Ok > 0)
+                    || (stati.Contains(StatoCellaMatrice.NonConforme) && s.NonConforme > 0)
+                    || (stati.Contains(StatoCellaMatrice.ConformeConDeviazioni) && s.ConformeConDeviazioni > 0)
+                    || (stati.Contains(StatoCellaMatrice.DaEseguire) && s.DaEseguire > 0)
+                    || (stati.Contains(StatoCellaMatrice.NonTestato) && s.NonTestato > 0)
+                    || (stati.Contains(StatoCellaMatrice.DaDecidere) && s.DaDecidere > 0);
+                var righeConStato = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var colonneConStato = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (y, celleRiga) in _perRiga)
+                    foreach (var (x, acc) in celleRiga)
+                    {
+                        if (applicabilita?.NonApplicabile(x, y) == true) continue;
+                        if (!Selezionato(acc.Stati)) continue;
+                        righeConStato.Add(y);
+                        colonneConStato.Add(x);
+                    }
+                // Universo aggregato: le combinazioni non testate / da decidere non hanno celle materializzate.
+                if (_universoAgg != null)
+                {
+                    var nt = stati.Contains(StatoCellaMatrice.NonTestato);
+                    var dd = stati.Contains(StatoCellaMatrice.DaDecidere);
+                    // Le righe/colonne le cui combinazioni sono tutte N.A. automatiche non contano come "non testate".
+                    foreach (var (y, c) in _universoAgg.Righe)
+                        if (((nt && c.Nt > 0) || (dd && c.Dd > 0))
+                            && (applicabilita == null || !_asseX.Foglie.All(x => applicabilita.NonApplicabile(x, y)))) righeConStato.Add(y);
+                    foreach (var (x, c) in _universoAgg.Colonne)
+                        if (((nt && c.Nt > 0) || (dd && c.Dd > 0))
+                            && (applicabilita == null || !_asseY.Foglie.All(y => applicabilita.NonApplicabile(x, y)))) colonneConStato.Add(x);
+                }
+                if (_asseY.Livelli > 0)
+                    foreach (var y in _asseY.Foglie) if (!righeConStato.Contains(y)) nascostiY.Add(y);
+                if (_asseX.Livelli > 0)
+                    foreach (var x in _asseX.Foglie) if (!colonneConStato.Contains(x)) nascostiX.Add(x);
+            }
+
+            if (nascostiX.Count > 0)
+                _asseX = StrutturaAsse.Costruisci(_asseX.Foglie.Where(f => !nascostiX.Contains(f)).ToList(), _dimensioniX, _ordineDi);
+            if (nascostiY.Count > 0)
+                _asseY = StrutturaAsse.Costruisci(_asseY.Foglie.Where(f => !nascostiY.Contains(f)).ToList(), _dimensioniY, _ordineDi);
+        }
+
         /// <summary>Aggiorna solo quali etichette vengono proiettate nella vista; gli aggregati restano invariati.</summary>
         public void ImpostaStatiNascostiPresentazione(IReadOnlySet<StatoCellaMatrice> statiNascosti) =>
             _statiNascostiPresentazione = new HashSet<StatoCellaMatrice>(statiNascosti);
@@ -2160,11 +2238,13 @@ public static partial class ReportMatriceService
             PerfContatori.IncrementaTotaliMatriceRicalcolati();
             var naSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var m in lista) naSet.Add(string.Concat(m.ValoreAsseX, "\u0001", m.ValoreAsseY));
-            bool CellaNonApplicabile(string x, string y) => naSet.Contains(string.Concat(x, "\u0001", y));
+            var automatiche = _applicabilitaEcu;
+            bool CellaNonApplicabile(string x, string y) =>
+                naSet.Contains(string.Concat(x, "\u0001", y)) || (automatiche?.NonApplicabile(x, y) ?? false);
             var risultato = _modalitaTestPercentuale
                 ? CalcolaTotaliTest(CellaNonApplicabile)
                 : _asseX.Livelli == 1 && _asseY.Livelli == 1
-                    ? CalcolaTotaliSemplici(CellaNonApplicabile, lista.Count == 0)
+                    ? CalcolaTotaliSemplici(CellaNonApplicabile, lista.Count == 0 && automatiche == null)
                     : CalcolaAggregati(CellaNonApplicabile);
             _totaliCache = risultato;
             _firmaTotaliCache = firma;
@@ -2470,8 +2550,13 @@ public static partial class ReportMatriceService
                     totaleCella += nonTestati + daDecidere;
                 }
 
+                var naAutomatica = marcabile && _applicabilitaEcu?.NonApplicabile(colonna.Chiave, riga.Chiave) == true;
                 return new CellaMatriceReport
                 {
+                    NonApplicabile = naAutomatica,
+                    NotaNonApplicabile = naAutomatica
+                        ? LocalizationService.Instance.Scegli("Requisito non relativo a questa componente", "Requirement not related to this component", "Exigence non liée à cette componente")
+                        : null,
                     StatiNascostiPresentazione = _statiNascostiPresentazione,
                     Riga = riga.Chiave, Colonna = colonna.Chiave,
                     Totali = totaleCella, Valutati = accPercentuale?.Valutati ?? 0,
@@ -2555,7 +2640,8 @@ public static partial class ReportMatriceService
             IEnumerable<(CombinazioneCellaMatrice, IReadOnlyList<string>)> Aggiungi(CombinazioneAccumulatore acc, IEnumerable<string> celle)
             {
                 ct.ThrowIfCancellationRequested();
-                var applicabili = celle.Where(c => !na.Contains(c)).ToArray();
+                var automatiche = _applicabilitaEcu;
+                var applicabili = celle.Where(c => !na.Contains(c) && !(automatiche?.NonApplicabileChiave(c) ?? false)).ToArray();
                 if (applicabili.Length == 0) yield break;
                 yield return (new CombinazioneCellaMatrice(acc.Funzionalita ?? "", acc.Componente, acc.Veicolo, StatoDi(acc),
                     acc.ManualeVincente, acc.ManualeSuperato, acc.Propagabile), applicabili);
@@ -2856,6 +2942,7 @@ public static partial class ReportMatriceService
             }
         }
 
+        var automatiche = ApplicabilitaEcuMatrice.Crea(config);
         var naSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (marcature != null)
             foreach (var m in marcature) naSet.Add(string.Concat(m.ValoreAsseX, "\u0001", m.ValoreAsseY));
@@ -2917,7 +3004,8 @@ public static partial class ReportMatriceService
                 var righeVista = PercorsiAsse(candidatoCoordinate, config.CampiY, acc).ToArray();
                 var colonneVista = PercorsiAsse(candidatoCoordinate, config.CampiX, acc).ToArray();
                 // Coerente con i Totali della vista: il dato è "escluso" solo se OGNI cella in cui ricade è N.A.
-                var nonApplicabile = naSet.Count > 0 && righeVista.All(y => colonneVista.All(x => naSet.Contains(string.Concat(x, "\u0001", y))));
+                var nonApplicabile = (naSet.Count > 0 || automatiche != null)
+                    && righeVista.All(y => colonneVista.All(x => naSet.Contains(string.Concat(x, "\u0001", y)) || (automatiche?.NonApplicabile(x, y) ?? false)));
                 yield return new OrigineDato(c.Test.Id, c.Test.DescrizioneBreve, c.Test.Origine, revisione == null ? 0 : c.RevisioneIndice + 1,
                     revisione?.Data, revisione?.OperatoreVisualizzato ?? "", c.Veicolo, gamma, c.Componente, c.Funzionalita ?? "", categorie,
                     c.Esito.HasValue ? c.Esito.Value.Label() : "Non testato",

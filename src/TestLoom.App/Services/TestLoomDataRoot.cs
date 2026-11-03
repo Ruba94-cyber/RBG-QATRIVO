@@ -9,7 +9,7 @@ namespace TestLoom.App.Services;
 /// <item>&lt;radice&gt;\AppData sostituisce %APPDATA% (crash.log, trace.log, config.json);</item>
 /// <item>&lt;radice&gt;\LocalAppData sostituisce %LOCALAPPDATA% (TestLoom\workspaces, workflow-transactions, recovery-drafts, ...).</item>
 /// </list>
-/// Un processo figlio (per esempio TestLoom.exe lanciato da FlaUI) eredita la variabile e quindi la stessa radice. Il formato dei
+/// Un processo figlio (per esempio RBG - QATRIVO.exe lanciato da FlaUI) eredita la variabile e quindi la stessa radice. Il formato dei
 /// file non cambia: cambia solo la cartella di partenza.
 /// </summary>
 public static class TestLoomDataRoot

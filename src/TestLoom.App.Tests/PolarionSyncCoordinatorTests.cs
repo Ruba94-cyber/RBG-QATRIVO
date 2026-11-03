@@ -24,6 +24,23 @@ public sealed class PolarionSyncCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public void IncompletePassBringsTheNextAttemptForward()
+    {
+        Directory.CreateDirectory(_root);
+        var paths = new DataPaths(_root);
+        var now = DateTimeOffset.UtcNow;
+        var peer = new PolarionSyncCoordinator(paths);
+        using (var lease = new PolarionSyncCoordinator(paths).TryBegin(Interval, now))
+        {
+            Assert.NotNull(lease);
+            lease!.ScheduleRetry(Interval, TimeSpan.FromMinutes(5));
+        }
+        Assert.Null(peer.TryBegin(Interval, DateTimeOffset.UtcNow.AddMinutes(1)));
+        using var retry = peer.TryBegin(Interval, DateTimeOffset.UtcNow.AddMinutes(6));
+        Assert.NotNull(retry);
+    }
+
+    [Fact]
     public async Task TwoWorkerConfirmationsPreserveOwnership()
     {
         Directory.CreateDirectory(_root);

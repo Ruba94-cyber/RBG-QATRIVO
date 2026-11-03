@@ -21,7 +21,7 @@ public sealed class TestEditorOperazioniTests : UiTestBase
     public TestEditorOperazioniTests() : base(CreaWorkspaceConStrumentoCampiPersonalizzati()) { }
 
     /// <summary>Semina uno strumento con un campo per ciascun Tipo (Testo/Numero/Lista/Checkbox/Data/
-    /// ListaTesto/File, tutti Ambito=PerOperazione) PRIMA di avviare TestLoom.exe (a differenza di seminare dopo,
+    /// ListaTesto/File, tutti Ambito=PerOperazione) PRIMA di avviare RBG - QATRIVO.exe (a differenza di seminare dopo,
     /// che richiederebbe di riavviare il processo a meta' test per fargli rileggere il file — vedi il pattern
     /// gia' usato da MasterDataAzioniModificaTests/StrumentiOrdineUiTests).</summary>
     private static TestWorkspace CreaWorkspaceConStrumentoCampiPersonalizzati()

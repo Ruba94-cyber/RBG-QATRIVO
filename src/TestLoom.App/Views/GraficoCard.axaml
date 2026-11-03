@@ -6,7 +6,7 @@
              x:Class="TestLoom.App.Views.GraficoCard"
              x:DataType="vm:ChartRenderizzato">
 
-    <Border x:Name="Contenitore" Background="#F8FAFC" CornerRadius="8" Padding="10" Margin="0,0,14,14"
+    <Border x:Name="Contenitore" Background="{DynamicResource SurfaceMutedBrush}" CornerRadius="8" Padding="10" Margin="0,0,14,14"
             Width="{Binding LarghezzaCardVisualizzata}" HorizontalAlignment="Stretch">
         <StackPanel Spacing="6">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -27,7 +27,7 @@
             </Grid>
             <!-- Immagine alla dimensione effettiva della card. Le maniglie sui bordi regolano larghezza e altezza;
                  il render segue i Bounds reali e conserva il debounce asincrono. -->
-            <Grid Height="{Binding AltezzaGrafico}" ClipToBounds="False">
+            <Grid Height="{Binding AltezzaGrafico}" ClipToBounds="False" Background="{DynamicResource ChartCanvasBrush}">
                 <Image x:Name="ImmagineCard" Source="{Binding Immagine}" Stretch="Fill" Height="{Binding AltezzaGrafico}"
                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch" SizeChanged="OnImmagineSizeChanged"
                        AutomationProperties.AutomationId="{Binding AutomationId}"
@@ -35,18 +35,18 @@
                        AutomationProperties.HelpText="{Binding TipoTesto}"
                        ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeTooltipGraficoEsiti}" />
                 <Border Tag="larghezza" Width="8" HorizontalAlignment="Right" VerticalAlignment="Stretch"
-                        Background="#CBD5E1" CornerRadius="3" Margin="2,12"
+                        Background="{DynamicResource BorderStrongBrush}" CornerRadius="3" Margin="2,12"
                         Cursor="SizeWestEast" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoRidimensionaLarghezzaTooltip}"
                         PointerPressed="OnRidimensionamentoPremuto" PointerMoved="OnRidimensionamentoSpostato" PointerReleased="OnRidimensionamentoRilasciato" PointerCaptureLost="OnRidimensionamentoCapturePerso"
                         AutomationProperties.AutomationId="{Binding AutomationId, StringFormat='{}{0}_RidimensionaLarghezza'}" />
                 <Border Tag="altezza" Height="8" HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
-                        Background="#CBD5E1" CornerRadius="3" Margin="12,2"
+                        Background="{DynamicResource BorderStrongBrush}" CornerRadius="3" Margin="12,2"
                         Cursor="SizeNorthSouth" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoRidimensionaAltezzaTooltip}"
                         PointerPressed="OnRidimensionamentoPremuto" PointerMoved="OnRidimensionamentoSpostato" PointerReleased="OnRidimensionamentoRilasciato" PointerCaptureLost="OnRidimensionamentoCapturePerso"
                         AutomationProperties.AutomationId="{Binding AutomationId, StringFormat='{}{0}_RidimensionaAltezza'}" />
                 <Border x:Name="ManigliaAngolo" Tag="entrambe" Width="10" Height="10"
                         HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                        Background="#2563EB" CornerRadius="3"
+                        Background="{DynamicResource AccentBrush}" CornerRadius="3"
                         Cursor="SizeWestEast" ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficoRidimensionaGraficoTooltip}"
                         PointerPressed="OnRidimensionamentoPremuto" PointerMoved="OnRidimensionamentoSpostato" PointerReleased="OnRidimensionamentoRilasciato" PointerCaptureLost="OnRidimensionamentoCapturePerso"
                         DoubleTapped="OnRipristinaDimensioni" AutomationProperties.AutomationId="{Binding AutomationId, StringFormat='{}{0}_RidimensionaEntrambe'}" />

@@ -70,7 +70,7 @@ public readonly record struct AnomalieOrdinamento(AnomalieOrdinamentoChiave Chia
 /// Calcolata in un solo punto, sia per l'upsert incrementale sia per il backfill della migrazione.</summary>
 public readonly record struct AnomalieIndiceRiga(
     int StatoWorkflow, int Stato, int? StatoDettaglio, int? Destinatario, int Priorita, int? Severita,
-    string Owner, long AperturaTicks, long? ChiusuraTicks, string Descrizione, string TestoCercabile, bool HaTicketEsta)
+    string Owner, long AperturaTicks, long? ChiusuraTicks, string Descrizione, string TestoCercabile, bool HaTicketEsta, bool Archiviata)
 {
     public static AnomalieIndiceRiga Da(NonConformita nc) => new(
         (int)nc.StatoWorkflow, (int)nc.Stato,
@@ -79,7 +79,7 @@ public readonly record struct AnomalieIndiceRiga(
         (int)nc.Priorita,
         nc.Severita.HasValue ? (int)nc.Severita.Value : null,
         nc.Owner ?? "", nc.DataApertura.Ticks, nc.DataChiusura?.Ticks,
-        nc.Descrizione ?? "", AnomalieFiltroNc.TestoIndicizzato(nc), nc.CollegamentiPolarion.Count > 0);
+        nc.Descrizione ?? "", AnomalieFiltroNc.TestoIndicizzato(nc), nc.CollegamentiPolarion.Count > 0, nc.Archiviata);
 
     /// <summary>Firma FNV-1a a 64 bit di tutti i valori proiettati (compreso il testo cercabile): serve solo a
     /// evitare riscritture dell'indice per NC invariate; una collisione ritarderebbe l'aggiornamento di una riga
@@ -93,7 +93,7 @@ public readonly record struct AnomalieIndiceRiga(
             void MixS(string s) { foreach (var ch in s) { h ^= ch; h *= 1099511628211UL; } h ^= 0xFF; h *= 1099511628211UL; }
             Mix(StatoWorkflow); Mix(Stato); Mix(StatoDettaglio ?? long.MinValue); Mix(Destinatario ?? long.MinValue);
             Mix(Priorita); Mix(Severita ?? long.MinValue); MixS(Owner); Mix(AperturaTicks); Mix(ChiusuraTicks ?? long.MinValue);
-            MixS(Descrizione); MixS(TestoCercabile); Mix(HaTicketEsta ? 1 : 0);
+            MixS(Descrizione); MixS(TestoCercabile); Mix(HaTicketEsta ? 1 : 0); if (Archiviata) Mix(1); // solo se vero: le firme delle NC attive restano invariate e l'indice non viene riscritto in blocco
             return (long)h;
         }
     }
@@ -149,13 +149,16 @@ public sealed class AnomalieFiltroNc
     /// <summary>Ricerca libera (Contains, senza distinzione di maiuscole) sui campi di <see cref="TestoCorrisponde"/>.</summary>
     public string? Testo { get; init; }
 
+    /// <summary>Per default le NC archiviate non compaiono nelle liste.</summary>
+    public bool IncludiArchiviate { get; init; }
+
     public bool HaTesto => !string.IsNullOrWhiteSpace(Testo);
 
     public AnomalieFiltroNc SenzaTesto() => new()
     {
         Stato = Stato, StatoDettaglio = StatoDettaglio, Destinatario = Destinatario, StatiWorkflow = StatiWorkflow,
         Priorita = Priorita, Gravita = Gravita, Assegnatari = Assegnatari, AperturaDa = AperturaDa, AperturaA = AperturaA,
-        ChiusuraDa = ChiusuraDa, ChiusuraA = ChiusuraA, DurataMinima = DurataMinima, UnitaDurata = UnitaDurata, HaTicketEsta = HaTicketEsta, Testo = null
+        ChiusuraDa = ChiusuraDa, ChiusuraA = ChiusuraA, DurataMinima = DurataMinima, UnitaDurata = UnitaDurata, HaTicketEsta = HaTicketEsta, IncludiArchiviate = IncludiArchiviate, Testo = null
     };
 
     /// <summary>Primo istante (incluso) dell'intervallo di apertura, o null.</summary>
@@ -171,6 +174,7 @@ public sealed class AnomalieFiltroNc
     /// altrimenti il TestCaseId grezzo.</summary>
     public bool Corrisponde(NonConformita nc, string? testIdVisualizzato = null, bool applicaTesto = true)
     {
+        if (!IncludiArchiviate && nc.Archiviata) return false;
         if (HaTicketEsta.HasValue && (nc.CollegamentiPolarion.Count > 0) != HaTicketEsta.Value) return false;
         if (Stato.HasValue && nc.Stato != Stato.Value) return false;
         if (StatoDettaglio.HasValue && nc.StatoDettaglio != StatoDettaglio) return false;

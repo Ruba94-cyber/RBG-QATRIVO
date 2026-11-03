@@ -55,6 +55,51 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty] private OpzioneModalitaCondivisione? modalitaCondivisioneSelezionata;
 
+    public sealed record OpzioneBrowser(string Valore, string Etichetta);
+
+    /// <summary>Browser del profilo TestLoom dedicato per la compilazione automatica di Ticketing (config locale del PC).</summary>
+    public IReadOnlyList<OpzioneBrowser> OpzioniBrowserPolarion { get; } = new[]
+    {
+        new OpzioneBrowser(PolarionBrowserLauncher.Automatico, LocalizationService.Instance.Scegli(
+            "Automatico (Edge, poi Chrome)", "Automatic (Edge, then Chrome)", "Automatique (Edge, puis Chrome)")),
+        new OpzioneBrowser(PolarionBrowserLauncher.Edge, "Microsoft Edge"),
+        new OpzioneBrowser(PolarionBrowserLauncher.Chrome, "Google Chrome"),
+        new OpzioneBrowser(PolarionBrowserLauncher.Percorso, LocalizationService.Instance.Scegli(
+            "Altro browser Chromium (percorso eseguibile)", "Other Chromium browser (executable path)",
+            "Autre navigateur Chromium (chemin de l'exécutable)")),
+    };
+    [ObservableProperty] private OpzioneBrowser? browserPolarionSelezionato;
+    [ObservableProperty] private string browserPolarionPercorso = "";
+    public string BrowserPolarionTitolo => LocalizationService.Instance.Scegli("Browser del profilo TestLoom per Ticketing (questo PC)",
+        "Browser of the TestLoom profile for Ticketing (this PC)", "Navigateur du profil TestLoom pour Ticketing (ce PC)");
+    public string BrowserPolarionNota => LocalizationService.Instance.Scegli(
+        "Usato dalla compilazione automatica di titolo e descrizione: TestLoom apre il browser scelto con un profilo dedicato, dove il login a Ticketing si fa una sola volta.",
+        "Used by the automatic fill of title and description: TestLoom opens the chosen browser with a dedicated profile, where the Ticketing sign-in is done once.",
+        "Utilisé par le remplissage automatique du titre et de la description : TestLoom ouvre le navigateur choisi avec un profil dédié, où la connexion à Ticketing se fait une seule fois.");
+
+    [RelayCommand]
+    private void ApplicaBrowserPolarion()
+    {
+        var valore = PolarionBrowserLauncher.Normalizza(BrowserPolarionSelezionato?.Valore);
+        _state.Config.BrowserPolarion = valore == PolarionBrowserLauncher.Automatico ? null : valore;
+        var percorso = (BrowserPolarionPercorso ?? "").Trim().Trim('"');
+        _state.Config.BrowserPolarionPercorso = valore == PolarionBrowserLauncher.Percorso && percorso.Length > 0 ? percorso : null;
+        _state.ConfigService.Save(_state.Config);
+        var introvabile = valore != PolarionBrowserLauncher.Automatico && PolarionBrowserLauncher.EseguibileScelto(_state.Config) is null;
+        MessaggioErrore = introvabile ? LocalizationService.Instance.Scegli(
+            "Browser non trovato su questo PC: verrà usato Edge, poi Chrome.",
+            "Browser not found on this PC: Edge, then Chrome will be used.",
+            "Navigateur introuvable sur ce PC : Edge, puis Chrome sera utilisé.") : null;
+        if (!introvabile) Messaggio = LocalizationService.Instance.Scegli("Browser per Ticketing salvato.", "Ticketing browser saved.", "Navigateur Ticketing enregistré.");
+    }
+
+    public string TabAspetto => LocalizationService.Instance.Scegli("Aspetto e avvio", "Look and startup", "Apparence et démarrage");
+    public string TabEsta => "TICKET / Ticketing";
+    public string TabCartella => LocalizationService.Instance.Scegli("Accesso e cartella", "Access and folder", "Accès et dossier");
+    public string TabConflitti => LocalizationService.Instance.Scegli("Conflitti", "Conflicts", "Conflits");
+    public string TabManutenzione => LocalizationService.Instance.Scegli("Dati e manutenzione", "Data and maintenance", "Données et maintenance");
+    public string TabDiagnostica => LocalizationService.Instance.Scegli("Info", "Info", "Info");
+
     /// <summary>Vero se questo PC usa la cartella condivisa come cartella di rete (UNC o unità mappata, o override manuale).</summary>
     // Non attende la rete (P4): per un'unità mappata ancora in risoluzione mostra l'ultimo esito noto e rilegge la modalità
     // quando la risoluzione in background termina (vedi AlClassificata).
@@ -840,6 +885,45 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
         set { if (value) ImpostaLingua("fr"); }
     }
 
+    public string EtichettaTema => LocalizationService.Instance.Scegli("Tema", "Theme", "Thème");
+    public string EtichettaTemaChiaro => LocalizationService.Instance.Scegli("Chiaro", "Light", "Clair");
+    public string EtichettaTemaScuro => LocalizationService.Instance.Scegli("Scuro", "Dark", "Sombre");
+    public string EtichettaTemaSistema => LocalizationService.Instance.Scegli("Sistema", "System", "Système");
+    public string EtichettaTemaNota => LocalizationService.Instance.Scegli(
+        "La modifica è immediata e viene salvata solo su questo PC.",
+        "The change is immediate and is saved only on this PC.",
+        "Le changement est immédiat et enregistré uniquement sur ce PC.");
+
+    /// <summary>Selezione locale e immediata, come la lingua: senza modificare i dati condivisi.</summary>
+    public bool ETemaChiaro
+    {
+        get => string.Equals(_state.Config.TemaInterfaccia, "Light", StringComparison.OrdinalIgnoreCase);
+        set { if (value) ImpostaTema("Light"); }
+    }
+
+    public bool ETemaScuro
+    {
+        get => string.Equals(_state.Config.TemaInterfaccia, "Dark", StringComparison.OrdinalIgnoreCase);
+        set { if (value) ImpostaTema("Dark"); }
+    }
+
+    public bool ETemaSistema
+    {
+        get => string.Equals(_state.Config.TemaInterfaccia, "System", StringComparison.OrdinalIgnoreCase);
+        set { if (value) ImpostaTema("System"); }
+    }
+
+    private void ImpostaTema(string nuovo)
+    {
+        if (string.Equals(_state.Config.TemaInterfaccia, nuovo, StringComparison.OrdinalIgnoreCase)) return;
+        _state.Config.TemaInterfaccia = nuovo;
+        ThemeAppearanceService.Apply(nuovo);
+        _state.ConfigService.Save(_state.Config);
+        OnPropertyChanged(nameof(ETemaChiaro));
+        OnPropertyChanged(nameof(ETemaScuro));
+        OnPropertyChanged(nameof(ETemaSistema));
+    }
+
     private void ImpostaLingua(string nuova)
     {
         if (_state.Config.Lingua == nuova) return;
@@ -856,6 +940,11 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(EItaliano));
         OnPropertyChanged(nameof(EInglese));
         OnPropertyChanged(nameof(EFrancese));
+        OnPropertyChanged(nameof(EtichettaTema));
+        OnPropertyChanged(nameof(EtichettaTemaChiaro));
+        OnPropertyChanged(nameof(EtichettaTemaScuro));
+        OnPropertyChanged(nameof(EtichettaTemaSistema));
+        OnPropertyChanged(nameof(EtichettaTemaNota));
         OnPropertyChanged(nameof(EtichettaVerificaLocale));
         _tipiNotificaContatore = null;
         _tipiRiepilogoNotifiche = null;
@@ -985,6 +1074,8 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
         Cartella = state.Config.CartellaCondivisa;
         var valoreSalvato = ModalitaCondivisioneService.NormalizzaValore(state.Config.ModalitaCartellaCondivisa);
         ModalitaCondivisioneSelezionata = OpzioniModalitaCondivisione.FirstOrDefault(o => o.Valore == valoreSalvato);
+        BrowserPolarionSelezionato = OpzioniBrowserPolarion.FirstOrDefault(o => o.Valore == PolarionBrowserLauncher.Normalizza(state.Config.BrowserPolarion));
+        BrowserPolarionPercorso = state.Config.BrowserPolarionPercorso ?? "";
         _backupGiornalieroStatoCambiato = () => Avalonia.Threading.Dispatcher.UIThread.Post(
             () => OnPropertyChanged(nameof(BackupGiornalieroStatoTesto)));
         _state.BackupGiornalieroStatoCambiato += _backupGiornalieroStatoCambiato;

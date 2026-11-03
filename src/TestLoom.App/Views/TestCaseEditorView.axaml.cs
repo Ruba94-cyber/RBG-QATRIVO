@@ -85,11 +85,15 @@ public partial class TestCaseEditorView : UserControl
         DataContextChanged += (_, _) =>
         {
             if (DataContext is TestCaseEditorViewModel vm)
+            {
                 vm.RichiestaMostraCampiMancanti += () =>
                 {
                     if (TopLevel.GetTopLevel(this) is not Window proprietario) return;
                     CampiMancantiDialog.Mostra(proprietario, vm.CampiObbligatoriMancanti, VaiAlCampo);
                 };
+                // "Torna indietro" dal pop-up della Funzionalita mancante: stesso salto/Spotlight del popup campi mancanti.
+                vm.RichiestaVaiAlCampo += VaiAlCampo;
+            }
             InstradaComandoSalvaSicuro();
         };
         AttachedToVisualTree += (_, _) => InstradaComandoSalvaSicuro();

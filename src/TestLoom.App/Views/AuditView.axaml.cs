@@ -388,7 +388,7 @@ public partial class AuditView : UserControl
         // Tasto destro su QUALSIASI cella, non solo quelle in conflitto (feedback utente 2026-08-26,
         // punto 2): un Master deve poter inserire/correggere a mano un valore anche su una cella
         // ancora da testare o già valutata dai Test — vedi AuditViewModel.SalvaValutazioneManuale.
-        if (vm.EMaster)
+        if (vm.EMaster && cella is not { NonApplicabileEcu: true })
         {
             var requisitoId = riga.RequisitoId;
             cellaVisuale.ContextRequested += (_, _) => ApriInserimentoManualeFlyout(cellaVisuale, vm, ecuColonna, requisitoId, cella);
@@ -1461,11 +1461,12 @@ public partial class AuditView : UserControl
     {
         var testo = new TextBlock
         {
-            Text = ecuNome, FontWeight = FontWeight.SemiBold, FontSize = 11,
+            Text = PolarionTicketTitle.SiglaEcu(ecuNome) is { Length: > 0 } sigla ? sigla : ecuNome, FontWeight = FontWeight.SemiBold, FontSize = 11,
             TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
         };
 
+        ToolTip.SetTip(testo, ecuNome); // sigla in colonna, nome completo nel tooltip (due componente con la stessa sigla restano distinguibili)
         Control contenuto = testo;
         if (vm.EMaster)
         {

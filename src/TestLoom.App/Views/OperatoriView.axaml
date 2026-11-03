@@ -186,7 +186,7 @@
         <TextBlock Grid.Row="4" Margin="0,10,0,0" Classes="Muted" FontSize="12" IsVisible="{Binding !EMaster}"
                    Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PinRiservatoMaster}"
                    AutomationProperties.AutomationId="Oper_PinRiservatoMaster_Text" />
-        <Border Grid.Row="4" Margin="0,10,0,0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,8"
+        <Border Grid.Row="4" Margin="0,10,0,0" Background="{DynamicResource SurfaceMutedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="12,8"
                 IsVisible="{Binding EMaster}" AutomationProperties.AutomationId="Oper_PinBlockMaster_Border">
             <StackPanel Spacing="6">
                 <TextBlock Classes="Muted" FontSize="12" IsVisible="{Binding ElementoSelezionato, Converter={x:Static conv:ObjectConverters.IsNull}}"
@@ -198,15 +198,15 @@
                     </TextBlock>
                     <WrapPanel ItemSpacing="18" LineSpacing="6">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoPinGeneratoLabel}" FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoPinGeneratoLabel}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
                             <TextBox x:Name="PinAttualeBox" Classes="Field" Width="80" Padding="4" FontSize="13" FontFamily="Consolas,monospace" IsReadOnly="True"
                                      Text="{Binding PinChiaro, Mode=OneWay, FallbackValue='—', TargetNullValue='—'}" PasswordChar="•"
                                      RevealPassword="{Binding #MostraPinCheck.IsChecked}" AutomationProperties.AutomationId="Oper_PinAttuale_TextBox" />
                             <CheckBox x:Name="MostraPinCheck" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=OperPinMostra}" FontSize="12" VerticalAlignment="Center" AutomationProperties.AutomationId="Oper_MostraPin_Check" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CodiceLabel}" FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8" VerticalAlignment="Center" />
-                            <SelectableTextBlock Text="{Binding RecoveryCodeChiaro, FallbackValue='—', TargetNullValue='—'}" FontFamily="Consolas,monospace" FontSize="13" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CodiceLabel}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                            <SelectableTextBlock Text="{Binding RecoveryCodeChiaro, FallbackValue='—', TargetNullValue='—'}" FontFamily="Consolas,monospace" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" VerticalAlignment="Center" />
                         </StackPanel>
                     </WrapPanel>
                     <WrapPanel ItemSpacing="6" LineSpacing="4" IsEnabled="{Binding #Root.((vm:OperatoriViewModel)DataContext).InModifica}">

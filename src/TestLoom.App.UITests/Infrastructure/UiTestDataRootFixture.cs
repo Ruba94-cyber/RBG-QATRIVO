@@ -4,7 +4,7 @@ using TestLoom.App.Services;
 namespace TestLoom.App.UITests.Infrastructure;
 
 /// <summary>
-/// Radice dati isolata per la suite FlaUI. Ogni TestLoom.exe lanciato dalla suite (<see cref="TestLoomApplication.Launch"/> e il
+/// Radice dati isolata per la suite FlaUI. Ogni RBG - QATRIVO.exe lanciato dalla suite (<see cref="TestLoomApplication.Launch"/> e il
 /// secondo processo di StartupTests) eredita la variabile <c>TestLoom_DATA_ROOT</c> impostata qui, quindi scrive crash.log,
 /// trace.log e %LOCALAPPDATA%\TestLoom sotto una cartella temporanea di questa esecuzione invece che nei file reali
 /// dell'utente. La cartella viene cancellata a fine processo (best effort). Stesso schema di TestLocalAppDataFixture
@@ -34,7 +34,7 @@ internal static class UiTestDataRootFixture
         }
         catch
         {
-            // Best effort: un TestLoom.exe ancora aperto può tenere bloccati dei file; la cartella temporanea non inquina i dati reali.
+            // Best effort: un RBG - QATRIVO.exe ancora aperto può tenere bloccati dei file; la cartella temporanea non inquina i dati reali.
         }
     }
 }

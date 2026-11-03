@@ -439,7 +439,8 @@ public sealed class LocalNonConformitaIndexStore
                     apertura_ticks INTEGER NOT NULL,
                     chiusura_ticks INTEGER,
                     descrizione TEXT NOT NULL,
-                    ha_ticket_esta INTEGER NOT NULL DEFAULT 0
+                    ha_ticket_esta INTEGER NOT NULL DEFAULT 0,
+                    archiviata INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE TABLE IF NOT EXISTS nc_search(
                     fid INTEGER PRIMARY KEY,
@@ -461,6 +462,21 @@ public sealed class LocalNonConformitaIndexStore
             using var migra = connection.CreateCommand();
             migra.Transaction = transaction;
             migra.CommandText = "ALTER TABLE nc_filter ADD COLUMN ha_ticket_esta INTEGER NOT NULL DEFAULT 0;";
+            migra.ExecuteNonQuery();
+        }
+        bool haArchiviata;
+        using (var info = connection.CreateCommand())
+        {
+            info.Transaction = transaction;
+            info.CommandText = "SELECT COUNT(*) FROM pragma_table_info('nc_filter') WHERE name='archiviata';";
+            haArchiviata = Convert.ToInt64(info.ExecuteScalar()) > 0;
+        }
+        if (!haArchiviata)
+        {
+            // Le righe esistenti restano a 0 (attive): la firma include Archiviata, quindi il primo aggiornamento le riallinea.
+            using var migra = connection.CreateCommand();
+            migra.Transaction = transaction;
+            migra.CommandText = "ALTER TABLE nc_filter ADD COLUMN archiviata INTEGER NOT NULL DEFAULT 0;";
             migra.ExecuteNonQuery();
         }
         using (var indiceTicket = connection.CreateCommand())
@@ -533,14 +549,14 @@ public sealed class LocalNonConformitaIndexStore
             _riga.Transaction = transaction;
             _riga.CommandText = """
                 INSERT INTO nc_filter(path, uid, id, sig, stato_workflow, stato, stato_dettaglio, destinatario, priorita, severita,
-                    owner, apertura_ticks, chiusura_ticks, descrizione, ha_ticket_esta)
-                VALUES($path, $uid, $id, $sig, $sw, $st, $sd, $de, $pr, $se, $ow, $ap, $ch, $ds, $te)
+                    owner, apertura_ticks, chiusura_ticks, descrizione, ha_ticket_esta, archiviata)
+                VALUES($path, $uid, $id, $sig, $sw, $st, $sd, $de, $pr, $se, $ow, $ap, $ch, $ds, $te, $ar)
                 ON CONFLICT(path) DO UPDATE SET
                     uid = excluded.uid, id = excluded.id, sig = excluded.sig,
                     stato_workflow = excluded.stato_workflow, stato = excluded.stato, stato_dettaglio = excluded.stato_dettaglio,
                     destinatario = excluded.destinatario, priorita = excluded.priorita, severita = excluded.severita,
                     owner = excluded.owner, apertura_ticks = excluded.apertura_ticks, chiusura_ticks = excluded.chiusura_ticks,
-                    descrizione = excluded.descrizione, ha_ticket_esta = excluded.ha_ticket_esta
+                    descrizione = excluded.descrizione, ha_ticket_esta = excluded.ha_ticket_esta, archiviata = excluded.archiviata
                 WHERE nc_filter.sig <> excluded.sig;
                 """;
             foreach (var (nome, tipo) in new[]
@@ -548,7 +564,7 @@ public sealed class LocalNonConformitaIndexStore
                 ("$path", SqliteType.Text), ("$uid", SqliteType.Text), ("$id", SqliteType.Text), ("$sig", SqliteType.Integer),
                 ("$sw", SqliteType.Integer), ("$st", SqliteType.Integer), ("$sd", SqliteType.Integer), ("$de", SqliteType.Integer),
                 ("$pr", SqliteType.Integer), ("$se", SqliteType.Integer), ("$ow", SqliteType.Text), ("$ap", SqliteType.Integer),
-                ("$ch", SqliteType.Integer), ("$ds", SqliteType.Text), ("$te", SqliteType.Integer)
+                ("$ch", SqliteType.Integer), ("$ds", SqliteType.Text), ("$te", SqliteType.Integer), ("$ar", SqliteType.Integer)
             })
                 _riga.Parameters.Add(nome, tipo);
 
@@ -588,6 +604,7 @@ public sealed class LocalNonConformitaIndexStore
             p["$ch"].Value = (object?)r.ChiusuraTicks ?? DBNull.Value;
             p["$ds"].Value = r.Descrizione;
             p["$te"].Value = r.HaTicketEsta ? 1 : 0;
+            p["$ar"].Value = r.Archiviata ? 1 : 0;
             _riga.ExecuteNonQuery();
 
             _testo.Parameters["$path"].Value = path;
@@ -758,6 +775,7 @@ public sealed class LocalNonConformitaIndexStore
             if (f.ChiusuraDaTicks is { } cd) parts.Add($"chiusura_ticks >= {cd}");
             if (f.ChiusuraAEsclusoTicks is { } ca) parts.Add($"chiusura_ticks < {ca}");
         }
+        if (!f.IncludiArchiviate) parts.Add("archiviata = 0");
         if (f.HaTicketEsta.HasValue) parts.Add($"ha_ticket_esta = {(f.HaTicketEsta.Value ? 1 : 0)}");
         if (f.HaTesto)
             parts.Add($"fid IN (SELECT fid FROM nc_search WHERE instr(search_text, {Param(AnomalieFiltroNc.TestoRicerca(f.Testo!))}) > 0)");

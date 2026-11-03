@@ -8,7 +8,7 @@ using FlaUI.Core.AutomationElements;
 namespace TestLoom.App.UITests.Tests;
 
 /// <summary>
-/// Feature "Tempo" della 6.7.0 (durata delle operazioni, Report e Home) nella vera UI di TestLoom.exe.
+/// Feature "Tempo" della 6.7.0 (durata delle operazioni, Report e Home) nella vera UI di RBG - QATRIVO.exe.
 /// Tre classi, una per workspace seminato, così ogni Fact parte da un'app isolata:
 /// - <see cref="Tempo670UiTestsEditor"/>: durata di un'operazione nell'editor del Test (inserimento, +5, persistenza, rifiuto).
 /// - <see cref="Tempo670UiTestsReport"/>: modalità della matrice (Stato %, Stato, Test %, Tempo totale/medio) e filtri Tempo del Report.

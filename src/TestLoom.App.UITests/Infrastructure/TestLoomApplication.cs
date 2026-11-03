@@ -57,7 +57,7 @@ public sealed class TestLoomApplication : IDisposable
         return new TestLoomApplication(app, new UIA3Automation());
     }
 
-    /// <summary>Attende la finestra principale (Title="TestLoom") e la ritorna. Sotto MostraPrimoAvvio=true questa
+    /// <summary>Attende la finestra principale (Title="RBG - QATRIVO") e la ritorna. Sotto MostraPrimoAvvio=true questa
     /// stessa finestra ospita FirstRunView — chi chiama sa già, in base a come ha creato il workspace, se si
     /// aspetta la Home o la schermata di login: questo metodo si limita a garantire che la finestra esista ed
     /// esponga un elemento via UI Automation, non decide quale schermata contiene.

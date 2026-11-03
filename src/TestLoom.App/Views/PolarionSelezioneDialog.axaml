@@ -17,7 +17,7 @@
                     <StackPanel x:Name="SezioniPanel" Spacing="8" />
                 </ScrollViewer>
             </DockPanel>
-            <Border Grid.Column="1" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6">
+            <Border Grid.Column="1" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="6">
                 <TextBox x:Name="AnteprimaBox" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
                          FontFamily="Consolas,monospace" FontSize="12" BorderThickness="0"
                          AutomationProperties.AutomationId="PolarionSelezione_Anteprima_TextBox"

@@ -5,7 +5,7 @@ using TestLoom.App.UITests.PageObjects;
 namespace TestLoom.App.UITests.Tests;
 
 /// <summary>
-/// Matrice parametrica di regressione: ogni scenario avvia il vero TestLoom.exe su un
+/// Matrice parametrica di regressione: ogni scenario avvia il vero RBG - QATRIVO.exe su un
 /// workspace temporaneo separato, verifica che il contenuto previsto sia REALMENTE
 /// presente e che MainViewModel non mostri eccezioni di navigazione.
 /// Nessun comando modifica dati operativi, ad eccezione dei filtri locali UI.

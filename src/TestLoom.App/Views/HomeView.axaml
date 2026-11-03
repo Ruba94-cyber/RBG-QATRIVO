@@ -12,7 +12,7 @@
 
     <UserControl.Resources>
         <DataTemplate x:Key="RigaTestCase" x:DataType="models:TestCase">
-            <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="10,10">
+            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1" Padding="10,10">
                 <Grid ColumnDefinitions="230,120,170,*,150,70" ColumnSpacing="14" Margin="0,0,16,0">
                     <TextBlock Grid.Column="0" Text="{Binding Id}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Id}" />
                     <TextBlock Grid.Column="1" Text="{Binding Componente}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Componente}" />
@@ -33,7 +33,7 @@
         <!-- Versione compatta (Addendum §18): le tabelle Da fare/Fatti stanno affiancate a metà larghezza,
              la riga larga fissa (RigaTestCase) non ci sta — impilata su 2 righe invece che 6 colonne fisse. -->
         <DataTemplate x:Key="RigaTestCaseCompatta" x:DataType="models:TestCase">
-            <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="10,8">
+            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1" Padding="10,8">
                 <StackPanel Spacing="3">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Text="{Binding Id}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Id}" />
@@ -114,7 +114,7 @@
                                 AutomationProperties.AutomationId="Home_Layout_PubblicaTeam_Button" />
                     </StackPanel>
                     <TextBlock Text="{Binding MessaggioLayoutTeam}" IsVisible="{Binding HaMessaggioLayoutTeam}" Classes="Muted" TextWrapping="Wrap" AutomationProperties.AutomationId="Home_LayoutTeam_Messaggio_Text" />
-                    <TextBlock Text="{Binding MessaggioErroreLayoutTeam}" IsVisible="{Binding HaErroreLayoutTeam}" Foreground="#DC2626" TextWrapping="Wrap" AutomationProperties.AutomationId="Home_LayoutTeam_Errore_Text" />
+                    <TextBlock Text="{Binding MessaggioErroreLayoutTeam}" IsVisible="{Binding HaErroreLayoutTeam}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" AutomationProperties.AutomationId="Home_LayoutTeam_Errore_Text" />
                 </StackPanel>
             </Border>
 
@@ -147,14 +147,14 @@
                 <Border Margin="0,0,12,12" Classes="Card"><StackPanel><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MieiTestAttiviLabel}" Classes="Muted" TextWrapping="Wrap"/><TextBlock Text="{Binding MieiAttivi}" AutomationProperties.AutomationId="Home_Kpi_MieiAttivi_Value" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold"/></StackPanel></Border>
                 <Border Margin="0,0,12,12" Classes="Card"><StackPanel><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SegnalazioniDaClassificareLabel}" Classes="Muted" TextWrapping="Wrap"/><TextBlock Text="{Binding DaClassificare}" AutomationProperties.AutomationId="Home_Kpi_DaClassificare_Value" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold"/></StackPanel></Border>
                 <Border Margin="0,0,12,12" Classes="Card"><StackPanel><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestDaRitestareLabel}" Classes="Muted" TextWrapping="Wrap"/><TextBlock Text="{Binding DaRitestare}" AutomationProperties.AutomationId="Home_Kpi_DaRitestare_Value" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold"/></StackPanel></Border>
-                <Border Margin="0,0,12,12" Classes="Card"><StackPanel><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcAperteLabel}" Classes="Muted" TextWrapping="Wrap"/><TextBlock Text="{Binding TotaleNcAperte}" AutomationProperties.AutomationId="Home_Kpi_TotaleNcAperte_Value" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold" Foreground="#DC2626"/></StackPanel></Border>
+                <Border Margin="0,0,12,12" Classes="Card"><StackPanel><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcAperteLabel}" Classes="Muted" TextWrapping="Wrap"/><TextBlock Text="{Binding TotaleNcAperte}" AutomationProperties.AutomationId="Home_Kpi_TotaleNcAperte_Value" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold" Foreground="{DynamicResource DangerBrush}"/></StackPanel></Border>
                 <!-- Change request aperte (non archiviate e non chiuse): cliccabile verso Anomalie / CR. -->
                 <Border Margin="0,0,12,12" Classes="Card">
                     <Button Classes="Link" Padding="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Command="{Binding VaiAAnomalieCommand}" AutomationProperties.AutomationId="Home_KpiChangeRequest_Button">
                         <StackPanel>
                             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrApertaLabel}" Classes="Muted" TextWrapping="Wrap"/>
-                            <TextBlock Text="{Binding ChangeRequestAperte}" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold" Foreground="#1E293B"/>
+                            <TextBlock Text="{Binding ChangeRequestAperte}" FontSize="{DynamicResource KpiNumero}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}"/>
                         </StackPanel>
                     </Button>
                 </Border>
@@ -167,7 +167,7 @@
                             <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceModalitaTestPercentuale}"
                                           ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceTooltipModalitaTestPercentuale}" />
                         </ComboBox>
-                        <TextBlock Text="{Binding TestoTassoConformita}" FontSize="12" FontWeight="SemiBold" Foreground="#166534" TextWrapping="Wrap" AutomationProperties.AutomationId="Home_TassoConformitaDistribuzione_Text"
+                        <TextBlock Text="{Binding TestoTassoConformita}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" TextWrapping="Wrap" AutomationProperties.AutomationId="Home_TassoConformitaDistribuzione_Text"
                                    ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeTooltipConformita}" />
                     </StackPanel>
                 </Border>
@@ -312,7 +312,7 @@
                                        HorizontalAlignment="Stretch" Background="{DynamicResource BorderSubtleBrush}"
                                        ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeGraficiSplitterTip}"
                                        AutomationProperties.AutomationId="Home_Grafici_PannelloSplitter" />
-                        <Border Grid.Column="2" Background="#F8FAFC" CornerRadius="8" Padding="12" VerticalAlignment="Top">
+                        <Border Grid.Column="2" Background="{DynamicResource SurfaceMutedBrush}" CornerRadius="8" Padding="12" VerticalAlignment="Top">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GraficiLabel}" FontWeight="SemiBold" FontSize="13" />
                                 <ItemsControl ItemsSource="{Binding ChartOptions}">
@@ -349,7 +349,7 @@
                                                 Command="{Binding #Root.((vm:HomeViewModel)DataContext).FiltraDashboardPerOperatoreCommand}"
                                                 CommandParameter="{Binding Etichetta}">
                                             <Grid ColumnDefinitions="*,Auto">
-                                                <TextBlock Grid.Column="0" Text="{Binding Etichetta}" TextTrimming="CharacterEllipsis" Foreground="#1E293B" ToolTip.Tip="{Binding Etichetta}" />
+                                                <TextBlock Grid.Column="0" Text="{Binding Etichetta}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource PrimaryTextBrush}" ToolTip.Tip="{Binding Etichetta}" />
                                                 <TextBlock Grid.Column="1" Classes="Muted">
                                                     <Run Text="{Binding Valore}" /><Run Text=" " /><Run Text="{Binding Sottotitolo}" />
                                                 </TextBlock>
@@ -374,7 +374,7 @@
                                                 Command="{Binding #Root.((vm:HomeViewModel)DataContext).FiltraDashboardPerGammaCommand}"
                                                 CommandParameter="{Binding Etichetta}">
                                             <Grid ColumnDefinitions="*,Auto">
-                                                <TextBlock Grid.Column="0" Text="{Binding Etichetta}" TextTrimming="CharacterEllipsis" Foreground="#1E293B" ToolTip.Tip="{Binding Etichetta}" />
+                                                <TextBlock Grid.Column="0" Text="{Binding Etichetta}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource PrimaryTextBrush}" ToolTip.Tip="{Binding Etichetta}" />
                                                 <TextBlock Grid.Column="1" Classes="Muted">
                                                     <Run Text="{Binding Valore}" /><Run Text=" " /><Run Text="{Binding Sottotitolo}" />
                                                 </TextBlock>
@@ -455,7 +455,7 @@
                     <ItemsControl ItemsSource="{Binding Recenti}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:VoceRecenteHome">
-                                <Border BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="0,8">
+                                <Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1" Padding="0,8">
                                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                                         <Border Grid.Column="0" Classes="Badge" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding EtichettaTipo}" FontSize="11" />

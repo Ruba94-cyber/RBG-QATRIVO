@@ -17,7 +17,7 @@ public sealed class QuickFlowTests : IDisposable
         _state = TestStateFactory.Create();
         Directory.CreateDirectory(_dir);
         _state.InizializzaCartella(_dir);
-        var vm = new TestCaseEditorViewModel(_state, null, () => { }, _ => { });
+        var vm = new TestCaseEditorViewModel(_state, null, () => { }, _ => { }) { ModoEditorRapido = true };
         _opened.Add(_state);
         _opened.Add(vm);
         vm.SceglieTemplateCommand.Execute(vm.TemplatesDisponibili[0]);

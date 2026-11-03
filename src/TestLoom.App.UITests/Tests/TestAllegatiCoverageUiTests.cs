@@ -8,7 +8,7 @@ namespace TestLoom.App.UITests.Tests;
 
 /// <summary>
 /// Rimozione di un allegato gia' salvato, senza il picker nativo: il Test e il suo file vengono seminati prima dell'avvio
-/// di TestLoom.exe nel layout reale (allegati/test/&lt;uid&gt;/&lt;nome&gt;, vedi DataPaths.AllegatiDir). Il test verifica la scheda,
+/// di RBG - QATRIVO.exe nel layout reale (allegati/test/&lt;uid&gt;/&lt;nome&gt;, vedi DataPaths.AllegatiDir). Il test verifica la scheda,
 /// il Test salvato su disco e lo spostamento del file nella cartella di recupero (il percorso originale non esiste piu').
 /// </summary>
 [Collection("TestLoom UI")]

@@ -13,7 +13,7 @@ public static class PolarionExcelReportService
         var overview = workbook.Worksheets.Add("Riepilogo TICKET");
         var details = workbook.Worksheets.Add("Ticket TICKET");
         var timeline = workbook.Worksheets.Add("Timeline TICKET");
-        overview.Cell("A1").Value = "TestLoom · Ticketing TICKET lifecycle";
+        overview.Cell("A1").Value = "RBG - QATRIVO · Ticketing TICKET lifecycle";
         overview.Cell("A1").Style.Font.Bold = true;
         overview.Cell("A1").Style.Font.FontSize = 17;
         overview.Cell("A2").Value = "Generato (ora locale)";

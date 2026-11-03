@@ -9,7 +9,7 @@ namespace TestLoom.App.UITests.Tests;
 /// "!" — un Master apre il dialogo dalla cella, sceglie un sottoinsieme di veicoli propagabili, conferma con
 /// nota, e la cella scelta diventa "Propagato" con tooltip che riporta la nota; un Viewer non può propagare
 /// (nessun controllo cliccabile sulla cella "!"). Workspace seminato direttamente via AppState (stessa tecnica
-/// di TestWorkspace/TestLoom.App.Tests: JSON noti su disco PRIMA di avviare TestLoom.exe, mai pilotando la UI per
+/// di TestWorkspace/TestLoom.App.Tests: JSON noti su disco PRIMA di avviare RBG - QATRIVO.exe, mai pilotando la UI per
 /// la semina) invece di estendere TestWorkspace, per restare nell'ownership di questa consegna (non toccare
 /// l'infrastruttura condivisa più del necessario).</summary>
 [Collection("TestLoom UI")]

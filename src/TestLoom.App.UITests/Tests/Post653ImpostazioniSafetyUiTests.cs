@@ -7,7 +7,7 @@ using TestLoom.App.UITests.PageObjects;
 namespace TestLoom.App.UITests.Tests;
 
 /// <summary>
-/// Suite E2E del codice post-6.5.3 con vero TestLoom.exe/Avalonia/UIA3,
+/// Suite E2E del codice post-6.5.3 con vero RBG - QATRIVO.exe/Avalonia/UIA3,
 /// workspace temporaneo per test, nessun accesso a OneDrive reale.
 /// Verifica che i controlli di sicurezza agiscano anche sul filesystem.
 /// </summary>

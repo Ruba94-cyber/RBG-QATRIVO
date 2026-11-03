@@ -636,6 +636,16 @@ public partial class SegnalazioneReteEditorViewModel : ViewModelBase
     [RelayCommand]
     private void AggiungiNumeroPratica()
     {
+        // Un codice TICKET non e' un numero pratica/Asist della rete: va nei ticket TICKET collegati.
+        if (System.Text.RegularExpressions.Regex.IsMatch((NuovoNumeroPratica ?? "").Trim(), @"^TICKET-\d+$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        {
+            MessaggioErrore = LocalizationService.Instance.Scegli(
+                "Questo è un codice TICKET, non un numero pratica/Asist: inseriscilo nei ticket TICKET collegati.",
+                "This is an TICKET code, not a service case/Asist number: add it to the linked TICKET tickets.",
+                "Ceci est un code TICKET, pas un numéro de dossier/Asist : ajoutez-le aux tickets TICKET associés.");
+            return;
+        }
         Aggiungi(NumeriPratica, NuovoNumeroPratica);
         NuovoNumeroPratica = "";
     }

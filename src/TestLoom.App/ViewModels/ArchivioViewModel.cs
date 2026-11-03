@@ -18,6 +18,10 @@ public sealed class VoceArchivio
     public required string Etichetta { get; init; }
     public DateTime UltimaModifica { get; init; }
     public string ModificatoDa { get; init; } = "";
+    /// <summary>Stato leggibile della voce (solo per i tipi che ne hanno uno, es. le NC); vuoto altrimenti.</summary>
+    public string Stato { get; init; } = "";
+    /// <summary>False se per questo tipo l'Archivio offre solo l'eliminazione definitiva (le NC: nessun ripristino da UI).</summary>
+    public bool RipristinoDisponibile { get; init; } = true;
     public required Func<Task<string?>> Ripristina { get; init; }
     public required Func<Task<string?>> EliminaDefinitivamente { get; init; }
     /// <summary>Le eliminazioni master aggiornano ObservableCollection e proprietà degli editor; vanno eseguite sul dispatcher UI.</summary>
@@ -25,6 +29,11 @@ public sealed class VoceArchivio
     /// <summary>Testo di avviso (non bloccante) da confermare esplicitamente prima di EliminaDefinitivamente,
     /// o null se non serve (es. un Test citato da Non Conformita/Segnalazioni: le NC non vengono mai cancellate).</summary>
     public Func<string?>? AvvisoEliminazione { get; init; }
+    /// <summary>Chiavi di localizzazione di titolo/pulsante della conferma e del motivo di salto nello svuotamento
+    /// massivo; null = quelle dei Test citati da NC.</summary>
+    public string? ChiaveTitoloConferma { get; init; }
+    public string? ChiaveBottoneConferma { get; init; }
+    public string? ChiaveMotivoSaltoSvuotamento { get; init; }
 }
 
 /// <summary>Archivio unificato. La consultazione è globalmente paginata: totali e offset sono a 64 bit,
@@ -310,6 +319,10 @@ public partial class ArchivioViewModel : ViewModelBase, IDisposable
         var crCount = _state.ChangeRequests.QueryArchivedSlice(0, 1).TotalCount;
         result.Add(new ArchiveSource(crCount, (offset, take) =>
             _state.ChangeRequests.QueryArchivedSlice(offset, take).Items.Select(CreaVoceCr).ToList()));
+
+        var ncCount = _state.NonConformita.ContaArchiviate();
+        result.Add(new ArchiveSource(ncCount, (offset, take) =>
+            _state.NonConformita.QueryArchivedSlice(offset, take).Items.Select(CreaVoceNc).ToList()));
         return result;
     }
 
@@ -394,6 +407,49 @@ public partial class ArchivioViewModel : ViewModelBase, IDisposable
         Ripristina = () => Task.FromResult(RipristinaCr(cr)),
         EliminaDefinitivamente = () => Task.FromResult(EliminaCrDefinitivamente(cr)),
     };
+
+    private VoceArchivio CreaVoceNc(NonConformita nc)
+    {
+        var titolo = !string.IsNullOrWhiteSpace(nc.DescrizioneBreveSegnalata) ? nc.DescrizioneBreveSegnalata
+            : (nc.Descrizione ?? "").Split('\n', 2)[0].Trim();
+        if (titolo.Length > 120) titolo = titolo[..120] + "…";
+        if (titolo.Length == 0) titolo = nc.TestCaseId;
+        return new VoceArchivio
+        {
+            IdTecnico = nc.Uid != Guid.Empty ? $"nc:{nc.Uid:N}" : $"nc-id:{nc.Id}",
+            TipoEntita = LocalizationService.Instance.Traduci("ArchivioTipoNc"),
+            Etichetta = titolo.Length == 0 ? nc.Id : $"{nc.Id} - {titolo}",
+            Stato = nc.StatoWorkflow.Label(),
+            UltimaModifica = nc.DataArchiviazione ?? nc.DataChiusura ?? nc.DataApertura,
+            ModificatoDa = nc.Changelog.LastOrDefault()?.Operatore ?? "",
+            RipristinoDisponibile = false,
+            Ripristina = () => Task.FromResult<string?>(LocalizationService.Instance.Traduci("ArchivioNcRipristinoNonDisponibile")),
+            EliminaDefinitivamente = () => Task.FromResult(EliminaNcDefinitivamente(nc)),
+            // Irreversibile (solo il cestino di recupero tecnico): conferma esplicita sempre, e mai nello svuotamento massivo.
+            AvvisoEliminazione = () => string.Format(LocalizationService.Instance.Traduci("ArchivioEliminaNcAvvisoFmt"), nc.Id),
+            ChiaveTitoloConferma = "ArchivioEliminaNcTitolo",
+            ChiaveBottoneConferma = "ArchivioEliminaNcConferma",
+            ChiaveMotivoSaltoSvuotamento = "ArchivioEliminaNcSvuotaSaltato",
+        };
+    }
+
+    private string? EliminaNcDefinitivamente(NonConformita nc)
+    {
+        try
+        {
+            // Il ruolo/lo stato condiviso vengono rivalutati qui, dopo la conferma: la UI puo' essere rimasta aperta.
+            if (!PuoModificare) return LocalizationService.Instance.Traduci("ArchivioAzioneNonAutorizzata");
+            // Stesso percorso di "Elimina" delle Anomalie: transazione, scollegamento delle segnalazioni,
+            // journal + cestino di recupero e rimozione dall'indice nel repository; rollback e riallineamento su errore.
+            AnomaliaAzioniService.Elimina(_state, nc);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            CrashLogService.Registra($"Archivio: eliminazione definitiva NC {nc.Id}", ex);
+            return string.Format(LocalizationService.Instance.Traduci("SalvataggioNonRiuscitoModificheQuiFmt"), ex.Message);
+        }
+    }
 
     private void NotificaPaginazione()
     {
@@ -509,8 +565,8 @@ public partial class ArchivioViewModel : ViewModelBase, IDisposable
             var avviso = voce.AvvisoEliminazione?.Invoke();
             if (avviso != null &&
                 !await ConfirmService.Chiedi(
-                    LocalizationService.Instance.Traduci("EliminaTestConNcTitolo"), avviso,
-                    LocalizationService.Instance.Traduci("EliminaTestConNcConferma"), LocalizationService.Instance.Traduci("Annulla")))
+                    LocalizationService.Instance.Traduci(voce.ChiaveTitoloConferma ?? "EliminaTestConNcTitolo"), avviso,
+                    LocalizationService.Instance.Traduci(voce.ChiaveBottoneConferma ?? "EliminaTestConNcConferma"), LocalizationService.Instance.Traduci("Annulla")))
                 return;
             if (!PuoModificare) return;
             var esito = await voce.EliminaDefinitivamente();
@@ -614,7 +670,7 @@ public partial class ArchivioViewModel : ViewModelBase, IDisposable
                             // Un Test citato da NC/Segnalazioni richiede conferma esplicita per singolo Test: lo
                             // svuotamento massivo lo salta (nessuna NC resta orfana senza una scelta consapevole).
                             errore = voce.AvvisoEliminazione?.Invoke() != null
-                                ? LocalizationService.Instance.Traduci("EliminaTestConNcSvuotaSaltato")
+                                ? LocalizationService.Instance.Traduci(voce.ChiaveMotivoSaltoSvuotamento ?? "EliminaTestConNcSvuotaSaltato")
                                 : await EliminaVoceInBackgroundAsync(voce);
                         }
                         catch (Exception ex)

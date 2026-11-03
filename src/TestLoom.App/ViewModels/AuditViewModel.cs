@@ -51,8 +51,12 @@ public class CellaMatriceAuditVisual
     /// nessun lavoro pesante qui, coerente con le altre proprietà computate di questa cella.</summary>
     public bool ConflittoCollisioneCella { get; init; }
 
+    /// <summary>Requisito Extra relativo ad altre componente: la cella e' N.A., passiva e fuori dai KPI (vedi CellaMatriceAudit.NonApplicabileEcu).</summary>
+    public bool NonApplicabileEcu { get; init; }
+
     public string Testo => Stato switch
     {
+        _ when NonApplicabileEcu => "N.A.",
         StatoCellaAudit.DaTestare => "—",
         StatoCellaAudit.TestCreatoNonEseguito => "◷",
         StatoCellaAudit.Conflitto => "⚠",
@@ -81,6 +85,7 @@ public class CellaMatriceAuditVisual
 
     public string ToolTip => Stato switch
     {
+        _ when NonApplicabileEcu => LocalizationService.Instance.Scegli("Requisito non relativo a questa componente", "Requirement not related to this component", "Exigence non liée à cette componente"),
         StatoCellaAudit.DaTestare => LocalizationService.Instance.Traduci("AuditDaTestareTip"),
         StatoCellaAudit.TestCreatoNonEseguito => LocalizationService.Instance.Traduci("AuditTestCreatoNonEseguitoTip"),
         StatoCellaAudit.PropagabileNonConfermato => TooltipOrigineVeicolo ?? LocalizationService.Instance.Traduci("AuditPropagabileTip"),
@@ -100,6 +105,7 @@ public class CellaMatriceAuditVisual
 
     public string Colore => Stato switch
     {
+        _ when NonApplicabileEcu => "#E2E8F0",
         StatoCellaAudit.DaTestare => "#F1F5F9",
         StatoCellaAudit.TestCreatoNonEseguito => "#FEF3C7",
         StatoCellaAudit.Conflitto => "#FCA5A5",
@@ -340,6 +346,8 @@ public partial class AuditViewModel : ViewModelBase, IPaginaAggiornabile
             var celle = AuditMatriceService.Matrice(SottoveicoloSelezionato, tutteLeEcu, reqStandard, testCases, risoluzioni, indice, valutazioni);
             var celleD4d = reqD4d.Count == 0 ? new List<CellaMatriceAudit>()
                 : AuditMatriceService.Matrice(SottoveicoloSelezionato, tutteLeEcu, reqD4d, testCases, risoluzioni, indice, valutazioni);
+            // Un componente non coinvolta da alcun requisito (tutte le sue celle N.A.) esce dalla matrice.
+            EcuColonne = AuditMatriceService.EcuConAlmenoUnaCellaApplicabile(EcuColonne, celle.Concat(celleD4d));
             var testoPerRequisito = requisiti.ToDictionary(r => r.Id, r => r.Testo, StringComparer.OrdinalIgnoreCase);
             var ecusDelVeicolo = new HashSet<string>(EcuColonne, StringComparer.OrdinalIgnoreCase);
             var requisitiAttivi = new HashSet<string>(requisiti.Where(r => !r.Archiviata).Select(r => r.Id), StringComparer.OrdinalIgnoreCase);
@@ -380,6 +388,7 @@ public partial class AuditViewModel : ViewModelBase, IPaginaAggiornabile
                         Origine = cella.Origine, TooltipOrigineVeicolo = cella.Tooltip, Nota = cella.Nota, BaselineSw = cella.BaselineSw,
                         DettaglioConflitto = cella.DettaglioConflitto,
                         CandidatiPropagazione = cella.CandidatiPropagazione, ConflittoCollisioneCella = cella.ConflittoCollisioneCella,
+                        NonApplicabileEcu = cella.NonApplicabileEcu,
                     };
                 Righe.Add(riga);
             }
@@ -399,6 +408,7 @@ public partial class AuditViewModel : ViewModelBase, IPaginaAggiornabile
                         Origine = cella.Origine, TooltipOrigineVeicolo = cella.Tooltip, Nota = cella.Nota, BaselineSw = cella.BaselineSw,
                         DettaglioConflitto = cella.DettaglioConflitto,
                         CandidatiPropagazione = cella.CandidatiPropagazione, ConflittoCollisioneCella = cella.ConflittoCollisioneCella,
+                        NonApplicabileEcu = cella.NonApplicabileEcu,
                     };
                 RigheD4d.Add(riga);
             }

@@ -130,7 +130,7 @@ public static class AuditReportService
     private static void ScriviLegenda(XLWorkbook wb)
     {
         var ws = wb.Worksheets.Add("Legenda");
-        ws.Cell(1, 1).Value = "TestLoom - Audit di conformità";
+        ws.Cell(1, 1).Value = "RBG - QATRIVO - Audit di conformità";
         ws.Cell(1, 1).Style.Font.SetBold().Font.FontSize = 16;
         ws.Cell(2, 1).Value = "Un foglio per veicolo: righe = Requisiti, colonne = Componenti associati. Ogni cella riporta il punteggio 0-5 dell'ultima esecuzione valutata, oppure N/A; le coppie non ancora valutate restano vuote. Le coppie con Test diversi in disaccordo restano vuote qui e compaiono nel foglio \"Conflitti\".";
         ws.Cell(2, 1).Style.Alignment.WrapText = true;

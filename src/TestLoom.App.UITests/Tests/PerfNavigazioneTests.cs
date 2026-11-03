@@ -18,7 +18,7 @@ namespace TestLoom.App.UITests.Tests;
 /// non fallisce. Non entra mai nella regressione normale: nessuna pipeline imposta quella variabile.
 ///
 /// L'operatore di prova ("QA Perf") esiste SOLO nella copia dei dati passata da TestLoom_PERF_DATASET, seminato
-/// qui prima di avviare TestLoom.exe (stesso pattern di <see cref="TestWorkspace.CreateLoggedIn"/>, applicato però
+/// qui prima di avviare RBG - QATRIVO.exe (stesso pattern di <see cref="TestWorkspace.CreateLoggedIn"/>, applicato però
 /// a una cartella condivisa già esistente invece che a una vuota). Non decifra né riusa PIN reali.
 ///
 /// Piano 6.4.0 FASE P1 (obiettivo prestazioni utente 2026-09-24): copre TUTTE le pagine principali e le
@@ -328,7 +328,7 @@ public sealed class PerfNavigazioneTests : IDisposable
     /// ricalcola l'hash SHA256 interno di LocalTestIndexStore: sceglie invece, tra le cartelle sotto
     /// %LOCALAPPDATA%\TestLoom\workspaces, quella modificata più di recente durante la finestra [startUtc, ora] —
     /// valido perché ogni esecuzione di questo test usa una cartella dati appena estratta (hash mai visto
-    /// prima) e la macchina è dedicata a questo collaudo (nessun altro TestLoom.exe in esecuzione).</summary>
+    /// prima) e la macchina è dedicata a questo collaudo (nessun altro RBG - QATRIVO.exe in esecuzione).</summary>
     private static void ScriviRecordPerformanceNdjson(string outputPath, string label, DateTime startUtc)
     {
         var workspacesRoot = Path.Combine(

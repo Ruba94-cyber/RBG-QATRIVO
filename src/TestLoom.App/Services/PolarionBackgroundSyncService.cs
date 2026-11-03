@@ -135,6 +135,8 @@ public sealed class PolarionBackgroundSyncService : IDisposable
         var skippedFresh = 0;
         var failed = 0;
         var processed = 0;
+        var retryLater = false;
+        var stopRetry = false;
         HttpStatusCode? failureStatus = null;
         try
         {
@@ -168,6 +170,8 @@ public sealed class PolarionBackgroundSyncService : IDisposable
             var requestToken = linked?.Token ?? token;
             using var http = _httpFactory();
             var client = new PolarionReadClient(http, new Uri(settings.ApiRoot, UriKind.Absolute), settings.LeggiToken());
+            try
+            {
             foreach (var id in ids)
             {
                 requestToken.ThrowIfCancellationRequested();
@@ -214,6 +218,7 @@ public sealed class PolarionBackgroundSyncService : IDisposable
                     catch (OperationCanceledException) when (lease is not null && lease.LostToken.IsCancellationRequested && !token.IsCancellationRequested)
                     {
                         failed++;
+                        retryLater = true;
                         DiagnosticTraceService.Registra("Ticketing.Sync", "coordination-lost");
                         break;
                     }
@@ -222,6 +227,9 @@ public sealed class PolarionBackgroundSyncService : IDisposable
                     {
                         failed++;
                         failureStatus = ex.StatusCode;
+                        // 401/403 are permanent until the token changes: do not bring the next pass forward.
+                        if (ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) stopRetry = true;
+                        else retryLater = true;
                         DiagnosticTraceService.Registra("Ticketing.Sync",
                             "paused ticket=" + id + " http=" + (int?)ex.StatusCode);
                         // Do not hammer the same account/proxy/instance for each remaining ticket.
@@ -239,6 +247,7 @@ public sealed class PolarionBackgroundSyncService : IDisposable
                     catch (HttpRequestException ex)
                     {
                         failed++;
+                        retryLater = true;
                         failureStatus ??= ex.StatusCode;
                         DiagnosticTraceService.Registra("Ticketing.Sync",
                             "transport-failed ticket=" + id + " http=" + (int?)ex.StatusCode);
@@ -248,6 +257,7 @@ public sealed class PolarionBackgroundSyncService : IDisposable
                     catch (TaskCanceledException) when (!token.IsCancellationRequested)
                     {
                         failed++;
+                        retryLater = true;
                         DiagnosticTraceService.Registra("Ticketing.Sync",
                             "timeout ticket=" + id);
                         break;
@@ -268,6 +278,15 @@ public sealed class PolarionBackgroundSyncService : IDisposable
                         progress?.Report(new(processed, ids.Count, id));
                     }
                 }
+            }
+            }
+            finally
+            {
+                // The schedule is stamped BEFORE the first request. A pass cut short (app closed, network
+                // pause, lost lease) would otherwise leave the remaining tickets - and their status history -
+                // stale for a whole interval. Bring the next attempt forward; fresh tickets are skipped by cache.
+                if (lease is not null && !stopRetry && (retryLater || processed < ids.Count))
+                    lease.ScheduleRetry(refreshInterval, PolarionSyncCoordinator.IncompleteRetryDelay);
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or UnauthorizedAccessException)

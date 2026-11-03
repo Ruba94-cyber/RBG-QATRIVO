@@ -1,4 +1,5 @@
 using Avalonia.Automation;
+using Avalonia.Headless;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -121,6 +122,80 @@ public sealed class TableLayoutPersonalizationHeadlessTests
             }
         });
     }
+
+    /// <summary>Regressione: le colonne della tabella CR devono essere ridimensionabili come quelle delle NC, sia con filtro
+    /// "Tutto" sia con filtro "CR". Causa: la CR aveva una colonna Star (Titolo); con una colonna Star e contenuto piu' largo
+    /// della vista il DataGrid comprime TUTTE le colonne in pixel al loro MinWidth e rifiuta di ridimensionarle (a meno del
+    /// "congelamento" in pixel fatto da TableLayoutPreferences alla pressione, dopo il quale le colonne tornano di colpo alla
+    /// larghezza dichiarata e scivolano sotto il puntatore). Ora tutte le colonne sono Pixel/Auto: nessuna compressione e
+    /// ridimensionamento diretto.</summary>
+    [Theory]
+    [InlineData(FiltroTipoAnomaliaOCr.Entrambi, "AnomalieGrid")]
+    [InlineData(FiltroTipoAnomaliaOCr.Entrambi, "ListaCr")]
+    [InlineData(FiltroTipoAnomaliaOCr.ChangeRequest, "ListaCr")]
+    public void ColonneAnomalieECr_NonUsanoStarESonoRidimensionabiliTrascinandoLIntestazione(FiltroTipoAnomaliaOCr filtro, string nomeGriglia) =>
+        LayoutHeadlessSessione.Esegui(() =>
+        {
+            LayoutAdattivo.ReimpostaStato();
+            var stato = TestStateFactory.Create();
+            ViewStateService.ScriviPerOperatore("Anomalie.CrEspansa", "1");
+            var nc = new NonConformitaViewModel(stato, _ => { });
+            nc.FiltroTipo = filtro;
+            nc.Righe.ReplaceWith([new NcRiga { Nc = new NonConformita { Id = "NC-1", Descrizione = "d" } }]);
+            nc.ChangeRequests.ReplaceWith([new ChangeRequest { Id = "CR-1", Titolo = "Titolo CR", DescrizioneBreve = "breve" }]);
+            var finestra = LayoutHeadlessSessione.CreaFinestraPrincipale(
+                new MainViewModel(stato) { MostraPrimoAvvio = false }, 1920, 1000);
+            var vista = new NonConformitaView();
+            try
+            {
+                LayoutHeadlessSessione.Mostra(finestra);
+                finestra.FindControl<ContentControl>("PaginaCorrenteHost")!.Content = vista;
+                LayoutHeadlessSessione.Assesta(finestra);
+                vista.DataContext = nc;
+                LayoutHeadlessSessione.Assesta(finestra);
+                LayoutHeadlessSessione.Assesta(finestra);
+
+                var griglia = vista.FindControl<DataGrid>(nomeGriglia)!;
+                Assert.True(griglia.CanUserResizeColumns);
+                Assert.DoesNotContain(griglia.Columns, c => c.Width.IsStar);
+                if (nomeGriglia == "ListaCr")
+                {
+                    var azioni = LocalizationService.Instance.Traduci("ColonnaAzioni");
+                    Assert.Single(griglia.Columns, c => c.Header as string == azioni);
+                    Assert.Contains(griglia.Columns, c => c.Header as string == "Stato TICKET");
+                    Assert.Contains(griglia.Columns, c => c.Header as string == "Aperto TICKET");
+                }
+                var compresse = griglia.Columns.Where(c => c.IsVisible && c.Width.IsAbsolute && c.ActualWidth < c.Width.Value - 0.5)
+                    .Select(c => $"{c.Header}: {c.ActualWidth:0} < {c.Width.Value:0}").ToList();
+                Assert.True(compresse.Count == 0, "colonne compresse sotto la larghezza dichiarata: " + string.Join("; ", compresse));
+
+                var visibili = griglia.Columns.Where(c => c.IsVisible).OrderBy(c => c.DisplayIndex).ToList();
+                var intestazioni = griglia.GetVisualDescendants().OfType<DataGridColumnHeader>()
+                    .Where(h => h.IsEffectivelyVisible && h.Bounds.Width > 0)
+                    .OrderBy(h => h.TranslatePoint(new Point(0, 0), griglia)!.Value.X).ToList();
+                var provate = 0;
+                for (var i = 0; i < Math.Min(visibili.Count, intestazioni.Count); i++)
+                {
+                    var colonna = visibili[i];
+                    var intestazione = intestazioni[i];
+                    var origine = intestazione.TranslatePoint(new Point(intestazione.Bounds.Width - 2, intestazione.Bounds.Height / 2), finestra)!.Value;
+                    if (origine.X + 40 >= griglia.Bounds.Width) break; // bordo oltre la vista: servirebbe lo scorrimento
+                    var prima = colonna.ActualWidth;
+                    finestra.MouseMove(origine);
+                    finestra.MouseDown(origine, MouseButton.Left);
+                    LayoutHeadlessSessione.Assesta(finestra);
+                    finestra.MouseMove(new Point(origine.X + 40, origine.Y));
+                    LayoutHeadlessSessione.Assesta(finestra);
+                    finestra.MouseUp(new Point(origine.X + 40, origine.Y), MouseButton.Left);
+                    LayoutHeadlessSessione.Assesta(finestra);
+                    Assert.True(Math.Abs(colonna.ActualWidth - (prima + 40)) <= 2,
+                        $"colonna '{colonna.Header}' non ridimensionata: {prima:0} -> {colonna.ActualWidth:0}");
+                    provate++;
+                }
+                Assert.True(provate >= 3, $"colonne provate: {provate}");
+            }
+            finally { finestra.Hide(); }
+        });
 
     [Fact]
     public void AltezzaRiga_RispettaLimitiEMinimoDichiaratoDallaVista()

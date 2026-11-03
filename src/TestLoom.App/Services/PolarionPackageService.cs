@@ -218,14 +218,14 @@ public static class PolarionPackageService
         var doc = Document.Create(container => container.Page(page =>
         {
             page.Size(PageSizes.A4); page.Margin(28); page.DefaultTextStyle(x => x.FontSize(9));
-            page.Header().Column(c => { c.Item().Text($"TestLoom · {titolo}").FontSize(17).Bold(); c.Item().Text("Evidence package for manual Ticketing entry · no API integration").FontColor(Colors.Grey.Darken1); });
+            page.Header().Column(c => { c.Item().Text($"RBG - QATRIVO · {titolo}").FontSize(17).Bold(); c.Item().Text("Evidence package for manual Ticketing entry · no API integration").FontColor(Colors.Grey.Darken1); });
             page.Content().PaddingTop(12).Column(c =>
             {
                 c.Spacing(3);
                 foreach (var line in testo.Replace("\r", "").Split('\n'))
                     c.Item().Text(string.IsNullOrWhiteSpace(line) ? " " : line);
             });
-            page.Footer().AlignCenter().Text(x => { x.Span("TestLoom · "); x.CurrentPageNumber(); x.Span(" / "); x.TotalPages(); });
+            page.Footer().AlignCenter().Text(x => { x.Span("RBG - QATRIVO · "); x.CurrentPageNumber(); x.Span(" / "); x.TotalPages(); });
         }));
         return doc.GeneratePdf();
     }

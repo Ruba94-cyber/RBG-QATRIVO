@@ -31,10 +31,6 @@ company-specific vocabulary with neutral words, so the two share the same code a
 A signed Windows build (single self-contained `RBG - QATRIVO.exe`) is attached to each [release](../../releases). Read the
 [user guide](GUIDE.md) ([italiano](GUIDA.md)) and [SIGNING.md](SIGNING.md) for how to verify the signature.
 
-## Compatibility and upgrade
-
-RBG - QATRIVO is the new public name of TestLoom. The internal .NET namespaces and existing data/configuration paths remain unchanged deliberately to preserve workspaces. Back up the workspace before upgrading. The repository URL may temporarily retain its previous name.
-
 ## Build and run
 
 ```sh

@@ -14,6 +14,15 @@ public sealed class PolarionTicketSnapshot
     public string? Severity { get; init; }
     public DateTimeOffset? Created { get; init; }
     public DateTimeOffset? Updated { get; init; }
+    /// <summary>Real Ticketing resolution time (resolvedOn); null while the ticket is not resolved.</summary>
+    public DateTimeOffset? ResolvedOn { get; init; }
+    /// <summary>TICKET_ticket_end_date as returned by Ticketing (a date, not a timestamp).</summary>
+    public string? TicketEndDate { get; init; }
+    public string? WorkingUnit { get; init; }
+    public string? Invoice { get; init; }
+    /// <summary>TICKET_component / TICKET_ecu custom enum lists; empty when the field is not set.</summary>
+    public List<string> Components { get; init; } = new();
+    public List<string> Componenti { get; init; } = new();
     public DateTimeOffset RetrievedAtUtc { get; init; }
     public List<string> Assignees { get; init; } = new();
     /// <summary>Multi-assignee project custom field; not mapped to TestLoom's internal owner.</summary>

@@ -7,7 +7,7 @@ namespace TestLoom.App.UITests.Helpers;
 
 /// <summary>
 /// Semina e legge il workspace sintetico per le suite di copertura Test (Test*CoverageUiTests). La semina avviene
-/// SEMPRE prima di avviare TestLoom.exe (stesso schema di TestEditorOperazioniTests), mai pilotando la UI da qui; la
+/// SEMPRE prima di avviare RBG - QATRIVO.exe (stesso schema di TestEditorOperazioniTests), mai pilotando la UI da qui; la
 /// lettura usa gli stessi JsonIo/repository dell'app, sul disco del workspace isolato di ciascun test.
 /// </summary>
 public static class TestCoverageSeed

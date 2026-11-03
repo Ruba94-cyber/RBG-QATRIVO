@@ -10,13 +10,13 @@ public sealed class TestCaseEditorQuickModeTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "TestLoom_QuickMode_" + Guid.NewGuid().ToString("N"));
     private readonly List<IDisposable> _opened = new();
 
-    private TestCaseEditorViewModel CreaVm()
+    private TestCaseEditorViewModel CreaVm(bool rapido = true)
     {
         SeedDemoDataService.Genera(_dir);
         var state = TestStateFactory.Create();
         Directory.CreateDirectory(_dir);
         state.InizializzaCartella(_dir);
-        var vm = new TestCaseEditorViewModel(state, null, () => { }, _ => { });
+        var vm = new TestCaseEditorViewModel(state, null, () => { }, _ => { }) { ModoEditorRapido = rapido };
         _opened.Add(state);
         _opened.Add(vm);
         return vm;
@@ -25,7 +25,9 @@ public sealed class TestCaseEditorQuickModeTests : IDisposable
     [Fact]
     public void TwoModesPreserveOriginalFullWizardAndRevealAdvancedSections()
     {
-        var vm = CreaVm();
+        var vm = CreaVm(rapido: false);
+        Assert.False(vm.ModoEditorRapido); // complete version is the default
+        vm.AttivaModalitaRapidaCommand.Execute(null);
         Assert.True(vm.ModoEditorRapido);
         Assert.False(vm.MostraSchedaDettagli); // template not chosen yet
         Assert.False(vm.MostraSchedaProve);
@@ -62,15 +64,20 @@ public sealed class TestCaseEditorQuickModeTests : IDisposable
         _opened.Add(state);
         var first = new TestCaseEditorViewModel(state, null, () => { }, _ => { });
         _opened.Add(first);
-        Assert.True(first.ModoEditorRapido);
+        Assert.False(first.ModoEditorRapido); // no stored preference: complete version
         Assert.False(first.ModificheNonSalvate);
-        first.ModoEditorRapido = false;
+        first.ModoEditorRapido = true;
         Assert.False(first.ModificheNonSalvate); // switching editor presentation is not a data edit
 
         var next = new TestCaseEditorViewModel(state, null, () => { }, _ => { });
         _opened.Add(next);
-        Assert.False(next.ModoEditorRapido);
-        Assert.True(next.EspandiParametriOperazione);
+        Assert.True(next.ModoEditorRapido);
+
+        next.ModoEditorRapido = false;
+        var secondo = new TestCaseEditorViewModel(state, null, () => { }, _ => { });
+        _opened.Add(secondo);
+        Assert.False(secondo.ModoEditorRapido);
+        Assert.True(secondo.EspandiParametriOperazione);
 
         next.ModoEditorRapido = true;
         var third = new TestCaseEditorViewModel(state, null, () => { }, _ => { });

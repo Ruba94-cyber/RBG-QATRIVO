@@ -1,7 +1,7 @@
 namespace TestLoom.App.UITests.Infrastructure;
 
 /// <summary>
-/// Base comune per un test UI FlaUI: crea un <see cref="TestWorkspace"/> isolato, avvia TestLoom.exe puntato su
+/// Base comune per un test UI FlaUI: crea un <see cref="TestWorkspace"/> isolato, avvia RBG - QATRIVO.exe puntato su
 /// di esso e garantisce che entrambi vengano smaltiti anche se il test fallisce a metà. Le sottoclassi
 /// scelgono se partire già loggate (<see cref="TestWorkspace.CreateLoggedIn"/>, il caso comune) o da schermata
 /// di login (<see cref="TestWorkspace.CreateLoggedOut"/>, solo per i test che esercitano il login stesso) —

@@ -723,6 +723,58 @@ public class NonConformitaRepository
         }
     }
 
+    /// <summary>Numero di NC archiviate (sola lettura, stessa fotografia di GetAll).</summary>
+    public long ContaArchiviate()
+    {
+        lock (_gate)
+            return WorkflowWorkingCopyScope.PeekNonConformita(_cache.Values.Select(v => v.Nc).ToList()).LongCount(n => n.Archiviata);
+    }
+
+    /// <summary>Pagina delle NC archiviate per l'Archivio (piu' recenti per prima, poi Id). Le istanze restituite sono
+    /// cloni: il loro RevisioneDati e la fotografia di sicurezza in cache consentono Elimina() con controllo di revisione.</summary>
+    public (IReadOnlyList<NonConformita> Items, long TotalCount) QueryArchivedSlice(long offset, int limit)
+    {
+        List<NonConformita> archiviate;
+        lock (_gate)
+            archiviate = WorkflowWorkingCopyScope.PeekNonConformita(_cache.Values.Select(v => v.Nc).ToList())
+                .Where(n => n.Archiviata)
+                .OrderByDescending(n => n.DataArchiviazione ?? n.DataChiusura ?? n.DataApertura)
+                .ThenBy(n => n.Id, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        var pagina = archiviate.Skip((int)Math.Min(Math.Max(0, offset), int.MaxValue)).Take(Math.Max(0, limit))
+            .Select(n => EntityStateFingerprint.Clone(n)).ToList();
+        return (pagina, archiviate.Count);
+    }
+
+    /// <summary>Archivia la NC come per le CR: resta nei dati ma esce dalle liste attive. Salvataggio con controllo
+    /// di revisione su una copia; l'istanza passata riceve l'esito solo a salvataggio riuscito.</summary>
+    public void Archivia(NonConformita nc, string? operatore = null) => ImpostaArchiviazione(nc, true, operatore);
+
+    public void Ripristina(NonConformita nc, string? operatore = null) => ImpostaArchiviazione(nc, false, operatore);
+
+    private void ImpostaArchiviazione(NonConformita nc, bool archiviata, string? operatore)
+    {
+        var candidato = EntityStateFingerprint.Clone(nc);
+        var rev = candidato.RevisioneDati;
+        candidato.Archiviata = archiviata;
+        candidato.DataArchiviazione = archiviata ? DateTime.Now : null;
+        // Un'anomalia archiviata non e' piu' lavorabile: se era ancora aperta la si conclude, cosi' Test collegati,
+        // notifiche e flussi di chiusura (che guardano StatoWorkflow) restano coerenti.
+        if (archiviata && candidato.StatoWorkflow != StatoAnomalia.Conclusa)
+        {
+            if (string.IsNullOrWhiteSpace(candidato.MotivoChiusura)) candidato.MotivoChiusura = "Archiviata";
+            NonConformitaRulesService.Chiudi(candidato);
+        }
+        Save(candidato, rev);
+        nc.Archiviata = candidato.Archiviata;
+        nc.StatoWorkflow = candidato.StatoWorkflow;
+        nc.DataChiusura = candidato.DataChiusura;
+        nc.MotivoChiusura = candidato.MotivoChiusura;
+        nc.DataArchiviazione = candidato.DataArchiviazione;
+        nc.RevisioneDati = candidato.RevisioneDati;
+        DiagnosticTraceService.Registra(archiviata ? "NonConformita.Archivia" : "NonConformita.Ripristina", $"{nc.Id} autore={operatore}");
+    }
+
     public void Elimina(NonConformita nc, string? operatore = null)
     {
         WorkspaceWritePolicy.EnsureCanWrite(_paths, "Eliminazione Non Conformita");

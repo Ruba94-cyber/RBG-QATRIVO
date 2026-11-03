@@ -292,8 +292,9 @@ public class LayoutEditorTestHeadlessTests
             var finestra = MostraInSidebar(editor, 1280, 672);
             try
             {
+                Assert.False(vm.ModoEditorRapido); // complete version is the default
+                vm.ModoEditorRapido = true;
                 LayoutHeadlessSessione.Assesta(finestra);
-                Assert.True(vm.ModoEditorRapido);
                 var quick = Trova<Border>(editor, "Editor_Quick_Workspace");
                 Assert.True(quick.IsEffectivelyVisible);
                 Assert.True(DragDrop.GetAllowDrop(quick));

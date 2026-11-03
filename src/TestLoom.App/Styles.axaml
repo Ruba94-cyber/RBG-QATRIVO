@@ -58,7 +58,7 @@
              CornerRadius, e un Margin negativo per simulare un padding cambierebbe lo spazio allocato nel
              layout del genitore (Grid/StackPanel con spaziatura tra colonne), rischiando una sovrapposizione
              visiva con il campo affiancato. Solo Background resta sicuro: non influisce mai sul layout. -->
-        <Setter Property="Background" Value="#FEF3C7" />
+        <Setter Property="Background" Value="{DynamicResource WarningBackgroundBrush}" />
     </Style>
 
   <!-- Dimensione dai token del layout adattivo (22 in Standard/Ampio, 18 in Compatto/Minimo). -->
@@ -76,7 +76,7 @@
   <Style Selector="TextBlock.GroupHeader">
     <Setter Property="FontSize" Value="11" />
     <Setter Property="FontWeight" Value="Bold" />
-    <Setter Property="Foreground" Value="#94A3B8" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
     <Setter Property="Margin" Value="2,20,0,-4" />
   </Style>
 
@@ -84,11 +84,11 @@
     <Setter Property="FontSize" Value="15" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Margin" Value="0,4,0,8" />
-    <Setter Property="Foreground" Value="#1E293B" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
   </Style>
 
   <Style Selector="TextBlock.Muted">
-    <Setter Property="Foreground" Value="#64748B" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
     <!-- Da 12 a 13 (Addendum: audit UX 2026-08-26, punto 5): stessa scala tipografica applicata a tutte le
          etichette secondarie sparse nelle view (204 delle 253 dichiarazioni FontSize esplicite dell'app erano
          ≤12px, corpo di testo troppo piccolo per un'app desktop usata per turni interi). Muted resta comunque
@@ -105,8 +105,8 @@
   </Style>
 
   <Style Selector="Border.Card">
-    <Setter Property="Background" Value="White" />
-    <Setter Property="BorderBrush" Value="#E2E8F0" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="10" />
     <Setter Property="Padding" Value="{DynamicResource CardPadding}" />
@@ -119,13 +119,13 @@
   </Style>
 
   <Style Selector="Border.BannerAvviso">
-    <Setter Property="Background" Value="#FEF3C7" />
+    <Setter Property="Background" Value="{DynamicResource WarningBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="#F59E0B" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 
   <Style Selector="Border.BannerErrore">
-    <Setter Property="Background" Value="#FEE2E2" />
+    <Setter Property="Background" Value="{DynamicResource DangerBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="#DC2626" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
@@ -166,7 +166,7 @@
   </Style>
 
   <Style Selector="Border.BannerInfo">
-    <Setter Property="Background" Value="#DBEAFE" />
+    <Setter Property="Background" Value="{DynamicResource InfoBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="#3B82F6" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
@@ -183,25 +183,25 @@
   </Style>
 
   <Style Selector="Button.Primary">
-    <Setter Property="Background" Value="#2563EB" />
+    <Setter Property="Background" Value="{DynamicResource PrimaryButtonBrush}" />
     <Setter Property="Foreground" Value="White" />
     <Setter Property="Padding" Value="16,8" />
     <Setter Property="CornerRadius" Value="6" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
   <Style Selector="Button.Primary:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="#1D4ED8" />
+    <Setter Property="Background" Value="{DynamicResource PrimaryHoverBrush}" />
   </Style>
 
   <Style Selector="Button.Secondary">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="BorderBrush" Value="#CBD5E1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="14,7" />
     <Setter Property="CornerRadius" Value="6" />
   </Style>
   <Style Selector="Button.Secondary:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="#F1F5F9" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceSubtleBrush}" />
   </Style>
   <Style Selector="Button.Secondary:disabled /template/ ContentPresenter">
     <Setter Property="Opacity" Value="0.5" />
@@ -244,12 +244,12 @@
 
   <Style Selector="Button.Link">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="#2563EB" />
+    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     <Setter Property="Padding" Value="4" />
     <Setter Property="Cursor" Value="Hand" />
   </Style>
   <Style Selector="Button.Link:pointerover /template/ ContentPresenter">
-    <Setter Property="Foreground" Value="#1D4ED8" />
+    <Setter Property="Foreground" Value="{DynamicResource LinkHoverBrush}" />
   </Style>
   <Style Selector="Button.Link:disabled /template/ ContentPresenter">
     <Setter Property="Opacity" Value="0.5" />
@@ -265,15 +265,15 @@
     <Setter Property="BorderThickness" Value="2" />
   </Style>
 
-  <!-- DataGrid: forzata a colori chiari espliciti, indipendenti dal tema chiaro/scuro di sistema,
+  <!-- DataGrid: palette chiara e scura tramite token dinamici,
        per garantire leggibilità del testo su tutte le colonne (non solo sui badge colorati). -->
   <Style Selector="DataGrid">
-    <Setter Property="Background" Value="White" />
-    <Setter Property="Foreground" Value="#1E293B" />
-    <Setter Property="RowBackground" Value="White" />
-    <Setter Property="HorizontalGridLinesBrush" Value="#E2E8F0" />
-    <Setter Property="VerticalGridLinesBrush" Value="#E2E8F0" />
-    <Setter Property="BorderBrush" Value="#E2E8F0" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="RowBackground" Value="{DynamicResource SurfaceBrush}" />
+    <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource BorderSubtleBrush}" />
+    <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource BorderSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="8" />
     <Setter Property="CanUserResizeColumns" Value="True" />
@@ -287,13 +287,13 @@
        serve un tooltip qui — il testo integrale dei DATI resta comunque leggibile via il tooltip su DataGridCell
        TextBlock qui sotto. -->
   <Style Selector="DataGridColumnHeader">
-    <Setter Property="Background" Value="#F1F5F9" />
-    <Setter Property="Foreground" Value="#334155" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceSubtleBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Padding" Value="10,8" />
   </Style>
   <Style Selector="DataGridCell">
-    <Setter Property="Foreground" Value="#1E293B" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
     <Setter Property="Padding" Value="10,6" />
   </Style>
   <Style Selector="DataGridCell TextBlock">
@@ -304,10 +304,10 @@
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
-    <Setter Property="Fill" Value="#DBEAFE" />
+    <Setter Property="Fill" Value="{DynamicResource InfoBackgroundBrush}" />
   </Style>
   <Style Selector="DataGridRow:pointerover /template/ Rectangle#BackgroundRectangle">
-    <Setter Property="Fill" Value="#F1F5F9" />
+    <Setter Property="Fill" Value="{DynamicResource SurfaceSubtleBrush}" />
   </Style>
 
   <Style Selector="ComboBox.Field">
@@ -321,7 +321,7 @@
        anche a riposo). -->
   <Style Selector="ListBox.Field">
     <Setter Property="MaxHeight" Value="160" />
-    <Setter Property="BorderBrush" Value="#E2E8F0" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="6" />
     <Setter Property="Padding" Value="2" />
@@ -331,8 +331,8 @@
        normale invece che centrato come un Button.Secondary. Content mostra il valore scelto o il placeholder
        (ScegliPlaceholderConverter) — lo stesso pulsante riapre il dialog sia per scegliere sia per cambiare. -->
   <Style Selector="Button.Field">
-    <Setter Property="Background" Value="White" />
-    <Setter Property="BorderBrush" Value="#CBD5E1" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="8,6" />
     <Setter Property="CornerRadius" Value="6" />
@@ -340,7 +340,7 @@
     <Setter Property="HorizontalContentAlignment" Value="Left" />
   </Style>
   <Style Selector="Button.Field:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="#F8FAFC" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
   </Style>
 
   <!-- Modo compatto e minimo (6.6.1): padding dei controlli ridotto, altezza minima 32 px sui controlli cliccabili
@@ -388,8 +388,8 @@
 
   <!-- Chip del riepilogo filtri (pannello filtri chiuso): un filtro attivo, con il ✕ per annullare solo lui. -->
   <Style Selector="Border.Chip">
-    <Setter Property="Background" Value="#EEF2FF" />
-    <Setter Property="BorderBrush" Value="#C7D2FE" />
+    <Setter Property="Background" Value="{DynamicResource ChipBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ChipBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="12" />
     <Setter Property="Padding" Value="8,2" />
@@ -416,7 +416,7 @@
     <Setter Property="Foreground" Value="#FFFFFF" />
   </Style>
   <Style Selector="Button.SidebarLink:disabled">
-    <Setter Property="Foreground" Value="#64748B" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
   </Style>
   <Style Selector="Button.SidebarLink:disabled /template/ ContentPresenter">
     <Setter Property="Opacity" Value="1" />

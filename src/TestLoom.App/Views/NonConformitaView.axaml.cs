@@ -250,7 +250,8 @@ public partial class NonConformitaView : UserControl
             var chiave = colonna.SortMemberPath;
             if (string.IsNullOrEmpty(chiave))
             {
-                colonna.Header = LocalizationService.Instance.Traduci("ColonnaAzioni");
+                // Solo la colonna delle azioni (Tag) e' rinominata: le colonne TICKET non ordinabili tengono la propria intestazione.
+                if (colonna.Tag is "Azioni") colonna.Header = LocalizationService.Instance.Traduci("ColonnaAzioni");
                 continue;
             }
             if (!ChiaviTitoloColonnaCr.TryGetValue(chiave, out var chiaveTesto)) continue;

@@ -62,6 +62,10 @@ public partial class App : Application
         // chiudere esplicitamente invece di lasciarla aperta indefinitamente (Closing è bloccato finché non
         // viene chiamato ConsentiChiusura, vedi AvvioWindow).
         AvvioWindow? avvio = null;
+        // Tema locale applicato PRIMA di qualsiasi finestra (scaldamento, schermata di avvio): senza questo la barra del
+        // titolo nativa della prima finestra nasceva chiara (tema Light di App.axaml) anche con preferenza Scuro.
+        try { ThemeAppearanceService.Apply(new AppConfigService(configOverride).Load().TemaInterfaccia); }
+        catch (Exception ex) { CrashLogService.Registra("Tema iniziale (lettura config locale)", ex); }
         // Revisione indipendente (FAIL critico): sul percorso veloce (bootstrap sotto SogliaComparsaAvvio)
         // l'AvvioWindow non viene MAI creata — la prima Window ad esistere e' quella (invisibile, fuori
         // schermo) usata da ScaldaViewFuoriSchermoAsync per scaldare la View "Test"/Editor DENTRO
@@ -139,10 +143,10 @@ public partial class App : Application
             {
                 var attivo = state.Config.NotificheWindows && nonLette > 0;
                 var nelRiepilogo = mainViewModel.RiepilogoElementi.Count;
-                tray.ToolTipText = !attivo ? "TestLoom · Test diagnostici"
-                    : nelRiepilogo > 0 ? $"TestLoom · {nonLette} non lette: riepilogo di {nelRiepilogo} notifiche"
-                    : nonLette == 1 ? "TestLoom · 1 notifica non letta"
-                    : $"TestLoom · {nonLette} notifiche non lette";
+                tray.ToolTipText = !attivo ? "RBG - QATRIVO · Gestione test e qualità"
+                    : nelRiepilogo > 0 ? $"RBG - QATRIVO · {nonLette} non lette: riepilogo di {nelRiepilogo} notifiche"
+                    : nonLette == 1 ? "RBG - QATRIVO · 1 notifica non letta"
+                    : $"RBG - QATRIVO · {nonLette} notifiche non lette";
                 if (state.Config.NotificheWindows && precedente >= 0 && nonLette > precedente)
                     mainWindow.SegnalaNuoveNotifiche();
             }
@@ -242,6 +246,7 @@ public partial class App : Application
             : new AppState(new AppConfigService(configOverride), progress: progress));
 
         LocalizationService.Instance.Lingua = state.Config.Lingua;
+        ThemeAppearanceService.Apply(state.Config.TemaInterfaccia);
         var mainViewModel = new MainViewModel(state);
 
         await ScaldaPagineAsync(state, mainViewModel, progress);

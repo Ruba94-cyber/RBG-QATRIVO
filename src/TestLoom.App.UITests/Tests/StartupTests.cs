@@ -38,7 +38,7 @@ public sealed class StartupTests : UiTestBase
             var window = App.WaitForMainWindow();
             Assert.Equal(1, App.ListTopLevelWindowNames().Count(t => t == "TestLoom"));
 
-            // SingleInstanceService (§6.7): un secondo processo TestLoom.exe sullo stesso PC non deve mai aprire
+            // SingleInstanceService (§6.7): un secondo processo RBG - QATRIVO.exe sullo stesso PC non deve mai aprire
             // una seconda finestra — chiede alla prima di attivarsi e termina da solo. Verificato lanciando
             // davvero un secondo processo, non solo leggendo il codice: è una garanzia anti-corruzione-dati
             // (due processi che scrivono sulla stessa cartella condivisa senza coordinarsi) troppo critica per

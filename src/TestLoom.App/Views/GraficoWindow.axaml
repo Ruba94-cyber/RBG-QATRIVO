@@ -25,7 +25,7 @@
                     AutomationProperties.AutomationId="GraficoFinestra_Copia_Button" />
         </StackPanel>
 
-        <Border x:Name="Contenitore" Grid.Row="1" Background="#FFFFFF" CornerRadius="8" Padding="8">
+        <Border x:Name="Contenitore" Grid.Row="1" Background="{DynamicResource ChartCanvasBrush}" CornerRadius="8" Padding="8">
             <Grid>
                 <!-- Il render segue l'area del Border (contenitore): l'Image senza sorgente vale 0x0 e non puo' guidarlo. -->
                 <Image x:Name="ImmagineGrafico"

@@ -139,7 +139,10 @@ public sealed class PolarionBrowserSimulationTests : IDisposable
         Assert.Contains("form_mode=create", url);
         Assert.Contains("form_field_type=TICKET_Ticket", url);
         Assert.DoesNotContain("synthetic-token", url);
-        Assert.Contains(Uri.EscapeDataString(prepared.Receipt.BrowserCorrelationMarker!), url);
+        // Ticketing ignores form_field_* (verified); title/description travel only to the local DevTools
+        // session, never in the URL or the browser history: no marker, no description.
+        Assert.DoesNotContain(prepared.Receipt.BrowserCorrelationMarker!, Uri.UnescapeDataString(url));
+        Assert.DoesNotContain("form_field_description", url);
         // Nothing was sent anywhere just by preparing the handoff.
         Assert.Empty(_polarion.Requests);
     }

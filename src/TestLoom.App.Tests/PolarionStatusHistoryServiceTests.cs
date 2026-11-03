@@ -34,6 +34,39 @@ public sealed class PolarionStatusHistoryServiceTests : IDisposable
     }
 
     [Fact]
+    public void KeepsTheRealPolarionResolutionDateAndClearsItWhenTheTicketIsReopened()
+    {
+        var service = Store("deviceR");
+        var t0 = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var resolved = new DateTimeOffset(2026, 2, 5, 9, 23, 47, TimeSpan.Zero);
+        PolarionTicketSnapshot Closed(DateTimeOffset retrieved, DateTimeOffset? resolvedOn, string status) => new()
+        {
+            ProjectId = "TICKET_Tickets", Id = "TICKET-123", Status = status, Resolution = resolvedOn is null ? "" : "done",
+            Created = new DateTimeOffset(2026, 1, 1, 9, 0, 0, TimeSpan.Zero), ResolvedOn = resolvedOn,
+            Updated = retrieved.AddSeconds(-10), RetrievedAtUtc = retrieved
+        };
+        service.Observe(Closed(t0, resolved, "closed"));
+        Assert.Equal(resolved, service.ReadMerged("TICKET_Tickets", "TICKET-123")!.PolarionResolvedUtc);
+        service.Observe(Closed(t0.AddMinutes(2), null, "assigned"));
+        Assert.Null(service.ReadMerged("TICKET_Tickets", "TICKET-123")!.PolarionResolvedUtc);
+    }
+
+    [Fact]
+    public void MergedResolutionDateComesFromTheDeviceThatObservedPolarionLast()
+    {
+        var t0 = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var resolved = new DateTimeOffset(2026, 2, 5, 9, 23, 47, TimeSpan.Zero);
+        PolarionTicketSnapshot S(DateTimeOffset retrieved, DateTimeOffset? resolvedOn, string status) => new()
+        {
+            ProjectId = "TICKET_Tickets", Id = "TICKET-123", Status = status, Resolution = resolvedOn is null ? "" : "done",
+            ResolvedOn = resolvedOn, Updated = retrieved.AddSeconds(-10), RetrievedAtUtc = retrieved
+        };
+        Store("deviceA").Observe(S(t0, resolved, "closed"));
+        Store("deviceB").Observe(S(t0.AddMinutes(1), resolved, "closed"));
+        Assert.Equal(resolved, Store("deviceA").ReadMerged("TICKET_Tickets", "TICKET-123")!.PolarionResolvedUtc);
+    }
+
+    [Fact]
     public void DifferentDevicesDoNotOverwriteEachOtherAndDuplicateObservationsMerge()
     {
         var t0 = DateTimeOffset.UtcNow.AddMinutes(-5);

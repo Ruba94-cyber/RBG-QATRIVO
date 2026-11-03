@@ -99,6 +99,25 @@ public sealed class NonConformitaStateSafetyTests : IDisposable
         Assert.Null(autorevole.AnomaliaUid);
     }
 
+    [Fact]
+    public async Task ArchiviaAnomaliaSicuro_ArchiviaSenzaEliminareELaNascondeDallaLista()
+    {
+        using var state = CreaStato();
+        ImpostaMaster(state);
+        CreaNcConSegnalazioneClassificata(state);
+        var vm = new NonConformitaViewModel(state, _ => { });
+        var riga = Assert.Single(vm.Righe);
+
+        await vm.ArchiviaAnomaliaSicuroCommand.ExecuteAsync(riga);
+
+        Assert.Null(vm.MessaggioErrore);
+        var salvata = Assert.Single(state.NonConformita.GetAll());
+        Assert.True(salvata.Archiviata);
+        Assert.NotNull(salvata.DataArchiviazione);
+        Assert.Equal(StatoAnomalia.Conclusa, salvata.StatoWorkflow); // archiviare conclude l'anomalia aperta
+        Assert.Empty(vm.Righe);
+    }
+
     /// <summary>Review 6.4.3: solo le segnalazioni Classificata vengono scollegate; Esclusa/Superata restano intatte.</summary>
     [Fact]
     public async Task EliminaAnomaliaSicuro_NonToccaSegnalazioniEscluseOSuperate()

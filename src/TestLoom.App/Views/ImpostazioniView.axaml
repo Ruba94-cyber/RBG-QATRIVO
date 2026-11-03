@@ -8,9 +8,9 @@
              x:DataType="vm:ImpostazioniViewModel"
              x:Name="Root">
     <Grid ColumnDefinitions="Auto,*" Margin="0">
-        <Border Grid.Column="0" services:Spotlight.TargetId="settings-sections" Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="0,0,1,0">
+        <Border Grid.Column="0" services:Spotlight.TargetId="settings-sections" Background="{DynamicResource SurfaceSubtleBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,1,0">
             <StackPanel Margin="0,20">
-                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpostazioniSidebarTitolo}" Classes="NavTitolo" FontSize="12" FontWeight="Bold" Foreground="#94A3B8" Margin="20,0,0,10" />
+                <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpostazioniSidebarTitolo}" Classes="NavTitolo" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource TextMutedBrush}" Margin="20,0,0,10" />
                 <ListBox Classes="SubNavImpostazioni" ItemsSource="{Binding SottoSezioni}" SelectedItem="{Binding SottoSezioneSelezionata}" Background="Transparent" AutomationProperties.AutomationId="Impostazioni_Sidebar_List">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:NavItem">
@@ -43,7 +43,7 @@
                             <Setter Property="Padding" Value="16,9" /><Setter Property="CornerRadius" Value="6" /><Setter Property="Margin" Value="8,1" />
                             <Setter Property="AutomationProperties.AutomationId" Value="{Binding Id, StringFormat='Impostazioni_Sub_{0}'}" />
                         </Style>
-                        <Style Selector="ListBoxItem:selected /template/ ContentPresenter"><Setter Property="Background" Value="#2563EB" /></Style>
+                        <Style Selector="ListBoxItem:selected /template/ ContentPresenter"><Setter Property="Background" Value="{DynamicResource SelectionBrush}" /></Style>
                         <Style Selector="ListBoxItem:selected"><Setter Property="Foreground" Value="White" /></Style>
                     </ListBox.Styles>
                 </ListBox>
@@ -55,6 +55,20 @@
                 <StackPanel Spacing="16" MaxWidth="700">
                     <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NavGenerale}" Classes="PageTitle" AutomationProperties.AutomationId="Impostazioni_Title_Text" />
                     <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GruppoPreferenzeMieTitolo}" Classes="GroupHeader" />
+
+                    <TabControl AutomationProperties.AutomationId="Impostazioni_Generale_Tab">
+                    <TabItem Header="{Binding TabAspetto}"><StackPanel Spacing="16" Margin="0,12,0,0">
+                    <Border Classes="Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding EtichettaTema}" Classes="SectionTitle" />
+                            <StackPanel Orientation="Horizontal" Spacing="16">
+                                <RadioButton GroupName="TemaInterfaccia" Content="{Binding EtichettaTemaChiaro}" IsChecked="{Binding ETemaChiaro}" AutomationProperties.AutomationId="Impostazioni_Tema_Chiaro_RadioButton" />
+                                <RadioButton GroupName="TemaInterfaccia" Content="{Binding EtichettaTemaScuro}" IsChecked="{Binding ETemaScuro}" AutomationProperties.AutomationId="Impostazioni_Tema_Scuro_RadioButton" />
+                                <RadioButton GroupName="TemaInterfaccia" Content="{Binding EtichettaTemaSistema}" IsChecked="{Binding ETemaSistema}" AutomationProperties.AutomationId="Impostazioni_Tema_Sistema_RadioButton" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding EtichettaTemaNota}" Classes="Muted" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
 
                     <Border Classes="Card">
                         <StackPanel Spacing="8">
@@ -185,6 +199,8 @@
                     </Border>
 
                     <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=GruppoConfigurazioneTitolo}" Classes="GroupHeader" IsVisible="{Binding !!PolarionSezioniOpzioni.Count}" />
+                    </StackPanel></TabItem>
+                    <TabItem Header="{Binding TabEsta}"><StackPanel Spacing="16" Margin="0,12,0,0">
                     <Border Classes="Card" IsVisible="{Binding !!PolarionSezioniOpzioni.Count}">
                         <StackPanel Spacing="8">
                             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SezioniPolarionTitolo}" Classes="SectionTitle" />
@@ -231,7 +247,7 @@
                             <TextBlock Text="Nuovo token condiviso (lasciare vuoto per mantenerlo)" Classes="Muted" IsVisible="{Binding EMaster}"/>
                             <TextBox Classes="Field" Text="{Binding PolarionApiNewToken}" PasswordChar="●" IsVisible="{Binding EMaster}"
                                      AutomationProperties.AutomationId="PolarionApi_Token_TextBox"/>
-                            <TextBlock Text="Assegnatari Ticketing (max 2; non devono essere utenti TestLoom)" Classes="Muted" TextWrapping="Wrap"/>
+                            <TextBlock Text="Assegnatari Ticketing (max 2; non devono essere utenti RBG - QATRIVO)" Classes="Muted" TextWrapping="Wrap"/>
                              <TextBox Classes="Field" PlaceholderText="ID utente Ticketing 1" Text="{Binding PolarionAssigneeOne}"
                                       IsEnabled="{Binding EMaster}" AutomationProperties.AutomationId="PolarionApi_AssigneeOne"/>
                              <TextBox Classes="Field" PlaceholderText="ID utente Ticketing 2" Text="{Binding PolarionAssigneeTwo}"
@@ -262,17 +278,30 @@
                                     IsVisible="{Binding PolarionRefreshInCorso}" HorizontalAlignment="Left"
                                     AutomationProperties.AutomationId="PolarionApi_Cancel_Button"/>
                             <TextBlock Text="{Binding PolarionApiFeedback}" IsVisible="{Binding HasPolarionApiError}"
-                                       Foreground="#DC2626" TextWrapping="Wrap" AutomationProperties.AutomationId="PolarionApi_Error_Text"/>
+                                       Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" AutomationProperties.AutomationId="PolarionApi_Error_Text"/>
                             <TextBlock Text="{Binding PolarionApiFeedback}" IsVisible="{Binding HasPolarionApiSuccess}"
-                                       Foreground="#166534" TextWrapping="Wrap" AutomationProperties.AutomationId="PolarionApi_Status_Text"/>
+                                       Foreground="{DynamicResource SuccessBrush}" TextWrapping="Wrap" AutomationProperties.AutomationId="PolarionApi_Status_Text"/>
                         </StackPanel>
                     </Border>
 
+                    <Border Classes="Card" AutomationProperties.AutomationId="Impostazioni_BrowserPolarion_Card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding BrowserPolarionTitolo}" Classes="SectionTitle" />
+                            <TextBlock Text="{Binding BrowserPolarionNota}" Classes="Muted" TextWrapping="Wrap" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" ItemsSource="{Binding OpzioniBrowserPolarion}" SelectedItem="{Binding BrowserPolarionSelezionato}" AutomationProperties.AutomationId="Impostazioni_BrowserPolarion_ComboBox" />
+                                <Button Grid.Column="1" Classes="Secondary" Margin="8,0,0,0" Content="OK" Command="{Binding ApplicaBrowserPolarionCommand}" AutomationProperties.AutomationId="Impostazioni_BrowserPolarion_Applica_Button" />
+                            </Grid>
+                            <TextBox Classes="Field" Text="{Binding BrowserPolarionPercorso}" PlaceholderText="C:\Program Files\...\browser.exe" AutomationProperties.AutomationId="Impostazioni_BrowserPolarion_Percorso_TextBox" />
+                        </StackPanel>
+                    </Border>
+                    </StackPanel></TabItem>
+                    <TabItem Header="{Binding TabCartella}"><StackPanel Spacing="16" Margin="0,12,0,0">
                     <Border Classes="Card">
                         <StackPanel Spacing="8">
                             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoTitolo}" Classes="SectionTitle" />
                             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoManomessaAvviso}" Foreground="#DC2626" TextWrapping="Wrap" IsVisible="{Binding ModalitaAccessoManomessa}" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoManomessaAvviso}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" IsVisible="{Binding ModalitaAccessoManomessa}" />
                             <StackPanel Orientation="Horizontal" Spacing="16" IsEnabled="{Binding EMaster}">
                                 <RadioButton GroupName="ModalitaAccesso" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoConPin}" IsChecked="{Binding AccessoConPinSelezionato}" />
                                 <RadioButton GroupName="ModalitaAccesso" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ModalitaAccessoSenzaPin}" IsChecked="{Binding AccessoSenzaPinSelezionato}" />
@@ -286,7 +315,7 @@
                         <StackPanel Spacing="8">
                             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PoliticaDurataTitolo}" Classes="SectionTitle" />
                             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PoliticaDurataNota}" Classes="Muted" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding ErrorePoliticaDurata}" Foreground="#DC2626" TextWrapping="Wrap" IsVisible="{Binding HaErrorePoliticaDurata}" />
+                            <TextBlock Text="{Binding ErrorePoliticaDurata}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" IsVisible="{Binding HaErrorePoliticaDurata}" />
                             <CheckBox IsEnabled="{Binding EMaster}" IsChecked="{Binding DurataObbligatoriaSelezionata}"
                                       Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=PoliticaDurataObbligatoria}"
                                       AutomationProperties.AutomationId="Impostazioni_DurataObbligatoria_CheckBox" />
@@ -331,7 +360,7 @@
                                     AutomationProperties.AutomationId="Impostazioni_CentroIntegrita_Button"
                                     Classes="Secondary" HorizontalAlignment="Left"
                                     Click="OnCentroIntegrita" />
-                            <Border Background="#FFF7ED" CornerRadius="6" Padding="10">
+                            <Border Background="{DynamicResource OrangeSoftBrush}" CornerRadius="6" Padding="10">
                                 <StackPanel Spacing="6">
                                     <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpModalitaViewerTitolo}" FontWeight="SemiBold" />
                                     <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImpModalitaViewerNota}" TextWrapping="Wrap" />
@@ -342,8 +371,8 @@
                                 </StackPanel>
                             </Border>
                             </StackPanel>
-                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CartellaNonRaggiungibile}" Foreground="#DC2626" IsVisible="{Binding !CartellaValida}" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding MessaggioErrore}" AutomationProperties.AutomationId="Impostazioni_Errore_Text" Foreground="#DC2626" IsVisible="{Binding HaMessaggioErrore}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CartellaNonRaggiungibile}" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding !CartellaValida}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding MessaggioErrore}" AutomationProperties.AutomationId="Impostazioni_Errore_Text" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding HaMessaggioErrore}" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
 
@@ -371,7 +400,7 @@
                             <ItemsControl ItemsSource="{Binding ForkJournal}" IsVisible="{Binding HaForkJournal}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:ForkJournalRiga">
-                                        <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,3">
+                                        <Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,3">
                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                                                 <StackPanel Spacing="2">
                                                     <TextBlock Text="{Binding TestId}" FontWeight="SemiBold" />
@@ -392,6 +421,8 @@
                         </StackPanel>
                     </Border>
 
+                    </StackPanel></TabItem>
+                    <TabItem Header="{Binding TabConflitti}"><StackPanel Spacing="16" Margin="0,12,0,0">
                     <Border Classes="Card" AutomationProperties.AutomationId="RecordFork_Card" services:Spotlight.TargetId="settings-conflicts">
                         <StackPanel Spacing="10">
                             <Grid ColumnDefinitions="*,Auto">
@@ -407,7 +438,7 @@
                                           AutomationProperties.AutomationId="RecordFork_List">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:RecordForkRiga">
-                                        <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,3">
+                                        <Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,3">
                                             <StackPanel Spacing="4">
                                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                                                     <StackPanel Spacing="2">
@@ -463,7 +494,7 @@
                                           AutomationProperties.AutomationId="MasterConflict_List">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:MasterConflittoRiga">
-                                        <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,3">
+                                        <Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,3">
                                             <StackPanel Spacing="4">
                                                 <TextBlock Text="{Binding Titolo}" FontWeight="SemiBold" />
                                                 <TextBlock Text="{Binding Riepilogo}" Classes="Muted" FontSize="12" TextWrapping="Wrap" />
@@ -494,6 +525,8 @@
                         </StackPanel>
                     </Border>
 
+                    </StackPanel></TabItem>
+                    <TabItem Header="{Binding TabManutenzione}"><StackPanel Spacing="16" Margin="0,12,0,0">
                     <Border Classes="Card">
                         <StackPanel Spacing="8">
                             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=IndiceLocaleTitolo}" Classes="SectionTitle" />
@@ -587,6 +620,8 @@
                         </StackPanel>
                     </Border>
 
+                    </StackPanel></TabItem>
+                    <TabItem Header="{Binding TabDiagnostica}"><StackPanel Spacing="16" Margin="0,12,0,0">
                     <Border Classes="Card" IsVisible="{Binding HaFileConProblemi}">
                         <StackPanel Spacing="8">
                             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=FileConProblemiTitolo}" Classes="SectionTitle" />
@@ -656,7 +691,9 @@
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Text="{Binding Messaggio}" AutomationProperties.AutomationId="Impostazioni_Messaggio_Text" Foreground="#166534" IsVisible="{Binding HaMessaggio}" />
+                    </StackPanel></TabItem>
+                    </TabControl>
+                    <TextBlock Text="{Binding Messaggio}" AutomationProperties.AutomationId="Impostazioni_Messaggio_Text" Foreground="{DynamicResource SuccessBrush}" IsVisible="{Binding HaMessaggio}" />
                 </StackPanel>
             </ScrollViewer>
         </Grid>

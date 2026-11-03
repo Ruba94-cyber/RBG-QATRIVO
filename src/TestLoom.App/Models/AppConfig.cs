@@ -22,6 +22,14 @@ public class AppConfig
     /// mai condivisa via OneDrive, mai richiesta per il normale funzionamento TestLoom.</summary>
     public string PercorsoBackupEsterno { get; set; } = "";
     public string OperatoreAttivo { get; set; } = "";
+
+    /// <summary>Browser del profilo TestLoom dedicato (compilazione automatica Ticketing) su questo PC: "Edge", "Chrome",
+    /// "Percorso" (vedi BrowserPolarionPercorso); assente = automatico (Edge, poi Chrome). Solo config locale.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? BrowserPolarion { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? BrowserPolarionPercorso { get; set; }
     public bool SoloMieiElementiDaSeguire { get; set; }
     public bool AvvioRidotto { get; set; }
     public bool NotificheWindows { get; set; } = false;
@@ -45,6 +53,9 @@ public class AppConfig
     /// <summary>"it" o "en" (Addendum §20). Locale all'istanza come il resto di AppConfig: ogni PC può avere
     /// il proprio operatore che preferisce una lingua diversa da chi condivide la stessa cartella dati.</summary>
     public string Lingua { get; set; } = "it";
+
+    /// <summary>Preferenza visiva locale: Light, Dark o System. Assente nei vecchi config = Light.</summary>
+    public string TemaInterfaccia { get; set; } = "Light";
 
     /// <summary>Storico dei report esportati con "Salva con nome" (Addendum: grill-me 2026-08-18, follow-up):
     /// locale come il resto di AppConfig, perché il percorso scelto può essere ovunque sul PC, non solo nella

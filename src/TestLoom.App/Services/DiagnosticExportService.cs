@@ -55,7 +55,7 @@ public static class DiagnosticExportService
     {
         var entry = archive.CreateEntry("manifest.txt", CompressionLevel.Optimal);
         using var writer = new StreamWriter(entry.Open());
-        writer.WriteLine("TestLoom - Pacchetto diagnostico");
+        writer.WriteLine("RBG - QATRIVO - Pacchetto diagnostico");
         writer.WriteLine($"Generato il: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         writer.WriteLine($"Versione app: {Assembly.GetExecutingAssembly().GetName().Version}");
         writer.WriteLine($"Sistema operativo: {Environment.OSVersion}");

@@ -33,6 +33,8 @@ public sealed class PolarionStatusHistoryService(DataPaths paths, string? device
         public string TicketId { get; set; } = "";
         public string DeviceId { get; set; } = "";
         public DateTimeOffset? PolarionCreatedUtc { get; set; }
+        /// <summary>Real Ticketing resolution time (resolvedOn) from the most recent observation; cleared on reopen.</summary>
+        public DateTimeOffset? PolarionResolvedUtc { get; set; }
         public DateTimeOffset LastObservedUtc { get; set; }
         /// <summary>Most recent Ticketing update, even for edits unrelated to status.</summary>
         public DateTimeOffset? LastPolarionUpdatedUtc { get; set; }
@@ -88,10 +90,14 @@ public sealed class PolarionStatusHistoryService(DataPaths paths, string? device
             // Avoid a OneDrive write on every 15-minute poll unless something observable changed.
             var createdChanged = history.PolarionCreatedUtc is null && snapshot.Created is not null;
             if (createdChanged) history.PolarionCreatedUtc = snapshot.Created;
+            // resolvedOn is a real Ticketing timestamp (unlike FirstSeenUtc); it follows the latest accepted
+            // observation, so a reopened ticket (resolvedOn cleared) does not keep a stale closure date.
+            var resolvedChanged = history.PolarionResolvedUtc != snapshot.ResolvedOn;
+            if (resolvedChanged) history.PolarionResolvedUtc = snapshot.ResolvedOn;
             history.LastObservedUtc = snapshot.RetrievedAtUtc;
             if (last is null || !string.Equals(last.Status, snapshot.Status ?? "", StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(last.Resolution, snapshot.Resolution ?? "", StringComparison.OrdinalIgnoreCase) ||
-                createdChanged || revisionAdvanced)
+                createdChanged || resolvedChanged || revisionAdvanced)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(file)!);
                 JsonIo.WriteAtomic(file, history);
@@ -154,6 +160,9 @@ public sealed class PolarionStatusHistoryService(DataPaths paths, string? device
             ProjectId = projectId, TicketId = ticketId, DeviceId = "merged",
             PolarionCreatedUtc = histories.Select(h => h.PolarionCreatedUtc).Where(x => x.HasValue)
                 .OrderBy(x => x).FirstOrDefault(),
+            // The device that observed Ticketing last knows whether the ticket is currently resolved.
+            PolarionResolvedUtc = histories.OrderByDescending(h => h.LastObservedUtc)
+                .Select(h => h.PolarionResolvedUtc).FirstOrDefault(),
             LastObservedUtc = histories.Max(h => h.LastObservedUtc),
             LastPolarionUpdatedUtc = histories.Select(h => h.LastPolarionUpdatedUtc)
                 .Concat(observations.Select(o => o.PolarionUpdatedUtc)).Max(),

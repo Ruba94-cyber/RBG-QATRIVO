@@ -166,6 +166,7 @@ public static class TicketExportService
             Riga(sb, "Componente", string.Join(", ", nc.EcuSegnalate.AsEnumerable()));
             Riga(sb, "Veicoli", string.Join(", ", nc.VeicoliSegnalati));
             Riga(sb, "Funzionalità", string.Join(", ", nc.FunzionalitaSegnalate));
+            Riga(sb, "Strumento", nc.StrumentoSegnalato);
             sb.AppendLine();
         }
         if (sezioni.Contains(NcSezioni.CampiStrumento) && nc.ValoriStrumentoSegnalato.Count > 0)
@@ -243,6 +244,7 @@ public static class TicketExportService
             Riga(sb, "Componente", string.Join(", ", tc.Componente.AsEnumerable()));
             Riga(sb, "Veicoli", string.Join(", ", tc.VeicoliEffettivi));
             Riga(sb, "Gamma veicolare", gamma);
+            Riga(sb, "Strumenti usati", string.Join(", ", tc.StrumentiUsati));
             Riga(sb, "Tipo test", state.NomeTestTemplate(tc.TestTemplateUid));
             Riga(sb, "Stato del lavoro", tc.StatoLavoro.Label());
             Riga(sb, "Assegnato a", tc.Assegnatario);

@@ -102,7 +102,7 @@ public static class PdfReportService
 
                 page.Header().Column(col =>
                 {
-                    col.Item().Text("TestLoom - Report Test Diagnostici CS").FontSize(18).Bold();
+                    col.Item().Text("RBG - QATRIVO - Report Test Diagnostici CS").FontSize(18).Bold();
                     col.Item().Text($"Generato il {DateTime.Now:dd/MM/yyyy HH:mm} da {operatoreGenerazione}").FontSize(9).FontColor(Colors.Grey.Darken1);
                 });
 

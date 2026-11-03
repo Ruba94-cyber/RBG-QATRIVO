@@ -571,7 +571,7 @@ public sealed class Scenarios51ExecutionTests : IDisposable
     public void Test_23_IconaTruck_BarraTitoloTaskbarEseguibile()
     {
         var baseDir = AppContext.BaseDirectory;
-        var iconPath = Path.Combine(baseDir, "..", "..", "..", "..", "TestLoom.App", "Assets", "testloom.ico");
+        var iconPath = Path.Combine(baseDir, "..", "..", "..", "..", "TestLoom.App", "Assets", "rbg-qatrivo.ico");
         Assert.True(File.Exists(iconPath));
     }
 

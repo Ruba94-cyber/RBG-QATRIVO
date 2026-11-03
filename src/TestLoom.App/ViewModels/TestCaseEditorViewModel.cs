@@ -253,7 +253,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     // Quick and Full are two presentations of the same TestCase, not two storage formats.
     private const string PreferenzaModalitaEditor = "TestEditor.Mode";
     private string ChiavePreferenzaModalitaEditor => PreferenzaModalitaEditor + "|" + _state.Config.OperatoreAttivo;
-    private bool _modoEditorRapido = true;
+    private bool _modoEditorRapido;
     private bool _rapidaPianificazione, _rapidaAllegati, _rapidaRiferimenti, _rapidaRevisioni;
     public bool ModoEditorRapido
     {
@@ -2361,6 +2361,22 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     /// lasciargli solo un messaggio di testo generico da interpretare.</summary>
     public List<CampoMancante> CampiObbligatoriMancanti { get; private set; } = new();
 
+    /// <summary>Con strumento UnitLogger, almeno un componente e almeno un Veicolo selezionati la Funzionalita diventa obbligatoria
+    /// (richiesta utente 2026-11): ma e' una obbligatorieta' "morbida", al Salva un pop-up permette di proseguire
+    /// comunque senza (vedi SalvaCoreAsync). Nessun effetto se uno dei tre manca o se il Test e' solo guasto/Guasto Injection.</summary>
+    public bool FunzionalitaObbligatoriaConUdtEcuVeicolo =>
+        !SoloOperazioniDtc && !MostraDtcOperazione
+        && TestCase.Componente.Count > 0 && TestCase.VeicoliEffettivi.Count > 0
+        && NomiStrumentiSelezionati().Any(n => string.Equals(n, "UnitLogger", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Vero quando la Funzionalita e' obbligatoria per la regola UnitLogger+componente+Veicolo e non e' stata inserita.</summary>
+    private bool FunzionalitaMancanteConUdtEcuVeicolo =>
+        TestCase.Funzionalita.Count == 0 && FunzionalitaObbligatoriaConUdtEcuVeicolo;
+
+    /// <summary>Sollevato quando, dopo "Torna indietro" dal pop-up della Funzionalita mancante, la view deve portare il
+    /// focus sul campo con questa chiave (CampiSistema). La bozza resta intatta: nessuna mutazione avviene prima.</summary>
+    public event Action<string>? RichiestaVaiAlCampo;
+
     /// <summary>Sollevato da Salva() quando il blocco è per campi obbligatori mancanti: la view apre
     /// CampiMancantiDialog invece di lasciare solo il banner di testo (feedback utente 2026-08-20, punto 15).</summary>
     public event Action? RichiestaMostraCampiMancanti;
@@ -2401,6 +2417,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     public bool CampoObbligatorio(string chiave)
     {
         if (chiave == CampiSistema.Funzionalita && SoloStrumentiSupporto) return true;
+        if (chiave == CampiSistema.Funzionalita && FunzionalitaObbligatoriaConUdtEcuVeicolo) return true;
         // 6.5.0 punto 7: template "Funzionalita non obbligatoria" -> mai obbligatoria.
         if (chiave == CampiSistema.Funzionalita && (MostraDtcOperazione || SoloOperazioniDtc)) return false;
         var campo = (TemplateCorrente?.CampiPianificazione ?? new List<CampoTemplate>())
@@ -4275,8 +4292,10 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         Guid? segnalazioneDaEvidenziareUid = null)
     {
         _state = state;
-        _modoEditorRapido = !string.Equals(
-            ViewStateService.Leggi(state, ChiavePreferenzaModalitaEditor), "full",
+        // Versione completa di default (feedback utente 2026-11-02): la rapida e' una scelta esplicita dell'operatore,
+        // ricordata per operatore; senza preferenza salvata si parte dalla completa.
+        _modoEditorRapido = string.Equals(
+            ViewStateService.Leggi(state, ChiavePreferenzaModalitaEditor), "quick",
             StringComparison.OrdinalIgnoreCase);
         CaricaPreferenzaTuttiICampi();
         _tornaAllaLista = tornaAllaLista;
@@ -7300,6 +7319,10 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         // riferito al campo davvero modificabile e non a quello storico mostrato.
         if (VisualizzaStorico) RevisioneVisualizzata = RevisioneCorrente;
         CampiObbligatoriMancanti = ValidaCampiObbligatoriDaTemplate().ToList();
+        // Funzionalita mancante con UnitLogger+componente+Veicolo: non e' un blocco duro, e' gestita dal pop-up "prosegui/indietro"
+        // piu' sotto (dopo le altre validazioni), quindi qui esce dall'elenco dei campi bloccanti.
+        var funzionalitaMancanteSoft = FunzionalitaMancanteConUdtEcuVeicolo;
+        if (funzionalitaMancanteSoft) CampiObbligatoriMancanti.RemoveAll(c => c.Chiave == CampiSistema.Funzionalita);
         errori.AddRange(CampiObbligatoriMancanti.Select(c => c.Messaggio));
         // Un errore per-operazione porta comunque al popup "campi mancanti" con salto diretto (invece del
         // banner generico) — la sezione Operazioni non ha uno Spotlight per singola riga, ma la vista
@@ -7408,6 +7431,29 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
             if (CampiObbligatoriMancanti.Count > 0) RichiestaMostraCampiMancanti?.Invoke();
             else await ConfirmService.Chiedi(loc.Traduci("ImpossibileSalvareTitolo"), string.Join("\n", errori), loc.Traduci("OkBtn"), "");
             return;
+        }
+
+        // Funzionalita mancante con UnitLogger+componente+Veicolo: l'utente puo' proseguire comunque oppure tornare indietro sul campo.
+        // Nessuna mutazione di TestCase prima di questo punto: tornando indietro la bozza resta intatta.
+        if (funzionalitaMancanteSoft)
+        {
+            var prosegui = await ConfirmService.Chiedi(
+                loc.Traduci("FunzionalitaMancanteTitolo"),
+                loc.Traduci("FunzionalitaMancanteMsg"),
+                loc.Traduci("FunzionalitaMancanteProsegui"),
+                loc.Traduci("FunzionalitaMancanteIndietro"));
+            if (_disposto || _annullamentoInCorso || (modificaAttivaAlSalvataggio && !InModifica)) return;
+            if (!prosegui)
+            {
+                CampiObbligatoriMancanti = new List<CampoMancante>
+                {
+                    new(string.Format(loc.Traduci("ValCampoObblFmt"), EtichettaFunzionalita), CampiSistema.Funzionalita)
+                };
+                NotificaObbligatorieta();
+                NotificaCampiRapidiEssenziali();
+                RichiestaVaiAlCampo?.Invoke(CampiSistema.Funzionalita);
+                return;
+            }
         }
 
         // Avviso non bloccante (punto A, 6.4.1 "Avviso + merge automatico"): subito prima del Salva, di nuovo

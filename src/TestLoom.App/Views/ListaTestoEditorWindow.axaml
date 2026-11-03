@@ -23,7 +23,7 @@
                     Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ImportaDaFileBtn}" />
         </Grid>
 
-        <Border Grid.Row="2" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="4">
+        <Border Grid.Row="2" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="4">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl x:Name="RigheItems" AutomationProperties.AutomationId="ListaTesto_Righe_ItemsControl">
                     <ItemsControl.ItemsPanel>
@@ -37,7 +37,7 @@
                                  niente bordo arrotondato/padding largo per riga, solo una sottile linea divisoria
                                  — con centinaia di righe di un trace lo stile "Field" le rendeva troppo staccate. -->
                             <Border Background="{Binding Colore, Converter={x:Static local:ColoreEvidenziazioneBrushConverter.Instance}}"
-                                    BorderBrush="#F1F5F9" BorderThickness="0,0,0,1">
+                                    BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1">
                                 <Grid ColumnDefinitions="*,Auto">
                                     <TextBox Grid.Column="0" AutomationProperties.AutomationId="ListaTesto_Riga_TextBox" Text="{Binding Testo}" FontFamily="Consolas,monospace" FontSize="13"
                                              Padding="6,3" BorderThickness="0" Background="Transparent" CornerRadius="0">

@@ -35,7 +35,7 @@ public class DiagnosticExportServiceTests : IDisposable
         Assert.NotNull(manifesto);
         using var reader = new StreamReader(manifesto!.Open());
         var testo = reader.ReadToEnd();
-        Assert.Contains("TestLoom - Pacchetto diagnostico", testo);
+        Assert.Contains("RBG - QATRIVO - Pacchetto diagnostico", testo);
         Assert.Contains("Nessun file JSON autorevole", testo);
     }
 
