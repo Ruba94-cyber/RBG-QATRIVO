@@ -31,23 +31,37 @@ public static class AdattamentoDialogo
         if (schermo == null) return;
         var area = schermo.WorkingArea;
         var scala = schermo.Scaling;
-        var larghezzaMassima = LarghezzaMassima(area.Width, scala);
-        var altezzaMassima = AltezzaMassima(area.Height, scala);
-        if (larghezzaMassima > dialogo.MinWidth) dialogo.MaxWidth = larghezzaMassima;
-        if (altezzaMassima > dialogo.MinHeight) dialogo.MaxHeight = altezzaMassima;
+        var larghezzaMassima = Math.Max(1, LarghezzaMassima(area.Width, scala));
+        var altezzaMassima = Math.Max(1, AltezzaMassima(area.Height, scala));
 
-        if (grande && LayoutAdattivo.ModoCorrente <= ModoLayout.Compatto)
+        // Un MinWidth/MinHeight del dialogo maggiore del viewport impediva ad Avalonia di
+        // applicare MaxWidth/MaxHeight: sui portatili 13" i pulsanti della cornice (inclusa X)
+        // finivano fuori dall'area visibile. Il limite fisico dello schermo ha precedenza.
+        dialogo.MinWidth = MinimoCompatibile(dialogo.MinWidth, larghezzaMassima);
+        dialogo.MinHeight = MinimoCompatibile(dialogo.MinHeight, altezzaMassima);
+        dialogo.MaxWidth = larghezzaMassima;
+        dialogo.MaxHeight = altezzaMassima;
+
+        // Gli editor / dashboard grandi usano tutto il viewport anche quando il modo
+        // adattivo e' rimasto Normale (es. 13" con scaling elevato).
+        var larghezzaRichiesta = dialogo.Width > 0 ? dialogo.Width : dialogo.Bounds.Width;
+        var altezzaRichiesta = dialogo.Height > 0 ? dialogo.Height : dialogo.Bounds.Height;
+        if (grande && (LayoutAdattivo.ModoCorrente <= ModoLayout.Compatto ||
+                       larghezzaRichiesta > larghezzaMassima || altezzaRichiesta > altezzaMassima))
         {
             dialogo.WindowState = WindowState.Maximized;
             return;
         }
-        var larghezza = dialogo.Bounds.Width;
-        var altezza = dialogo.Bounds.Height;
-        if (larghezza <= 0 || altezza <= 0) return;
-        if (larghezza > larghezzaMassima && larghezzaMassima > dialogo.MinWidth) dialogo.Width = larghezzaMassima;
-        if (altezza > altezzaMassima && altezzaMassima > dialogo.MinHeight) dialogo.Height = altezzaMassima;
-        dialogo.Position = Centra(area, scala, Math.Min(larghezza, larghezzaMassima), Math.Min(altezza, altezzaMassima));
+        if (larghezzaRichiesta <= 0 || altezzaRichiesta <= 0) return;
+        if (larghezzaRichiesta > larghezzaMassima) dialogo.Width = larghezzaMassima;
+        if (altezzaRichiesta > altezzaMassima) dialogo.Height = altezzaMassima;
+        dialogo.Position = Centra(area, scala,
+            Math.Min(larghezzaRichiesta, larghezzaMassima), Math.Min(altezzaRichiesta, altezzaMassima));
     }
+
+    /// <summary>La dimensione minima desiderata non puo' impedire il contenimento nello schermo.</summary>
+    internal static double MinimoCompatibile(double minimoRichiesto, double massimoDisponibile) =>
+        Math.Min(Math.Max(0, minimoRichiesto), Math.Max(1, massimoDisponibile));
 
     /// <summary>Altezza logica massima di un dialogo: area di lavoro in pixel fisici, convertita in DIP, meno il margine.</summary>
     internal static double AltezzaMassima(int altezzaAreaLavoroPixel, double scala) => DaPixelADip(altezzaAreaLavoroPixel, scala) - Margine;

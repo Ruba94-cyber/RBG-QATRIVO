@@ -188,6 +188,56 @@ public partial class AuditViewModel : ViewModelBase, IPaginaAggiornabile
         return f;
     }
     private bool TipoIncluso(string tipo) => !FiltroTipoRequisito.HaSelezione || FiltroTipoRequisito.Selezionati.Contains(tipo);
+    /// <summary>Filtro degli STATI delle celle, come in Report: nessuna selezione = matrice completa.
+    /// Agisce solo sulla proiezione, senza alterare dati, valori salvati, KPI o export.</summary>
+    public FiltroMultiSelect FiltroStatiMatrice { get; } = new();
+
+    internal static readonly string[] CategorieStatiMatrice =
+    [
+        "NA", "DaTestare", "TestCreato", "Conflitto", "Propagabile", "Basso", "Medio", "Ottimo"
+    ];
+
+    public static string CategoriaStatoCella(CellaMatriceAuditVisual cella)
+    {
+        if (cella.NonApplicabileEcu || cella is { Stato: StatoCellaAudit.Valutato, Punteggio: PunteggioConformita.NonApplicabile })
+            return "NA";
+        if (cella.Stato == StatoCellaAudit.Conflitto || cella.ConflittoCollisioneCella)
+            return "Conflitto";
+        return cella.Stato switch
+        {
+            StatoCellaAudit.DaTestare => "DaTestare",
+            StatoCellaAudit.TestCreatoNonEseguito => "TestCreato",
+            StatoCellaAudit.PropagabileNonConfermato => "Propagabile",
+            StatoCellaAudit.Valutato when cella.Punteggio is { } p && (int)p <= 1 => "Basso",
+            StatoCellaAudit.Valutato when cella.Punteggio is { } p && (int)p <= 3 => "Medio",
+            StatoCellaAudit.Valutato => "Ottimo",
+            _ => "DaTestare"
+        };
+    }
+
+    public bool CellaVisibilePerStato(CellaMatriceAuditVisual? cella) =>
+        cella != null && (!FiltroStatiMatrice.HaSelezione ||
+            FiltroStatiMatrice.Selezionati.Contains(CategoriaStatoCella(cella)));
+
+    public bool HaFiltroStatiMatrice => FiltroStatiMatrice.HaSelezione;
+    public void AzzeraFiltroStatiMatrice() => FiltroStatiMatrice.DeselezionaTutto();
+
+    public void AggiornaEtichetteFiltroStati()
+    {
+        var loc = LocalizationService.Instance;
+        FiltroStatiMatrice.Ripopola(new[]
+        {
+            ("NA", loc.Scegli("N.A. / Non applicabile", "N.A. / Not applicable", "N.A. / Non applicable")),
+            ("DaTestare", loc.Traduci("AuditDaTestare")),
+            ("TestCreato", loc.Traduci("AuditTestCreato")),
+            ("Conflitto", loc.Traduci("AuditConflitti")),
+            ("Propagabile", loc.Traduci("AuditPropagabili")),
+            ("Basso", loc.Traduci("AuditPunteggio01")),
+            ("Medio", loc.Traduci("AuditPunteggio23")),
+            ("Ottimo", loc.Traduci("AuditPunteggio45"))
+        });
+    }
+
     public bool HaFiltroTipoAttivo => FiltroTipoRequisito.HaSelezione;
     public void AzzeraFiltroTipo() => FiltroTipoRequisito.DeselezionaTutto();
     public bool MostraSezioneStandard => TipoIncluso("Standard");
@@ -267,6 +317,13 @@ public partial class AuditViewModel : ViewModelBase, IPaginaAggiornabile
         // Filtro Tipo requisito: PRINCIPALE (sempre visibile, FiltriPrincipaliConfig), valore mantenuto per PC
         // (ViewStateService, config locale); opzioni fisse quindi si lega subito, valori obsoleti ignorati.
         FiltroTipoRequisito.LegaPersistenza(state, "Audit.FiltroTipoRequisito");
+        AggiornaEtichetteFiltroStati();
+        FiltroStatiMatrice.LegaPersistenza(state, "Audit.FiltroStatiMatrice");
+        FiltroStatiMatrice.Cambiato += () =>
+        {
+            OnPropertyChanged(nameof(HaFiltroStatiMatrice));
+            MatriceAggiornata?.Invoke();
+        };
         FiltroTipoRequisito.Cambiato += () =>
         {
             OnPropertyChanged(nameof(HaFiltroTipoAttivo));

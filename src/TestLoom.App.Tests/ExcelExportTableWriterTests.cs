@@ -35,6 +35,28 @@ public sealed class ExcelExportTableWriterTests
     }
 
     [Fact]
+    public void ExcelExport_TestDaOperatoreConPrefissoFormulaRestaTesto_NonEsegueFormule()
+    {
+        using var workbook = new XLWorkbook();
+        var extended = "=WEBSERVICE(1)" + new string('x', 40_000);
+        var writer = new ExcelExportTableWriter(workbook, "NC", ["ID", "Nota", "Dettaglio"]);
+        writer.AggiungiRiga("=RISCHIO", ["=HYPERLINK(1)", "  +CMD(1)", extended]);
+        writer.Completa();
+
+        var main = workbook.Worksheet("NC");
+        Assert.Equal("=HYPERLINK(1)", main.Cell(2, 1).GetString());
+        Assert.Equal("  +CMD(1)", main.Cell(2, 2).GetString());
+        Assert.False(main.Cell(2, 1).HasFormula);
+        Assert.False(main.Cell(2, 2).HasFormula);
+        Assert.True(main.Cell(2, 1).Style.IncludeQuotePrefix);
+        var dettaglio = workbook.Worksheets.Single(w => w.Name.StartsWith("NC dettagli", StringComparison.Ordinal));
+        Assert.Equal("=RISCHIO", dettaglio.Cell(2, 1).GetString());
+        Assert.False(dettaglio.Cell(2, 1).HasFormula);
+        Assert.False(dettaglio.Cell(2, 4).HasFormula);
+        Assert.Equal(extended, string.Concat(dettaglio.RowsUsed().Skip(1).Select(row => row.Cell(4).GetString())));
+    }
+
+    [Fact]
     public void SuperatoLimiteRighe_RipeteIntestazioniSuNuoviFogliPrincipaliEDettagli()
     {
         using var workbook = new XLWorkbook();

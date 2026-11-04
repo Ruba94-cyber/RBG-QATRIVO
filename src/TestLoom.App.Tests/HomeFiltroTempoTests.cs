@@ -83,6 +83,160 @@ public sealed class HomeFiltroTempoTests : IDisposable
     private static long Conteggio(LocalHomeDashboardQueryService servizio, DashboardFilter filtro) =>
         servizio.GetSnapshot(filtro).OutcomeCounts.Values.Sum();
 
+    [Fact]
+    public void RiepilogoTempoHome_IndiceECalcoloInMemoriaCoincidono_SenzaFiltri()
+    {
+        var (a, b, c, d, e, f) = Dataset();
+        var tutti = new[] { a, b, c, d, e, f };
+        var store = Indice(Path.Combine(_root, "tempo-riepilogo"), tutti);
+        var servizio = new LocalHomeDashboardQueryService(store.DatabasePath);
+
+        var indicizzato = servizio.GetTimeSummary(new DashboardFilter());
+        var memoria = ReportMatriceService.RiepilogoTempoHome(tutti);
+        Assert.Equal(memoria, indicizzato);
+        Assert.Equal(195, indicizzato.SommaMinuti); // 35+40+57+63; import UnitLogger escluso
+        Assert.Equal(7, indicizzato.Conosciuti);
+        Assert.Equal(8, indicizzato.Eleggibili);    // test C: durata mancante
+        Assert.Equal(195d / 7, indicizzato.Media);
+    }
+
+    [Fact]
+    public void RiepilogoTempoHome_FiltroTotaleTestCoerenteTraIndiceEMemoria()
+    {
+        var (a, b, c, d, e, f) = Dataset();
+        var tutti = new[] { a, b, c, d, e, f };
+        var store = Indice(Path.Combine(_root, "tempo-filtro"), tutti);
+        var servizio = new LocalHomeDashboardQueryService(store.DatabasePath);
+        var filtro = Filtro(totale: OperatoreDurata.Maggiore, minutiTotale: 40);
+
+        var indicizzato = servizio.GetTimeSummary(filtro);
+        var memoria = ReportMatriceService.RiepilogoTempoHome(filtro.Applica(tutti, _ => null));
+        Assert.Equal(memoria, indicizzato);
+        Assert.Equal(120, indicizzato.SommaMinuti); // E=57, F=63
+        Assert.Equal(4, indicizzato.Conosciuti);
+        Assert.Equal(4, indicizzato.Eleggibili);
+    }
+
+    [Fact]
+    public void TempoMedioHome_ContaSoloConformi_IndiceEMemoriaSonoAllineati()
+    {
+        var (a, b, c, d, e, f) = Dataset();
+        var tutti = new[] { a, b, c, d, e, f };
+        var store = Indice(Path.Combine(_root, "tempo-medio-conformi"), tutti);
+        var servizio = new LocalHomeDashboardQueryService(store.DatabasePath);
+
+        var sql = servizio.GetTimeSummary(new DashboardFilter(), soloConformi: true);
+        var memoria = ReportMatriceService.RiepilogoTempoHome(tutti, soloConformi: true);
+        Assert.Equal(memoria, sql);
+        Assert.Equal(new ValoreTempo(145, 6, 7), sql); // NonConforme E=50 escluso; C conforme senza durata
+        Assert.Equal(145d / 6, sql.Media);
+        // Non cambiare involontariamente il tempo totale degli stessi Test.
+        Assert.Equal(195, servizio.GetTimeSummary(new DashboardFilter()).SommaMinuti);
+    }
+
+    [Fact]
+    public void TempoMedioHome_ConFiltroSulTotaleTest_FiltraTestPoiOperazioniConformi()
+    {
+        var (a, b, c, d, e, f) = Dataset();
+        var tutti = new[] { a, b, c, d, e, f };
+        var store = Indice(Path.Combine(_root, "tempo-medio-filtrato"), tutti);
+        var servizio = new LocalHomeDashboardQueryService(store.DatabasePath);
+        var filtro = Filtro(totale: OperatoreDurata.Maggiore, minutiTotale: 40);
+
+        var sql = servizio.GetTimeSummary(filtro, soloConformi: true);
+        var memoria = ReportMatriceService.RiepilogoTempoHome(
+            filtro.Applica(tutti, _ => null), soloConformi: true);
+        Assert.Equal(memoria, sql);
+        Assert.Equal(new ValoreTempo(70, 3, 3), sql); // E=7, F=3+60; E non conforme 50 escluso
+    }
+
+    [Fact]
+    public void RiepilogoTempoHome_CacheTotaleEMedioSiInvalidaAllaNuovaRevisioneIndice()
+    {
+        var dir = Path.Combine(_root, "tempo-cache-revisione");
+        var primo = Test("Cache-1", Rev(1, Op("F1", Esito.Conforme, 10)));
+        var store = Indice(dir, [primo]);
+        var servizio = new LocalHomeDashboardQueryService(store.DatabasePath);
+        var filtro = new DashboardFilter { DataDa = Giorno.AddDays(-1), DataA = Giorno.AddDays(5) };
+
+        Assert.Equal(new ValoreTempo(10, 1, 1), servizio.GetTimeSummary(filtro));
+        Assert.Equal(new ValoreTempo(10, 1, 1), servizio.GetTimeSummary(filtro, soloConformi: true));
+
+        // Stessa istanza query e stesso filtro; una nuova operazione deve invalidare
+        // entrambi i valori cached, non solo la modalita' corrente.
+        var secondo = Test("Cache-2", Rev(2, Op("F1", Esito.NonConforme, 30)));
+        store.Upsert(Path.Combine(dir, "Cache-2.json"), Giorno.AddDays(2), 120, secondo);
+        Assert.Equal(new ValoreTempo(40, 2, 2), servizio.GetTimeSummary(filtro));
+        Assert.Equal(new ValoreTempo(10, 1, 1), servizio.GetTimeSummary(filtro, soloConformi: true));
+    }
+
+    [Fact]
+    public void IndiceLocale_ContieneIndicePerUltimaOccorrenzaDelleOperazioni()
+    {
+        var tc = Test("INDEX", Rev(1, Op("F1", Esito.Conforme, 4)));
+        var store = Indice(Path.Combine(_root, "indice-time"), [tc]);
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = store.DatabasePath,
+            Mode = SqliteOpenMode.ReadOnly
+        }.ToString());
+        connection.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'ix_operation_uid_revision'";
+        Assert.Equal(1L, Convert.ToInt64(cmd.ExecuteScalar()));
+    }
+
+    [Fact]
+    public void TempoMedioHome_IntervalloDateEscludeTentativiFuoriPeriodo_IndiceEMemoria()
+    {
+        var (a, b, c, d, e, f) = Dataset();
+        var tutti = new[] { a, b, c, d, e, f };
+        var store = Indice(Path.Combine(_root, "tempo-intervallo"), tutti);
+        var servizio = new LocalHomeDashboardQueryService(store.DatabasePath);
+
+        var dentro = new DashboardFilter
+        {
+            DataDa = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc),
+            DataA = new DateTime(2026, 2, 28, 0, 0, 0, DateTimeKind.Utc)
+        };
+        var fuori = new DashboardFilter
+        {
+            DataDa = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc),
+            DataA = new DateTime(2026, 3, 31, 0, 0, 0, DateTimeKind.Utc)
+        };
+
+        Assert.Equal(ReportMatriceService.RiepilogoTempoHome(
+                dentro.Applica(tutti, _ => null), soloConformi: true),
+            servizio.GetTimeSummary(dentro, soloConformi: true));
+        Assert.Equal(default, servizio.GetTimeSummary(fuori, soloConformi: true));
+        Assert.Equal(default, ReportMatriceService.RiepilogoTempoHome(
+            fuori.Applica(tutti, _ => null), soloConformi: true));
+    }
+
+    [Fact]
+    public void RiepilogoTempoHome_NonContaTestEliminati()
+    {
+        var tc = Test("Test-eliminato", Rev(1, Op("F1", Esito.Conforme, 50)));
+        tc.Eliminato = true;
+        Assert.Equal(default, ReportMatriceService.RiepilogoTempoHome([tc]));
+        Assert.Equal(default, ReportMatriceService.RiepilogoTempoHome([tc], soloConformi: true));
+    }
+
+    [Fact]
+    public void TempoMedioHome_EscludeConformeConDeviazioni_AncheSeIlTestEConforme()
+    {
+        var test = Test("G", Rev(1,
+            Op("F1", Esito.ConformeConDeviazioni, 90),
+            Op("F1", Esito.Conforme, 10)));
+        var store = Indice(Path.Combine(_root, "tempo-medio-deviazione"), [test]);
+        var servizio = new LocalHomeDashboardQueryService(store.DatabasePath);
+
+        Assert.Equal(new ValoreTempo(100, 2, 2), servizio.GetTimeSummary(new DashboardFilter()));
+        var medio = servizio.GetTimeSummary(new DashboardFilter(), soloConformi: true);
+        Assert.Equal(new ValoreTempo(10, 1, 1), medio);
+        Assert.Equal(medio, ReportMatriceService.RiepilogoTempoHome([test], soloConformi: true));
+    }
+
     [Theory]
     [InlineData(OperatoreDurata.Maggiore, 20, 3)]   // A (30), B (40), F (60 guasto): D escluso, C vuoto mai, E (7) no
     [InlineData(OperatoreDurata.Minore, 20, 3)]     // A (5), E (7), F (3): B no, C vuoto mai

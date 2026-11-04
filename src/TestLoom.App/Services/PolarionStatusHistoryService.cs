@@ -105,21 +105,41 @@ public sealed class PolarionStatusHistoryService(DataPaths paths, string? device
         }
     }
 
-    /// <summary>Merge same-work-item observations from all devices for read-only reporting.</summary>
-    public History? ReadMerged(string projectId, string ticketId)
+    /// <summary>Fotografia delle cartelle dispositivo di un progetto: una sola
+    /// enumerazione directory per un report contenente molti TICKET, anziche' una
+    /// scansione di OneDrive per ogni ticket. Numero massimo conservativo: 256.</summary>
+    internal IReadOnlyList<string> SnapshotDeviceDirectories(string projectId)
     {
+        if (string.IsNullOrWhiteSpace(projectId) || !ProjectPattern.IsMatch(projectId))
+            throw new ArgumentException("Invalid TICKET project ID.");
         var baseDir = Path.Combine(paths.PolarionHistoryDir, projectId);
+        if (!Directory.Exists(baseDir)) return Array.Empty<string>();
+        var dirs = Directory.EnumerateDirectories(baseDir).Take(257).ToArray();
+        if (dirs.Length > 256)
+            throw new InvalidDataException("Too many TICKET device timelines to merge safely.");
+        return dirs;
+    }
+
+    /// <summary>Merge same-work-item observations from all devices for read-only reporting.</summary>
+    public History? ReadMerged(string projectId, string ticketId) =>
+        ReadMerged(projectId, ticketId, SnapshotDeviceDirectories(projectId));
+
+    /// <summary>Variante batch: usa una fotografia validata dei device acquisita
+    /// una sola volta dal report. Non memorizza cache tra ricaricamenti.</summary>
+    internal History? ReadMerged(string projectId, string ticketId, IReadOnlyList<string> deviceDirs)
+    {
         _ = DeviceFile(projectId, ticketId, _device); // Validate ticket and project IDs.
-        if (!Directory.Exists(baseDir)) return null;
-        var deviceDirs = Directory.EnumerateDirectories(baseDir).Take(257).ToArray();
-        if (deviceDirs.Length > 256)
+        ArgumentNullException.ThrowIfNull(deviceDirs);
+        if (deviceDirs.Count > 256)
             throw new InvalidDataException("Too many TICKET device timelines to merge safely.");
         var files = deviceDirs.Select(dir => Path.Combine(dir, ticketId.ToUpperInvariant() + ".json"))
             .Where(File.Exists).ToArray();
         if (files.Length == 0) return null;
-        var histories = files.Select(LoadFile).Where(h => h is not null).Cast<History>()
-            .Where(h => h.TicketId.Equals(ticketId, StringComparison.OrdinalIgnoreCase) &&
-                h.ProjectId.Equals(projectId, StringComparison.OrdinalIgnoreCase)).ToList();
+        var histories = files.Select(LoadFile).Where(h => h is not null).Cast<History>().ToList();
+        if (histories.Any(h =>
+                !string.Equals(h.TicketId, ticketId, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(h.ProjectId, projectId, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidDataException("TICKET history file has a mismatched ticket/project identity.");
         if (histories.Count == 0) return null;
         // If two devices report different states at the same repository revision, don't
         // silently choose one or fabricate a lifecycle event. Keep the raw files for review.
@@ -173,9 +193,18 @@ public sealed class PolarionStatusHistoryService(DataPaths paths, string? device
     private static History? LoadFile(string path)
     {
         if (!File.Exists(path)) return null;
-        return JsonIo.TryRead<History>(path, out var error) ??
+        var history = JsonIo.TryRead<History>(path, out var error) ??
             throw new InvalidDataException("TICKET history is corrupt; refusing to discard it.",
                 error is null ? null : new InvalidDataException(error));
+        // Il JSON puo' essere sintatticamente valido ma avere una lista null:
+        // prima causava NullReferenceException nel merge, facendo fallire l'intero
+        // report invece di segnalare il SOLO storico del ticket come illeggibile.
+        if (string.IsNullOrWhiteSpace(history.ProjectId) ||
+            string.IsNullOrWhiteSpace(history.TicketId) ||
+            string.IsNullOrWhiteSpace(history.DeviceId) ||
+            history.Observations is null || history.Observations.Any(o => o is null))
+            throw new InvalidDataException("TICKET history structure is incomplete; manual review required.");
+        return history;
     }
 
     private string DeviceFile(string project, string ticket, string device)

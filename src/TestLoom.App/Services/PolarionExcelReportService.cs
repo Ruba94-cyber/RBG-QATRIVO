@@ -5,14 +5,54 @@ namespace TestLoom.App.Services;
 /// <summary>Standalone, filter-matched TICKET workbook. No changes to the established NC workbook.</summary>
 public static class PolarionExcelReportService
 {
+    /// <summary>API in-memory usata dai test e dalle integrazioni esistenti.</summary>
     public static byte[] Generate(IReadOnlyList<PolarionReportService.Row> rows,
         DateTimeOffset generatedAt, CancellationToken ct = default)
     {
+        using var workbook = BuildWorkbook(rows, generatedAt, ct);
+        ct.ThrowIfCancellationRequested();
+        using var buffer = new MemoryStream();
+        workbook.SaveAs(buffer);
+        return buffer.ToArray();
+    }
+
+    /// <summary>Export desktop a basso picco memoria: ClosedXML salva direttamente
+    /// su un file temporaneo nella stessa directory di destinazione. Il file
+    /// preesistente non viene toccato in caso di eccezione o annullamento.</summary>
+    public static void SaveToFile(IReadOnlyList<PolarionReportService.Row> rows,
+        DateTimeOffset generatedAt, string path, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var fullPath = Path.GetFullPath(path);
+        var dir = Path.GetDirectoryName(fullPath) ??
+            throw new ArgumentException("Excel output directory not available.", nameof(path));
+        var temp = Path.Combine(dir, "." + Path.GetFileName(fullPath) +
+            "." + Guid.NewGuid().ToString("N") + ".tmp.xlsx");
+        try
+        {
+            using (var workbook = BuildWorkbook(rows, generatedAt, ct))
+            {
+                ct.ThrowIfCancellationRequested();
+                workbook.SaveAs(temp);
+            }
+            ct.ThrowIfCancellationRequested();
+            File.Move(temp, fullPath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temp)) File.Delete(temp);
+        }
+    }
+
+    private static XLWorkbook BuildWorkbook(IReadOnlyList<PolarionReportService.Row> rows,
+        DateTimeOffset generatedAt, CancellationToken ct)
+    {
         ArgumentNullException.ThrowIfNull(rows);
-        using var workbook = new XLWorkbook();
+        ct.ThrowIfCancellationRequested();
+        var workbook = new XLWorkbook();
+        try
+        {
         var overview = workbook.Worksheets.Add("Riepilogo TICKET");
-        var details = workbook.Worksheets.Add("Ticket TICKET");
-        var timeline = workbook.Worksheets.Add("Timeline TICKET");
         overview.Cell("A1").Value = "RBG - QATRIVO · Ticketing TICKET lifecycle";
         overview.Cell("A1").Style.Font.Bold = true;
         overview.Cell("A1").Style.Font.FontSize = 17;
@@ -62,98 +102,93 @@ public static class PolarionExcelReportService
             "Ultima cache", "Commenti", "Qualità dati",
             "Apertura → Testing (limite superiore)", "Apertura → Closed (limite superiore)",
             "Testing osservati", "Closed osservati", "Reopen osservati" };
-        for (var i = 0; i < columns.Length; i++) details.Cell(1, i + 1).Value = columns[i];
-        Header(details.Range(1, 1, 1, columns.Length));
+        // Usa il writer condiviso anche per TICKET: gestisce i limiti di Excel
+        // (1.048.576 righe, 32.767 caratteri/cella), le formule da testo utente
+        // e la continuazione su altri fogli senza perdita silenziosa.
+        var detailWriter = new ExcelExportTableWriter(workbook, "Ticket TICKET", columns);
         for (var i = 0; i < rows.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
             var row = rows[i];
-            var n = i + 2;
-            var strings = new[] { row.TicketId, row.Title, row.Type, row.Status,
-                row.Resolution, row.Priority, row.Severity, row.Records,
-                row.Vehicles, row.Ranges, row.ArchiveText };
-            for (var j = 0; j < strings.Length; j++)
-                details.Cell(n, j + 1).Value = Sanitize(strings[j]);
-            Date(details.Cell(n, 12), row.CreatedAt);
-            Date(details.Cell(n, 13), row.FirstTestingObservedAt);
-            Date(details.Cell(n, 14), row.FirstClosedObservedAt);
-            Date(details.Cell(n, 15), row.LastReopenObservedAt);
-            if (!row.HistoryUnavailable)
-            {
-                details.Cell(n, 16).Value = row.AlreadyTestingAtBaseline ? "Sì" : "No";
-                details.Cell(n, 17).Value = row.AlreadyClosedAtBaseline ? "Sì" : "No";
-            }
-            if (row.LastFetchedAt != default) Date(details.Cell(n, 18), row.LastFetchedAt);
-            details.Cell(n, 19).Value = row.CommentsCount;
-            details.Cell(n, 20).Value = row.DataQuality;
-            details.Cell(n, 21).Value = row.TestingUpperBoundText;
-            details.Cell(n, 22).Value = row.ClosureUpperBoundText;
-            if (!row.HistoryUnavailable)
-            {
-                details.Cell(n, 23).Value = row.TestingTransitionsObserved;
-                details.Cell(n, 24).Value = row.ClosureTransitionsObserved;
-                details.Cell(n, 25).Value = row.ReopenTransitionsObserved;
-            }
+            object?[] values =
+            [
+                row.TicketId, row.Title, row.Type, row.Status, row.Resolution,
+                row.Priority, row.Severity, row.Records, row.Vehicles, row.Ranges,
+                row.ArchiveText, LocalDate(row.CreatedAt), LocalDate(row.FirstTestingObservedAt),
+                LocalDate(row.FirstClosedObservedAt), LocalDate(row.LastReopenObservedAt),
+                row.HistoryUnavailable ? null : row.AlreadyTestingAtBaseline ? "Sì" : "No",
+                row.HistoryUnavailable ? null : row.AlreadyClosedAtBaseline ? "Sì" : "No",
+                row.LastFetchedAt == default ? null : row.LastFetchedAt.LocalDateTime,
+                row.CommentsCount, row.DataQuality,
+                row.TestingUpperBoundText, row.ClosureUpperBoundText,
+                row.HistoryUnavailable ? null : row.TestingTransitionsObserved,
+                row.HistoryUnavailable ? null : row.ClosureTransitionsObserved,
+                row.HistoryUnavailable ? null : row.ReopenTransitionsObserved
+            ];
+            detailWriter.AggiungiRiga(row.TicketId, values);
         }
-        details.SheetView.FreezeRows(1);
-        details.Column("A").Width = 15;
-        details.Column("B").Width = 48;
-        details.Columns("C:G").Width = 15;
-        details.Column("H").Width = 30;
-        details.Columns("I:J").Width = 24;
-        details.Column("K").Width = 12;
-        details.Columns("L:R").Width = 27;
-        details.Column("S").Width = 14;
-        details.Column("T").Width = 32;
-        details.Columns("U:V").Width = 30;
-        details.Columns("W:Y").Width = 18;
-        if (rows.Count > 0) details.Range(1, 1, rows.Count + 1, columns.Length).SetAutoFilter();
+        detailWriter.Completa();
+        foreach (var details in workbook.Worksheets.Where(w =>
+            w.Name == "Ticket TICKET" || w.Name.StartsWith("Ticket TICKET (", StringComparison.Ordinal)))
+        {
+            Header(details.Range(1, 1, 1, columns.Length));
+            details.Column("A").Width = 15;
+            details.Column("B").Width = 48;
+            details.Columns("C:G").Width = 15;
+            details.Column("H").Width = 30;
+            details.Columns("I:J").Width = 24;
+            details.Column("K").Width = 12;
+            details.Columns("L:R").Width = 27;
+            details.Column("S").Width = 14;
+            details.Column("T").Width = 32;
+            details.Columns("U:V").Width = 30;
+            details.Columns("W:Y").Width = 18;
+        }
 
         // Full observed state history for every filtered TICKET, including the initial
         // baseline and subsequent reopens/reclosures; never label observed dates exact.
         var timelineHeaders = new[] { "TICKET", "NC / CR", "Data osservazione TestLoom",
             "Stato", "Risoluzione", "Evento", "Provenienza data" };
-        for (var i = 0; i < timelineHeaders.Length; i++)
-            timeline.Cell(1, i + 1).Value = timelineHeaders[i];
-        Header(timeline.Range(1, 1, 1, timelineHeaders.Length));
-        var timelineRow = 2;
+        var timelineWriter = new ExcelExportTableWriter(workbook, "Timeline TICKET", timelineHeaders);
         foreach (var row in rows)
         {
             ct.ThrowIfCancellationRequested();
             foreach (var observation in row.Timeline)
             {
-                timeline.Cell(timelineRow, 1).Value = Sanitize(row.TicketId);
-                timeline.Cell(timelineRow, 2).Value = Sanitize(row.Records);
-                Date(timeline.Cell(timelineRow, 3), observation.AtUtc);
-                timeline.Cell(timelineRow, 4).Value = Sanitize(observation.Status);
-                timeline.Cell(timelineRow, 5).Value = Sanitize(observation.Resolution);
-                timeline.Cell(timelineRow, 6).Value = observation.IsBaseline
-                    ? "Baseline TestLoom" : "Cambio stato osservato";
-                timeline.Cell(timelineRow, 7).Value = observation.IsBaseline
-                    ? "Prima osservazione, NON data di ingresso nello stato"
-                    : "Prima rilevazione TestLoom, NON data storica esatta Ticketing";
-                timelineRow++;
+                ct.ThrowIfCancellationRequested();
+                timelineWriter.AggiungiRiga(row.TicketId,
+                [
+                    row.TicketId, row.Records, observation.AtUtc.LocalDateTime,
+                    observation.Status, observation.Resolution,
+                    observation.IsBaseline ? "Baseline TestLoom" : "Cambio stato osservato",
+                    observation.IsBaseline
+                        ? "Prima osservazione, NON data di ingresso nello stato"
+                        : "Prima rilevazione TestLoom, NON data storica esatta Ticketing"
+                ]);
             }
         }
-        timeline.SheetView.FreezeRows(1);
-        timeline.Columns("A:B").Width = 23;
-        timeline.Column("C").Width = 25;
-        timeline.Columns("D:F").Width = 24;
-        timeline.Column("G").Width = 66;
-        if (timelineRow > 2)
-            timeline.Range(1, 1, timelineRow - 1, timelineHeaders.Length).SetAutoFilter();
+        timelineWriter.Completa();
+        foreach (var timeline in workbook.Worksheets.Where(w =>
+            w.Name == "Timeline TICKET" || w.Name.StartsWith("Timeline TICKET (", StringComparison.Ordinal)))
+        {
+            Header(timeline.Range(1, 1, 1, timelineHeaders.Length));
+            timeline.Columns("A:B").Width = 23;
+            timeline.Column("C").Width = 25;
+            timeline.Columns("D:F").Width = 24;
+            timeline.Column("G").Width = 66;
+        }
 
-        using var buffer = new MemoryStream();
-        workbook.SaveAs(buffer);
-        return buffer.ToArray();
+            ct.ThrowIfCancellationRequested();
+            return workbook;
+        }
+        catch
+        {
+            workbook.Dispose();
+            throw;
+        }
     }
 
-    private static void Date(IXLCell cell, DateTimeOffset? value)
-    {
-        if (!value.HasValue) return;
-        cell.Value = value.Value.LocalDateTime;
-        cell.Style.DateFormat.Format = "dd/mm/yyyy hh:mm";
-    }
+    private static DateTime? LocalDate(DateTimeOffset? value) => value?.LocalDateTime;
 
     private static void Header(IXLRange range)
     {
@@ -162,12 +197,4 @@ public static class PolarionExcelReportService
         range.Style.Font.Bold = true;
     }
 
-    private static string Sanitize(string? text)
-    {
-        var value = text ?? "";
-        return value.TrimStart().StartsWith("=", StringComparison.Ordinal) ||
-            value.TrimStart().StartsWith("+", StringComparison.Ordinal) ||
-            value.TrimStart().StartsWith("-", StringComparison.Ordinal) ||
-            value.TrimStart().StartsWith("@", StringComparison.Ordinal) ? "'" + value : value;
-    }
 }

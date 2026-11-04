@@ -9,6 +9,48 @@ namespace TestLoom.App.Tests;
 public sealed class PolarionSharedSyncTests
 {
     [Fact]
+    public void SamePolarionRevisionWithContradictoryStatus_DoesNotOverwriteSharedCache()
+    {
+        using var fixture = new SyncFixture();
+        var cache = new PolarionSnapshotStore(fixture.First.Paths);
+        var retrieved = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var updated = retrieved.AddSeconds(-30);
+        var initial = new PolarionTicketSnapshot
+        {
+            ProjectId = "TICKET_Tickets", Id = "TICKET-123", Status = "testing",
+            Updated = updated, RetrievedAtUtc = retrieved
+        };
+        Assert.True(cache.SaveIfNewer(initial));
+        var contradictory = new PolarionTicketSnapshot
+        {
+            ProjectId = "TICKET_Tickets", Id = "TICKET-123", Status = "closed",
+            Resolution = "done", Updated = updated, RetrievedAtUtc = retrieved.AddMinutes(1)
+        };
+        Assert.Throws<InvalidDataException>(() => cache.SaveIfNewer(contradictory));
+        Assert.Equal("testing", cache.Load("TICKET_Tickets", "TICKET-123")!.Status);
+        Assert.Equal(updated, cache.Load("TICKET_Tickets", "TICKET-123")!.Updated);
+    }
+
+    [Fact]
+    public void ReportEsta_IsolaCacheJsonConListaCommentiNull_SenzaBloccareGliAltriTicket()
+    {
+        using var fixture = new SyncFixture();
+        var dir = Path.Combine(fixture.First.Paths.PolarionSnapshotDir, "TICKET_Tickets");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "TICKET-123.json"),
+            """{"ProjectId":"TICKET_Tickets","Id":"TICKET-123","Comments":null}""");
+        var store = new PolarionSnapshotStore(fixture.First.Paths);
+        Assert.Throws<InvalidDataException>(() => store.Load("TICKET_Tickets", "TICKET-123"));
+        var rows = PolarionReportService.Build(
+            [new PolarionReportService.Association("TICKET-123", "NC", "NC-1", [])],
+            id => store.Load("TICKET_Tickets", id), _ => null,
+            new Dictionary<string, string>());
+        var row = Assert.Single(rows);
+        Assert.False(row.HasCache);
+        Assert.Equal("TICKET-123", row.TicketId);
+    }
+
+    [Fact]
     public async Task ReadOnlyWorkspaceDoesNotPollPolarionAutomatically()
     {
         using var fixture = new SyncFixture();

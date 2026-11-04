@@ -71,6 +71,27 @@ public sealed class ThemeSurfaceCoverageTests
     }
 
     [Fact]
+    public void BadgeWuEReportNa_EvitanoTestoChiaroSuSfondoPastelloNelTemaScuro()
+    {
+        var wu = File.ReadAllText(Path.Combine(Root(), "Views", "WuStatusView.axaml"));
+        var converters = File.ReadAllText(Path.Combine(Root(), "Converters.cs"));
+        Assert.Contains("StatoWorkingUnitTextColorConverter.Instance", wu);
+        Assert.Contains("public class StatoWorkingUnitTextColorConverter", converters);
+        // N.A. resta grigio pastello nel Report: il foreground non deve ereditarne uno bianco.
+        Assert.Contains("if (cella.NonApplicabile)", converters);
+        Assert.Contains("Color.Parse(testo ? \"#334155\" : \"#E2E8F0\")", converters);
+    }
+
+    [Fact]
+    public void MatriceAudit_LeCelleRequisitoCambianoColTemaInTempoReale()
+    {
+        var audit = File.ReadAllText(Path.Combine(Root(), "Views", "AuditView.axaml.cs"));
+        Assert.Contains("ActualThemeVariantChanged", audit);
+        Assert.Contains("Background = PennelloPer(ActualThemeVariant ==", audit);
+        Assert.Contains("\"#141B23\" : \"#F8FAFC\"", audit);
+    }
+
+    [Fact]
     public void ChartCanvas_UsaSfondoBiancoPerLaGraficaRenderizzataConInchiostroScuro()
     {
         var app = File.ReadAllText(Path.Combine(Root(), "App.axaml"));

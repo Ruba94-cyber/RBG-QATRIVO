@@ -80,6 +80,31 @@ internal sealed class RisultatoTempoMatrice
 
 public static partial class ReportMatriceService
 {
+    /// <summary>Riepilogo compatto Home: come la base TIME "Tutte le esecuzioni" del Report.
+    /// Un tentativo identificato da TestUid + Condizione.Uid e' contato una sola volta
+    /// (ultima revisione); le ripetizioni con UID distinto e le guasto sono incluse.
+    /// Il tempo totale considera ogni esito eseguito; in modo Tempo medio vengono contate
+    /// solo operazioni con Esito.Conforme (anche il denominatore di completezza).
+    /// Per la media il denominatore comprende solo durate note, mai la media delle medie.</summary>
+    public static ValoreTempo RiepilogoTempoHome(IEnumerable<TestCase> testCases, bool soloConformi = false)
+    {
+        var accumulatore = new AccumulatoreTempo();
+        foreach (var tc in testCases)
+        {
+            // Parita' con le query SQLite (eliminato = 0) e la matrice Report:
+            // le righe synthetic/manuali non rappresentano tempo di lavoro eseguito.
+            if (tc.Eliminato || tc.Origine == OrigineTest.ImportStatoUdt ||
+                tc.Id.StartsWith(ManualePrefisso, StringComparison.Ordinal)) continue;
+            foreach (var occorrenza in UltimeOccorrenze(tc).Values)
+            {
+                var condizione = occorrenza.Condizione;
+                if (condizione.Esito.EEseguito() && (!soloConformi || condizione.Esito == Esito.Conforme))
+                    accumulatore.Aggiungi(condizione.DurataMinuti);
+            }
+        }
+        return accumulatore.Valore();
+    }
+
     /// <summary>Vero per le due modalità temporali (Tempo totale, Tempo medio).</summary>
     public static bool ModalitaTempo(ModalitaCellaMatrice modalita) =>
         modalita is ModalitaCellaMatrice.TempoTotale or ModalitaCellaMatrice.TempoMedio;
@@ -196,6 +221,9 @@ public static partial class ReportMatriceService
         {
             if (!acc.Eseguita || acc.ManualeVincente || acc.Vincente is not { } vincente) continue;
             if (vincente.Test.Origine == OrigineTest.ImportStatoUdt) continue;
+            // Tempo medio: la vincitrice dello stato deve essere CONFORME.
+            // Non recuperare un precedente conforme se l'ultimo stato e' NOK.
+            if (config.ModalitaCella == ModalitaCellaMatrice.TempoMedio && vincente.Esito != Esito.Conforme) continue;
             // Filtro sulla durata per combinazione corrente (decisione utente): vale per il tentativo che determina lo stato.
             if (config.FiltroTempoOperazione is { } filtroCorrente && !filtroCorrente.Corrisponde(vincente.DurataMinuti)) continue;
             var chiave = (vincente.Test.Uid, vincente.CondizioneUid);
@@ -252,6 +280,9 @@ public static partial class ReportMatriceService
                     // Un tentativo conta una sola volta, dall'ultima revisione in cui compare (vedi UltimeOccorrenze).
                     if (!ultimaRevisione.TryGetValue(condizione.Uid, out var revisioneUltima) || revisioneUltima != revisioneIndice) continue;
                     if (!condizione.Esito.EEseguito() || condizione.RiguardaDtc) continue;
+                    // Tempo medio: solo operazioni con esito Conforme. In Tempo totale
+                    // restano comprese NOK e deviazioni, come da storico TIME.
+                    if (config.ModalitaCella == ModalitaCellaMatrice.TempoMedio && condizione.Esito != Esito.Conforme) continue;
                     var minuti = condizione.DurataMinuti;
                     if (config.FiltroTempoOperazione is { } filtroOperazione && !filtroOperazione.Corrisponde(minuti)) continue;
 

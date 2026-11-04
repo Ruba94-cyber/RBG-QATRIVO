@@ -220,12 +220,17 @@ public partial class PolarionLifecycleViewModel : ViewModelBase, IDisposable
         if (_polarionFilterBatch) return;
         var from = ParseDate(PolarionReportFrom, end: false);
         var to = ParseDate(PolarionReportTo, end: true);
-        var filtered = PolarionReportService.Apply(_polarionAllRows, new PolarionReportService.Filter(
-            Query: PolarionReportQuery, Status: PolarionReportStatus, Type: PolarionReportType,
-            Priority: PolarionReportPriority, Severity: PolarionReportSeverity, Resolution: PolarionReportResolution,
-            Range: PolarionReportRange, Vehicle: PolarionReportVehicle,
-            DateFrom: from, DateTo: to, DateDimension: PolarionReportDateDimension,
-            OnlyObservedClosures: PolarionReportOnlyClosed, IncludeArchived: PolarionReportIncludeArchived));
+        // Una data digitata male NON deve essere interpretata come "nessun filtro":
+        // impedisce di mostrare statistiche apparentemente filtrate ma in realta' globali.
+        // Il messaggio di errore e' gia' esposto nella View accanto ai campi data.
+        IReadOnlyList<PolarionReportService.Row> filtered = string.IsNullOrEmpty(PolarionDateFilterError)
+            ? PolarionReportService.Apply(_polarionAllRows, new PolarionReportService.Filter(
+                Query: PolarionReportQuery, Status: PolarionReportStatus, Type: PolarionReportType,
+                Priority: PolarionReportPriority, Severity: PolarionReportSeverity, Resolution: PolarionReportResolution,
+                Range: PolarionReportRange, Vehicle: PolarionReportVehicle,
+                DateFrom: from, DateTo: to, DateDimension: PolarionReportDateDimension,
+                OnlyObservedClosures: PolarionReportOnlyClosed, IncludeArchived: PolarionReportIncludeArchived))
+            : Array.Empty<PolarionReportService.Row>();
         PolarionReportRows.Clear();
         foreach (var row in filtered.Take(250)) PolarionReportRows.Add(row);
         // When a user opens the dashboard from a specific NC/CR row and only one
@@ -445,9 +450,11 @@ public partial class PolarionLifecycleViewModel : ViewModelBase, IDisposable
                     if (id is not null) links.Add(new(id, "CR", cr.Id, cr.VeicoliImpattati.ToList(), cr.Archiviata));
                 }
             }
-            var rangeMap = _state.Master.Veicoli.Load().Where(v => !v.Archiviata)
+            // I ticket possono riferirsi a veicoli archiviati: la gamma storica
+            // va mantenuta nel report, non sparisce con l'archiviazione del catalogo.
+            var rangeMap = _state.Master.Veicoli.Load()
                 .GroupBy(v => v.Nome, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First().GammaNome,
+                .ToDictionary(group => group.Key, group => group.OrderBy(v => v.Archiviata).First().GammaNome,
                     StringComparer.OrdinalIgnoreCase);
             var paths = _state.Paths;
             var project = "TICKET_Tickets";
@@ -462,21 +469,41 @@ public partial class PolarionLifecycleViewModel : ViewModelBase, IDisposable
             {
                 var store = new PolarionSnapshotStore(paths);
                 var history = new PolarionStatusHistoryService(paths);
+                // Un solo elenco delle cartelle OneDrive per l'intero batch: ReadMerged
+                // continuerà a verificare identità, revisioni e conflitti per ticket.
+                var deviceFolders = history.SnapshotDeviceDirectories(project);
                 return PolarionReportService.Build(links, id => store.Load(project, id),
-                    id => history.ReadMerged(project, id), rangeMap);
+                    id => history.ReadMerged(project, id, deviceFolders), rangeMap);
             });
             if (_disposed || generation != _polarionReportGeneration) return;
             _polarionAllRows.Clear();
             _polarionAllRows.AddRange(result);
-            ReplaceOptions(PolarionReportStatuses, "Tutti", result.Select(x => x.Status), PolarionReportStatus);
-            ReplaceOptions(PolarionReportTypes, "Tutti", result.Select(x => x.Type), PolarionReportType);
-            ReplaceOptions(PolarionReportPriorities, "Tutti", result.Select(x => x.Priority), PolarionReportPriority);
-            ReplaceOptions(PolarionReportSeverities, "Tutte", result.Select(x => x.Severity), PolarionReportSeverity);
-            ReplaceOptions(PolarionReportResolutions, "Tutte", result.Select(x => x.Resolution), PolarionReportResolution);
-            ReplaceOptions(PolarionReportVehicles, "Tutti",
-                result.SelectMany(x => x.Vehicles.Split(", ", StringSplitOptions.RemoveEmptyEntries)), PolarionReportVehicle);
-            ReplaceOptions(PolarionReportRanges, "Tutte",
-                result.SelectMany(x => x.Ranges.Split(", ", StringSplitOptions.RemoveEmptyEntries)), PolarionReportRange);
+            // Il reset degli ItemsSource puo' svuotare SelectedItem delle ComboBox.
+            // Conserviamo i valori e sospendiamo i sette ricalcoli intermedi:
+            // esattamente UN filtro sui dati al termine del refresh.
+            var selected = (PolarionReportStatus, PolarionReportType, PolarionReportPriority,
+                PolarionReportSeverity, PolarionReportResolution, PolarionReportVehicle, PolarionReportRange);
+            _polarionFilterBatch = true;
+            try
+            {
+                ReplaceOptions(PolarionReportStatuses, "Tutti", result.Select(x => x.Status), selected.PolarionReportStatus);
+                ReplaceOptions(PolarionReportTypes, "Tutti", result.Select(x => x.Type), selected.PolarionReportType);
+                ReplaceOptions(PolarionReportPriorities, "Tutti", result.Select(x => x.Priority), selected.PolarionReportPriority);
+                ReplaceOptions(PolarionReportSeverities, "Tutte", result.Select(x => x.Severity), selected.PolarionReportSeverity);
+                ReplaceOptions(PolarionReportResolutions, "Tutte", result.Select(x => x.Resolution), selected.PolarionReportResolution);
+                ReplaceOptions(PolarionReportVehicles, "Tutti",
+                    result.SelectMany(x => x.Vehicles.Split(", ", StringSplitOptions.RemoveEmptyEntries)), selected.PolarionReportVehicle);
+                ReplaceOptions(PolarionReportRanges, "Tutte",
+                    result.SelectMany(x => x.Ranges.Split(", ", StringSplitOptions.RemoveEmptyEntries)), selected.PolarionReportRange);
+                PolarionReportStatus = selected.PolarionReportStatus;
+                PolarionReportType = selected.PolarionReportType;
+                PolarionReportPriority = selected.PolarionReportPriority;
+                PolarionReportSeverity = selected.PolarionReportSeverity;
+                PolarionReportResolution = selected.PolarionReportResolution;
+                PolarionReportVehicle = selected.PolarionReportVehicle;
+                PolarionReportRange = selected.PolarionReportRange;
+            }
+            finally { _polarionFilterBatch = false; }
             FilterPolarionRows();
         }
         catch (Exception ex)
@@ -495,11 +522,17 @@ public partial class PolarionLifecycleViewModel : ViewModelBase, IDisposable
         IEnumerable<string> values, string selected)
     {
         var list = values.Where(x => !string.IsNullOrWhiteSpace(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
+            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+        list.RemoveAll(x => string.Equals(x, all, StringComparison.OrdinalIgnoreCase));
+        list.Insert(0, all);
+        if (!string.IsNullOrWhiteSpace(selected) &&
+            !list.Contains(selected, StringComparer.OrdinalIgnoreCase))
+            list.Add(selected);
+        // Non resettare la ComboBox se la lista opzioni non e' cambiata:
+        // evita re-layout e perdita temporanea di SelectedItem.
+        if (items.SequenceEqual(list, StringComparer.OrdinalIgnoreCase)) return;
         items.Clear();
-        items.Add(all);
         foreach (var item in list) items.Add(item);
-        if (!items.Contains(selected, StringComparer.OrdinalIgnoreCase)) items.Add(selected);
     }
 
     [RelayCommand]
@@ -531,9 +564,13 @@ public partial class PolarionLifecycleViewModel : ViewModelBase, IDisposable
             IncludeArchived: PolarionReportIncludeArchived)).ToList();
     }
 
-    public string PolarionCsv()
+    /// <summary>Legacy API per il ViewModel; l'export UI puo' catturare uno
+    /// snapshot filtrato e serializzarlo su thread di lavoro senza bloccare Avalonia.</summary>
+    public string PolarionCsv() => PolarionCsv(PolarionRigheFiltratePerExport());
+
+    public static string PolarionCsv(IReadOnlyList<PolarionReportService.Row> rows)
     {
-        var rows = PolarionRigheFiltratePerExport();
+        ArgumentNullException.ThrowIfNull(rows);
         var builder = new StringBuilder("TICKET;Titolo;Tipo;Stato;Risoluzione;Priorita;Severita;NC_CR;Veicoli;Gamme;Archiviato;Apertura_Ticketing;Testing_rilevato_TestLoom;Chiusura_rilevata_TestLoom;Riapertura_rilevata_TestLoom;Apertura_Testing_limite_superiore;Apertura_Closed_limite_superiore;Testing_transizioni_osservate;Closed_transizioni_osservate;Reopen_transizioni_osservate;Qualita_dati\r\n");
         foreach (var row in rows)
         {

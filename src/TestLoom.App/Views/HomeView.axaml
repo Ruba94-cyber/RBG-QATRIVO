@@ -160,15 +160,19 @@
                 </Border>
                 <Border Margin="0,0,12,12" Classes="Card">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TassoConformitaLabel}" Classes="Muted" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceModalitaTitolo}" Classes="Muted" TextWrapping="Wrap"/>
                         <ComboBox SelectedIndex="{Binding ModalitaPercentualeConformita}" AutomationProperties.AutomationId="Home_ModalitaPercentualeConformita_ComboBox">
                             <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceModalitaPercentuale}"
                                           ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceTooltipModalitaStatoPercentuale}" />
                             <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceModalitaTestPercentuale}"
                                           ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceTooltipModalitaTestPercentuale}" />
+                            <!-- Indici 0/1 invariati: le preferenze Home esistenti non vengono reinterpretate. -->
+                            <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceModalitaStato}" />
+                            <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceColonnaTempoTotale}" />
+                            <ComboBoxItem Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceColonnaTempoMedio}" />
                         </ComboBox>
-                        <TextBlock Text="{Binding TestoTassoConformita}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" TextWrapping="Wrap" AutomationProperties.AutomationId="Home_TassoConformitaDistribuzione_Text"
-                                   ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=HomeTooltipConformita}" />
+                        <TextBlock Text="{Binding TestoTassoConformita}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" AutomationProperties.AutomationId="Home_TassoConformitaDistribuzione_Text"
+                                   ToolTip.Tip="{Binding TestoTassoConformita}" />
                     </StackPanel>
                 </Border>
             </UniformGrid>

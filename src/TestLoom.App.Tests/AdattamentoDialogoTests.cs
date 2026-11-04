@@ -30,6 +30,14 @@ public class AdattamentoDialogoTests
         Assert.Equal(new PixelPoint(36, 36), AdattamentoDialogo.Centra(new PixelRect(0, 0, 1920, 1008), 1.5, 1232, 624));
     }
 
+    [Theory]
+    [InlineData(860, 720, 720)]   // TICKET: minimo 860 DIP su un 13" con viewport piu' stretto
+    [InlineData(510, 440, 440)]   // altezza minima non deve nascondere la X della finestra
+    [InlineData(460, 600, 460)]   // nessuna modifica quando c'e' spazio sufficiente
+    [InlineData(100, 0, 1)]       // la dimensione finale resta sempre positiva
+    public void MinimoCompatibile_NonSuperaLoSpazioDisponibile(double richiesto, double disponibile, double atteso) =>
+        Assert.Equal(atteso, AdattamentoDialogo.MinimoCompatibile(richiesto, disponibile), 3);
+
     [Fact]
     public void Centra_RispettaLOrigineDellAreaDiLavoroDelloSchermoSecondario()
     {

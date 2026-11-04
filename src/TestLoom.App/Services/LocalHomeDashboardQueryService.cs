@@ -29,6 +29,11 @@ public sealed class LocalHomeDashboardQueryService
     private readonly object _cacheLock = new();
     private (long Generazione, long Revisione, DateTime? DataDa, DateTime? DataA, LocalDefaultDashboardSnapshot Snapshot)? _cachedSnapshot;
     private (long Generazione, long Revisione, DateTime? DataDa, DateTime? DataA, int RequisitiHash, CoverageBucket Bucket)? _cachedCoverage;
+    // Un'unica fotografia per le due modalita' TIME. Solo filtro data (nessuna dimensione):
+    // evita due scansioni di test_operation_attempt quando si passa Totale <-> Medio.
+    // Revisione e generazione garantiscono invalidazione dopo ogni scrittura dell'indice.
+    private (long Generazione, long Revisione, DateTime? DataDa, DateTime? DataA,
+        ValoreTempo Totale, ValoreTempo SoloConformi)? _cachedTimeSummary;
 
     /// <summary>Hook interno per verificare che le due query coverage condividano lo stesso snapshot.</summary>
     internal Action? RequirementCoverageStandardReadObserver { get; set; }
@@ -230,6 +235,60 @@ public sealed class LocalHomeDashboardQueryService
 
             return snapshot;
         }
+    }
+
+    /// <summary>Riepilogo TIME della Home sullo stesso read-model locale e con gli stessi
+    /// filtri del donut: non deserializza TestCase. Come Report (base tutte le esecuzioni),
+    /// conta una volta l'ultima revisione di ogni tentativo realmente eseguito;
+    /// ripetizioni e guasto entrano nella somma, gli snapshot UnitLogger no.
+    /// In modo Tempo medio (soloConformi), il predicato riguarda l'esito della
+    /// singola operazione, NON lo stato complessivo del Test.</summary>
+    public ValoreTempo GetTimeSummary(DashboardFilter filter,
+        IReadOnlyCollection<string>? vehiclesForSelectedGamma = null,
+        IReadOnlyCollection<string>? functionalityForSelectedCategory = null,
+        bool soloConformi = false)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        using var connection = Open();
+        using var lettura = new LocalIndexSnapshot(connection);
+        var cacheable = !HasDimensionalFilters(filter);
+        if (cacheable && lettura.Cacheabile) lock (_cacheLock)
+        {
+            if (_cachedTimeSummary is { } cache &&
+                cache.Generazione == Generazione && cache.Revisione == lettura.Revisione &&
+                cache.DataDa == filter.DataDa && cache.DataA == filter.DataA)
+                return soloConformi ? cache.SoloConformi : cache.Totale;
+        }
+
+        var (filterOn, parameters) = FilterJoinClause(filter, vehiclesForSelectedGamma,
+            functionalityForSelectedCategory, excludeImportStatoUdt: true);
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = lettura.Transazione;
+        // Una scansione restituisce ENTRAMBE le modalita'. Per la media le operazioni
+        // con esito NOK/deviazioni non contribuiscono ne' ai minuti ne' agli eleggibili.
+        // La completezza comprende i conformi con durata mancante, ma la media no.
+        cmd.CommandText = $"""
+            SELECT COALESCE(SUM(a.duration_minutes), 0),
+                   COUNT(a.duration_minutes), COUNT(*),
+                   COALESCE(SUM(CASE WHEN a.outcome = {(int)Esito.Conforme} THEN a.duration_minutes ELSE 0 END), 0),
+                   COUNT(CASE WHEN a.outcome = {(int)Esito.Conforme} THEN a.duration_minutes END),
+                   COALESCE(SUM(CASE WHEN a.outcome = {(int)Esito.Conforme} THEN 1 ELSE 0 END), 0)
+            FROM test_operation_attempt a
+            JOIN test_summary s ON s.uid = a.test_uid {filterOn}
+            WHERE {SqlTentativiEseguiti};
+            """;
+        AddParameters(cmd, parameters);
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read()) return default;
+        var totale = new ValoreTempo(reader.GetInt64(0),
+            (int)Math.Min(int.MaxValue, reader.GetInt64(1)),
+            (int)Math.Min(int.MaxValue, reader.GetInt64(2)));
+        var conformi = new ValoreTempo(reader.GetInt64(3),
+            (int)Math.Min(int.MaxValue, reader.GetInt64(4)),
+            (int)Math.Min(int.MaxValue, reader.GetInt64(5)));
+        if (cacheable && lettura.Cacheabile) lock (_cacheLock)
+            _cachedTimeSummary = (Generazione, lettura.Revisione, filter.DataDa, filter.DataA, totale, conformi);
+        return soloConformi ? conformi : totale;
     }
 
     /// <summary>CoverageService.PerRequisito con lo stesso filtro DataCreazione della DashboardFilter.</summary>

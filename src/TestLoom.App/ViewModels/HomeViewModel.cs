@@ -251,16 +251,47 @@ public partial class HomeViewModel : ViewModelBase, IPaginaAggiornabile, IScorci
     public long MieiAttivi { get; private set; }
     public double CoperturaRequisitiPercentuale { get; private set; }
     public double TassoConformitaPercentuale { get; private set; }
+    // 0 = Stato %, 1 = Test % (legacy), 2 = Stato, 3 = Tempo totale, 4 = Tempo medio.
+    // Manteniamo gli indici storici per non rompere il layout o i salvataggi degli operatori.
     [ObservableProperty] private int modalitaPercentualeConformita;
     private StatiMatrice _statiConformitaHome;
-    public string TestoTassoConformita => _statiConformitaHome.Totale == 0
-        ? "—"
-        : $"{_statiConformitaHome.TestoPercentuali} {string.Format(LocalizationService.Instance.Traduci(
-            ModalitaPercentualeConformita == 1 ? "HomePercentualiTestCountFmt" : "HomePercentualiStatoCountFmt"), _statiConformitaHome.Totale)}";
+    private ValoreTempo _tempoConformitaHome;
+
+    public string TestoTassoConformita
+    {
+        get
+        {
+            if (ModalitaPercentualeConformita is 3 or 4)
+            {
+                var testo = ReportMatriceService.TestoTempo(_tempoConformitaHome,
+                    ModalitaPercentualeConformita == 3 ? ModalitaCellaMatrice.TempoTotale : ModalitaCellaMatrice.TempoMedio);
+                return ModalitaPercentualeConformita == 4
+                    ? $"{testo} · {LocalizationService.Instance.Traduci("MatriceTempoMedioSoloConformi")}" : testo;
+            }
+            if (_statiConformitaHome.Totale == 0) return "—";
+            if (ModalitaPercentualeConformita == 2)
+                return _statiConformitaHome.Testo;
+            return $"{_statiConformitaHome.TestoPercentuali} {string.Format(LocalizationService.Instance.Traduci(
+                ModalitaPercentualeConformita == 1 ? "HomePercentualiTestCountFmt" : "HomePercentualiStatoCountFmt"), _statiConformitaHome.Totale)}";
+        }
+    }
+
+    private void ImpostaRiepilogoTempo(ValoreTempo valore)
+    {
+        _tempoConformitaHome = valore;
+        OnPropertyChanged(nameof(TestoTassoConformita));
+    }
 
     partial void OnModalitaPercentualeConformitaChanged(int value)
     {
-        ViewStateService.Scrivi(_state, "Home.ModalitaPercentualeConformita", value == 1 ? "test" : "stato");
+        ViewStateService.Scrivi(_state, "Home.ModalitaPercentualeConformita", value switch
+        {
+            1 => "test",
+            2 => "stato-solo",
+            3 => "tempo-totale",
+            4 => "tempo-medio",
+            _ => "stato"
+        });
         if (_aggiornaInBackground)
         {
             _testataDaCalcolare = true;
@@ -299,6 +330,7 @@ public partial class HomeViewModel : ViewModelBase, IPaginaAggiornabile, IScorci
             ChangeRequestAperte = 0;
             CoperturaRequisitiPercentuale = TassoConformitaPercentuale = 0;
             _statiConformitaHome = default;
+            ImpostaRiepilogoTempo(default);
         }
         else if (TryAggiornaKpiTestataScalabile(testata, copertura))
         {
@@ -337,7 +369,26 @@ public partial class HomeViewModel : ViewModelBase, IPaginaAggiornabile, IScorci
                 ChangeRequestAperte = ContaChangeRequestAperte();
                 DaClassificare = _state.Segnalazioni.CountByState(StatoSegnalazione.DaClassificare);
                 TestSenzaEcu = senzaEcu;
-                ImpostaDistribuzioneConformita(ModalitaPercentualeConformita == 1
+                // Riepilogo TIME: stesso insieme filtrato dei Test che alimenta la dashboard,
+                // e stessi tentativi effettivamente eseguiti usati da Report (base "tutte").
+                if (ModalitaPercentualeConformita is 3 or 4)
+                {
+                    var filtroTempo = FiltroRiepilogoTestata();
+                    var veicoliPerGamma = _state.Master.Veicoli.Load()
+                        .ToDictionary(v => v.Nome, v => v.GammaNome, StringComparer.OrdinalIgnoreCase);
+                    var categorie = _state.Master.Funzionalita.Load()
+                        .ToDictionary(f => f.Nome, f => f.Categorie, StringComparer.OrdinalIgnoreCase);
+                    string? GammaDiHome(string nome) => veicoliPerGamma.GetValueOrDefault(nome);
+                    IEnumerable<string> CategorieHome(string nome) =>
+                        categorie.TryGetValue(nome, out var valori) ? valori : Array.Empty<string>();
+                    ImpostaRiepilogoTempo(ReportMatriceService.RiepilogoTempoHome(
+                        filtroTempo.Applica(tutti, GammaDiHome, CategorieHome),
+                        soloConformi: ModalitaPercentualeConformita == 4));
+                }
+                else ImpostaRiepilogoTempo(default);
+                ImpostaDistribuzioneConformita(ModalitaPercentualeConformita is 3 or 4
+                    ? default
+                    : ModalitaPercentualeConformita == 1
                     ? HomeConformitySummaryService.CalcolaTestPercentuale(contati)
                     : HomeConformitySummaryService.CalcolaStatoCorrenteFiltrato(tutti, FiltroStatoConformita(),
                         _state.Master.Veicoli.Load(), _state.Master.Funzionalita.Load(), _state.Master.Componente.Load(),
@@ -510,7 +561,14 @@ public partial class HomeViewModel : ViewModelBase, IPaginaAggiornabile, IScorci
         CaricaLayout(state);
         // Campo diretto: la proprieta' richiamerebbe OnSoloMieiChanged (lista Da fare/Fatti) prima del primo giro.
         soloMiei = state.Config.SoloMieiElementiDaSeguire;
-        modalitaPercentualeConformita = ViewStateService.Leggi(state, "Home.ModalitaPercentualeConformita") == "test" ? 1 : 0;
+        modalitaPercentualeConformita = ViewStateService.Leggi(state, "Home.ModalitaPercentualeConformita") switch
+        {
+            "test" => 1,
+            "stato-solo" => 2,
+            "tempo-totale" => 3,
+            "tempo-medio" => 4,
+            _ => 0
+        };
 
         var oggi = DateTime.Now;
         _defaultDataDa = new DateTimeOffset(new DateTime(oggi.Year, 1, 1));
@@ -905,6 +963,12 @@ public partial class HomeViewModel : ViewModelBase, IPaginaAggiornabile, IScorci
         if (DashboardDataA == _defaultDataA) filtro.DataA = null;
         return filtro;
     }
+
+    /// <summary>Lo Stato % conserva la regola storica (periodo iniziale non e' un filtro);
+    /// i tempi operativi seguono SEMPRE il periodo mostrato nei filtri della dashboard.
+    /// In questo modo il tempo medio Home coincide con lo stesso intervallo temporale del Report.</summary>
+    private DashboardFilter FiltroRiepilogoTestata() =>
+        ModalitaPercentualeConformita is 3 or 4 ? CreaFiltroDashboard() : FiltroStatoConformita();
 
     private void SvuotaGrafici()
     {

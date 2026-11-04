@@ -39,6 +39,10 @@ public static class PolarionReportService
         public DateTimeOffset LastFetchedAt { get; init; }
         public bool HasCache { get; init; }
         public bool HistoryUnavailable { get; init; }
+        /// <summary>La cache corrente è più recente dell'ultima osservazione
+        /// ma mostra uno stato/risoluzione diverso: storico da riallineare,
+        /// senza inventare transizioni assenti.</summary>
+        public bool HistoryStatusMismatch { get; init; }
         public int CommentsCount { get; init; }
         /// <summary>TestLoom-observed transitions after baseline; never official historical totals.</summary>
         public int TestingTransitionsObserved { get; init; }
@@ -107,6 +111,10 @@ public static class PolarionReportService
                     cache += L(" · Cronologia non disponibile: verifica richiesta",
                         " · History unavailable: review required",
                         " · Historique indisponible : vérification nécessaire");
+                if (HistoryStatusMismatch)
+                    cache += L(" · Stato cache/storico TICKET discordante: aggiorna lo storico",
+                        " · TICKET cache/history status differs: refresh history",
+                        " · État cache/historique TICKET différent : actualisez l'historique");
                 return cache;
             }
         }
@@ -209,6 +217,11 @@ public static class PolarionReportService
                 LastFetchedAt = snapshot?.RetrievedAtUtc ?? default,
                 HasCache = snapshot is not null,
                 HistoryUnavailable = historyUnavailable,
+                HistoryStatusMismatch = snapshot is not null && events.Count > 0 &&
+                    snapshot.RetrievedAtUtc != default &&
+                    snapshot.RetrievedAtUtc >= events[^1].FirstSeenUtc &&
+                    (!string.Equals(snapshot.Status?.Trim(), events[^1].Status?.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                     !string.Equals(snapshot.Resolution?.Trim(), events[^1].Resolution?.Trim(), StringComparison.OrdinalIgnoreCase)),
                 CommentsCount = snapshot?.Comments.Count ?? 0,
                 TestingTransitionsObserved = testingCount,
                 ClosureTransitionsObserved = closureCount,
@@ -226,8 +239,12 @@ public static class PolarionReportService
         var q = (filter.Query ?? "").Trim();
         return rows.Where(r =>
             (filter.IncludeArchived || !r.Archived) &&
-            (q.Length == 0 || new[] { r.TicketId, r.Title, r.Records, r.Vehicles, r.Ranges }
-                .Any(v => v.Contains(q, StringComparison.OrdinalIgnoreCase))) &&
+            (q.Length == 0 ||
+                r.TicketId.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                r.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                r.Records.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                r.Vehicles.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                r.Ranges.Contains(q, StringComparison.OrdinalIgnoreCase)) &&
             (string.IsNullOrWhiteSpace(filter.Status) || filter.Status == "Tutti" ||
                 r.Status.Equals(filter.Status, StringComparison.OrdinalIgnoreCase)) &&
             (string.IsNullOrWhiteSpace(filter.Type) || filter.Type == "Tutti" ||
@@ -239,13 +256,30 @@ public static class PolarionReportService
             (string.IsNullOrWhiteSpace(filter.Resolution) || filter.Resolution == "Tutte" ||
                 r.Resolution.Equals(filter.Resolution, StringComparison.OrdinalIgnoreCase)) &&
             (string.IsNullOrWhiteSpace(filter.Range) || filter.Range == "Tutte" ||
-                r.Ranges.Split(", ", StringSplitOptions.RemoveEmptyEntries).Contains(filter.Range, StringComparer.OrdinalIgnoreCase)) &&
+                ContainsDelimitedValue(r.Ranges, filter.Range)) &&
             (string.IsNullOrWhiteSpace(filter.Vehicle) || filter.Vehicle == "Tutti" ||
-                r.Vehicles.Split(", ", StringSplitOptions.RemoveEmptyEntries).Contains(filter.Vehicle, StringComparer.OrdinalIgnoreCase)) &&
+                ContainsDelimitedValue(r.Vehicles, filter.Vehicle)) &&
             (!filter.DateFrom.HasValue || DateFor(r, filter.DateDimension)?.ToLocalTime().Date >= filter.DateFrom.Value.ToLocalTime().Date) &&
             (!filter.DateTo.HasValue || DateFor(r, filter.DateDimension)?.ToLocalTime().Date <= filter.DateTo.Value.ToLocalTime().Date) &&
             (!filter.OnlyObservedClosures || r.FirstClosedObservedAt.HasValue))
             .ToList();
+    }
+
+    /// <summary>Confronto esatto dei valori separati da ", ", senza allocare
+    /// un array a ogni ticket a ogni carattere digitato nella ricerca.</summary>
+    private static bool ContainsDelimitedValue(string values, string? selected)
+    {
+        if (string.IsNullOrWhiteSpace(values) || string.IsNullOrWhiteSpace(selected)) return false;
+        var start = 0;
+        while (start < values.Length)
+        {
+            var end = values.IndexOf(", ", start, StringComparison.Ordinal);
+            var candidate = values.AsSpan(start, end < 0 ? values.Length - start : end - start);
+            if (candidate.Equals(selected.AsSpan(), StringComparison.OrdinalIgnoreCase)) return true;
+            if (end < 0) break;
+            start = end + 2;
+        }
+        return false;
     }
 
     private static DateTimeOffset? DateFor(Row row, string dimension) => dimension switch
@@ -255,23 +289,44 @@ public static class PolarionReportService
         _ => row.CreatedAt
     };
 
+    /// <summary>Un'unica scansione dello snapshot filtrato: i nove KPI e la
+    /// distribuzione usano gli stessi ticket senza enumerazioni ripetute.</summary>
     public static Overview Summarize(IReadOnlyList<Row> rows)
     {
-        var distribution = rows.GroupBy(r => string.IsNullOrWhiteSpace(r.Status) ? "Sconosciuto" : r.Status,
-            StringComparer.OrdinalIgnoreCase)
-            .Select(group => new Distribution(group.Key, group.Count()))
-            .OrderByDescending(x => x.Count).ThenBy(x => x.Status).ToList();
-        return new Overview(rows.Count, rows.Count(r => !r.HasCache),
-            rows.Count(r => r.HasCache && !string.IsNullOrWhiteSpace(r.Status) && !IsClosed(r.Status)),
-            rows.Count(r => IsClosed(r.Status)),
-            rows.Count(r => IsTesting(r.Status)),
-            rows.Count(r => r.AlreadyClosedAtBaseline),
-            rows.Count(r => r.FirstClosedObservedAt.HasValue),
-            rows.Count(r => r.LastReopenObservedAt.HasValue),
-            rows.Count(r => !r.CreatedAt.HasValue), distribution)
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var notSynced = 0;
+        var open = 0;
+        var closed = 0;
+        var testing = 0;
+        var alreadyClosed = 0;
+        var observedClosures = 0;
+        var observedReopens = 0;
+        var unknownCreated = 0;
+        var unknownStatus = 0;
+        var unavailable = 0;
+        foreach (var r in rows)
         {
-            UnknownStatus = rows.Count(r => string.IsNullOrWhiteSpace(r.Status)),
-            HistoriesUnavailable = rows.Count(r => r.HistoryUnavailable)
+            var status = string.IsNullOrWhiteSpace(r.Status) ? "Sconosciuto" : r.Status;
+            counts[status] = counts.GetValueOrDefault(status) + 1;
+            if (!r.HasCache) notSynced++;
+            if (r.HasCache && !string.IsNullOrWhiteSpace(r.Status) && !IsClosed(r.Status)) open++;
+            if (IsClosed(r.Status)) closed++;
+            if (IsTesting(r.Status)) testing++;
+            if (r.AlreadyClosedAtBaseline) alreadyClosed++;
+            if (r.FirstClosedObservedAt.HasValue) observedClosures++;
+            if (r.LastReopenObservedAt.HasValue) observedReopens++;
+            if (!r.CreatedAt.HasValue) unknownCreated++;
+            if (string.IsNullOrWhiteSpace(r.Status)) unknownStatus++;
+            if (r.HistoryUnavailable) unavailable++;
+        }
+        var distribution = counts
+            .Select(entry => new Distribution(entry.Key, entry.Value))
+            .OrderByDescending(entry => entry.Count).ThenBy(entry => entry.Status).ToList();
+        return new Overview(rows.Count, notSynced, open, closed, testing,
+            alreadyClosed, observedClosures, observedReopens, unknownCreated, distribution)
+        {
+            UnknownStatus = unknownStatus,
+            HistoriesUnavailable = unavailable
         };
     }
 

@@ -142,6 +142,9 @@ public partial class NonConformitaView : UserControl
         };
         AutomationProperties.SetAutomationId(dialog,
             scope == "NC" ? "Anomalie_EstaDashboard_Window" : "Anomalie_Cr_EstaDashboard_Window");
+        // Le analisi TICKET sono finestre grandi: su schermi da 13" / DPI 150%
+        // devono occupare il viewport e mantenere accessibile la X di chiusura.
+        AdattamentoDialogo.Registra(dialog, grande: true);
         dialog.Opened += (_, _) => lifecycle.AggiornaReportPolarionCommand.Execute(null);
         try { await dialog.ShowDialog(owner); }
         finally

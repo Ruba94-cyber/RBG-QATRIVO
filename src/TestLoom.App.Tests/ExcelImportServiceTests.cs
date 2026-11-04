@@ -139,6 +139,38 @@ public class ExcelImportServiceTests
     }
 
     [Fact]
+    public void LeggiRigheOrdinate_FoglioSelezionatoNonPresente_BloccaImportSenzaUsareIlPrimo()
+    {
+        using var wb = new XLWorkbook();
+        var first = wb.Worksheets.Add("Italiano");
+        first.Cell("A1").Value = "ID";
+        first.Cell("A2").Value = "DA_NON_IMPORTARE";
+        wb.Worksheets.Add("English");
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        ms.Position = 0;
+
+        var ex = Assert.Throws<FormatoExcelNonValidoException>(() =>
+            ExcelImportService.LeggiRigheOrdinate(ms, "DeletedSheet", 1));
+        Assert.Contains("DeletedSheet", ex.Message);
+    }
+
+    [Fact]
+    public void LeggiRigheOrdinate_IntestazioneVuotaConDati_BloccaImportAnzicheAzzerare()
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Sheet1");
+        ws.Cell("A3").Value = "Componente_PRESENTE";
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        ms.Position = 0;
+
+        var ex = Assert.Throws<FormatoExcelNonValidoException>(() =>
+            ExcelImportService.LeggiRigheOrdinate(ms, "Sheet1", 1));
+        Assert.Contains("1", ex.Message);
+    }
+
+    [Fact]
     public void LeggiRigheOrdinate_FoglioVuoto_RestituisceListaVuota()
     {
         using var wb = new XLWorkbook();

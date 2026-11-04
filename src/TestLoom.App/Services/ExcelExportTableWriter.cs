@@ -77,7 +77,7 @@ public sealed class ExcelExportTableWriter
                     cella.Value = AggiungiDettaglio(riferimentoRiga, campo, testo);
                     break;
                 case string testo:
-                    cella.Value = testo;
+                    cella.Value = SanitizeExcelText(testo);
                     break;
                 case DateTime data:
                     cella.Value = data;
@@ -169,15 +169,26 @@ public sealed class ExcelExportTableWriter
             var foglio = OttieniFoglioDettagli();
             if (nomiFogli.Count == 0 || nomiFogli[^1] != foglio.Name) nomiFogli.Add(foglio.Name);
             var riga = _rigaDettaglioCorrente++;
-            foglio.Cell(riga, 1).SetValue(riferimento);
-            foglio.Cell(riga, 2).SetValue(campo);
+            foglio.Cell(riga, 1).SetValue(SanitizeExcelText(riferimento));
+            foglio.Cell(riga, 2).SetValue(SanitizeExcelText(campo));
             foglio.Cell(riga, 3).SetValue($"{blocco + 1}/{blocchi.Count}");
-            foglio.Cell(riga, 4).SetValue(blocchi[blocco]);
+            foglio.Cell(riga, 4).SetValue(SanitizeExcelText(blocchi[blocco]));
         }
 
         var percorso = nomiFogli.Count == 1 ? $"nel foglio '{nomiFogli[0]}'" :
             $"nei fogli di dettaglio da '{nomiFogli[0]}' a '{nomiFogli[^1]}'";
         return $"Testo esteso: cercare ID '{riferimento}' e campo '{campo}' {percorso}, ordinando per Parte.";
+    }
+
+    // QuotePrefix di ClosedXML: i testi dell'operatore rimangono TESTO
+    // quando aperti in Excel, anche se iniziano con = + - @ (CSV/formula injection).
+    // Controlla senza allocare una stringa intermedia per ogni cella esportata.
+    private static string SanitizeExcelText(string value)
+    {
+        var i = 0;
+        while (i < value.Length && char.IsWhiteSpace(value[i])) i++;
+        return i < value.Length && value[i] is '=' or '+' or '-' or '@'
+            ? "'" + value : value;
     }
 
     private static bool RichiedeFoglioDettagli(string testo) =>
@@ -235,7 +246,8 @@ public sealed class ExcelExportTableWriter
 
     private static void ScriviIntestazioni(IXLWorksheet foglio, IReadOnlyList<string> intestazioni)
     {
-        for (var colonna = 0; colonna < intestazioni.Count; colonna++) foglio.Cell(1, colonna + 1).Value = intestazioni[colonna];
+        for (var colonna = 0; colonna < intestazioni.Count; colonna++)
+            foglio.Cell(1, colonna + 1).Value = SanitizeExcelText(intestazioni[colonna]);
         foglio.Range(1, 1, 1, intestazioni.Count).Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.LightBlue);
     }
 }

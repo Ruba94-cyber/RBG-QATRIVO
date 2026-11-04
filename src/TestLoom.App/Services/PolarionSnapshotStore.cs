@@ -27,6 +27,13 @@ public sealed class PolarionSnapshotStore(DataPaths paths, bool sharedWriteAllow
         if (!string.Equals(snapshot.Id, ticketId, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(snapshot.ProjectId, projectId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Cached TICKET snapshot identity mismatch.");
+        // Un file JSON puo' essere valido ma contenere array esplicitamente null.
+        // Report, timeline e pannelli di stato non devono lanciare NRE e
+        // interrompere il caricamento di tutti gli altri ticket.
+        if (snapshot.Comments is null || snapshot.Assignees is null ||
+            snapshot.CustomAssignees is null || snapshot.LinkedWorkItems is null ||
+            snapshot.Components is null || snapshot.Componenti is null)
+            throw new InvalidDataException("Cached TICKET snapshot has invalid null collections.");
         return snapshot;
     }
 
@@ -51,6 +58,16 @@ public sealed class PolarionSnapshotStore(DataPaths paths, bool sharedWriteAllow
                 if (current.Updated is not null &&
                     (snapshot.Updated is null || snapshot.Updated < current.Updated))
                     return false;
+                // Se due repliche Ticketing danno stati differenti alla medesima
+                // revisione, non sovrascrivere la cache con uno stato ambiguo.
+                // Anche lo storico rifiuta esplicitamente questa contraddizione.
+                if (current.Updated is not null && current.Updated == snapshot.Updated &&
+                    (!string.Equals(current.Status?.Trim(), snapshot.Status?.Trim(),
+                        StringComparison.OrdinalIgnoreCase) ||
+                     !string.Equals(current.Resolution?.Trim(), snapshot.Resolution?.Trim(),
+                        StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidDataException(
+                        "Conflicting TICKET status or resolution at the same Ticketing revision; cache unchanged.");
                 if (current.RetrievedAtUtc >= snapshot.RetrievedAtUtc)
                     return false;
             }

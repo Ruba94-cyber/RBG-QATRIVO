@@ -56,6 +56,39 @@ public sealed class TempoReportTests
         risultato.Righe.Single(r => r.Riga == riga).Celle.Single(c => c.Colonna == colonna);
 
     [Fact]
+    public void TempoMedio_SoloOperazioniConformi_TempoTotaleMantieneTuttiGliEsitiEseguiti()
+    {
+        var t = Test("T-1", Rev(Giorno,
+            Op("F1", "BCM", Esito.Conforme, 12),
+            Op("F1", "BCM", Esito.NonConforme, 36),
+            Op("F1", "BCM", Esito.ConformeConDeviazioni, 24),
+            Op("F1", "BCM", Esito.Conforme, null)));
+
+        var totale = Cella(Genera(Config(ModalitaCellaMatrice.TempoTotale), t), "F1", "BCM").Tempo;
+        var medio = Cella(Genera(Config(ModalitaCellaMatrice.TempoMedio), t), "F1", "BCM").Tempo;
+
+        Assert.Equal(new ValoreTempo(72, 3, 4), totale);
+        Assert.Equal(new ValoreTempo(12, 1, 2), medio);
+        Assert.Equal(12d, medio.Media);
+        Assert.Equal("12 min · 1/2", ReportMatriceService.TestoTempo(medio, ModalitaCellaMatrice.TempoMedio));
+    }
+
+    [Fact]
+    public void UltimoStato_TempoMedioNonRipescaIlConformeQuandoLaVincitriceENonConforme()
+    {
+        var t = Test("T-1",
+            Rev(Giorno, Op("F1", "BCM", Esito.Conforme, 10)),
+            Rev(Giorno.AddDays(1), Op("F1", "BCM", Esito.NonConforme, 40)));
+
+        var totale = Cella(Genera(Config(ModalitaCellaMatrice.TempoTotale, BaseTempoMatrice.UltimoStato), t), "F1", "BCM").Tempo;
+        var medio = Cella(Genera(Config(ModalitaCellaMatrice.TempoMedio, BaseTempoMatrice.UltimoStato), t), "F1", "BCM").Tempo;
+
+        Assert.Equal(new ValoreTempo(40, 1, 1), totale);
+        Assert.Equal(default, medio);
+        Assert.Equal("—", ReportMatriceService.TestoTempo(medio, ModalitaCellaMatrice.TempoMedio));
+    }
+
+    [Fact]
     public void TutteLeEsecuzioni_VentiPiuDieci_TotaleTrentaMediaQuindici()
     {
         var t = Test("T-1", Rev(Giorno, Op("F1", "BCM", Esito.Conforme, 20)), Rev(Giorno.AddDays(1), Op("F1", "BCM", Esito.Conforme, 10)));

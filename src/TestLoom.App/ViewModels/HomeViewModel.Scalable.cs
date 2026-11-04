@@ -181,7 +181,7 @@ public partial class HomeViewModel
     private bool TryAggiornaKpiTestataScalabile(bool testata, bool copertura)
     {
         // 6.7.1: lo Stato % filtrato (operatore, TIME, tipo di Test, ...) non si legge dalle fonti dell'indice: va sul percorso in memoria.
-        if (testata && ModalitaPercentualeConformita != 1 && FiltroStatoConformita().HaFiltriAttivi) return false;
+        if (testata && (ModalitaPercentualeConformita is 0 or 2) && FiltroStatoConformita().HaFiltriAttivi) return false;
         var query = GetScalableArchiveQuery();
         if (query == null) return false;
         return EseguiSuIndice("KPI scalabili Home", () =>
@@ -193,11 +193,27 @@ public partial class HomeViewModel
                 TotaleTestCase = summary.TotalTests;
                 DaRitestare = summary.ToRetest;
                 MieiAttivi = summary.MyActive;
-                ImpostaDistribuzioneConformita(ModalitaPercentualeConformita == 1
-                    ? summary.TestStatusDistribution
-                    : HomeConformitySummaryService.CalcolaStatoCorrente(query.GetHomeFunctionalitySources(),
-                        _state.Master.Veicoli.Load(), _state.Master.Funzionalita.Load(), _state.Master.Componente.Load(),
-                        _state.Master.StatiFunzionalitaEcuVeicolo.Load()));
+                ImpostaDistribuzioneConformita(ModalitaPercentualeConformita is 3 or 4
+                    ? default
+                    : ModalitaPercentualeConformita == 1
+                        ? summary.TestStatusDistribution
+                        : HomeConformitySummaryService.CalcolaStatoCorrente(query.GetHomeFunctionalitySources(),
+                            _state.Master.Veicoli.Load(), _state.Master.Funzionalita.Load(), _state.Master.Componente.Load(),
+                            _state.Master.StatiFunzionalitaEcuVeicolo.Load()));
+                if (ModalitaPercentualeConformita is 3 or 4 && _homeDashboardQuery != null)
+                {
+                    var filtro = FiltroRiepilogoTestata();
+                    var veicoliGamma = filtro.Gamma.Count == 0 ? null
+                        : _state.Master.Veicoli.Load().Where(v => filtro.Gamma.Contains(v.GammaNome, StringComparer.OrdinalIgnoreCase))
+                            .Select(v => v.Nome).ToList();
+                    var funzioniCategoria = filtro.CategoriaFunzionalita.Count == 0 ? null
+                        : _state.Master.Funzionalita.Load().Where(f => f.Categorie.Any(cat =>
+                            filtro.CategoriaFunzionalita.Contains(cat, StringComparer.OrdinalIgnoreCase)))
+                            .Select(f => f.Nome).ToList();
+                    ImpostaRiepilogoTempo(_homeDashboardQuery.GetTimeSummary(filtro, veicoliGamma, funzioniCategoria,
+                        soloConformi: ModalitaPercentualeConformita == 4));
+                }
+                else ImpostaRiepilogoTempo(default);
                 TotaleNcAperte = _state.NonConformita.CountByState(StatoNonConformita.Aperta);
                 ChangeRequestAperte = ContaChangeRequestAperte();
                 DaClassificare = _state.Segnalazioni.CountByState(StatoSegnalazione.DaClassificare);

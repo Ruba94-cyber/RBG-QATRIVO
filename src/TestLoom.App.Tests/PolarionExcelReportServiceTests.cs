@@ -75,6 +75,61 @@ public sealed class PolarionExcelReportServiceTests
     }
 
     [Fact]
+    public void WorkbookEsta_ConTitoloOltreLimiteCella_NonPerdeIlTestoEUsaFogliDettaglio()
+    {
+        var originalTitle = "=WEBSERVICE(1)" + new string('q', 40_000);
+        var row = new PolarionReportService.Row { TicketId = "TICKET-88", Title = originalTitle };
+        using var xlsx = new XLWorkbook(new MemoryStream(
+            PolarionExcelReportService.Generate([row], DateTimeOffset.UtcNow)));
+
+        Assert.Contains("Testo esteso", xlsx.Worksheet("Ticket TICKET").Cell("B2").GetString());
+        var dettaglio = xlsx.Worksheets.Where(w =>
+            w.Name.StartsWith("Ticket TICKET dettagli", StringComparison.Ordinal)).ToList();
+        Assert.NotEmpty(dettaglio);
+        var parts = dettaglio.SelectMany(w => w.RowsUsed().Skip(1)).Where(r =>
+            r.Cell(2).GetString() == "Titolo")
+            .Select(r => (Parte: int.Parse(r.Cell(3).GetString().Split('/')[0]),
+                Testo: r.Cell(4).GetString()))
+            .OrderBy(x => x.Parte)
+            .Select(x => x.Testo);
+        Assert.Equal(originalTitle, string.Concat(parts));
+        Assert.False(dettaglio[0].Cell(2, 4).HasFormula);
+    }
+
+    [Fact]
+    public void WorkbookEsta_CancellazionePrimaDelSalvataggio_NonCreaExcelIncompleto()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        Assert.Throws<OperationCanceledException>(() =>
+            PolarionExcelReportService.Generate([], DateTimeOffset.UtcNow, cts.Token));
+    }
+
+    [Fact]
+    public void SaveToFile_ExportAtomico_NonSostituisceUnFileSeAnnullato()
+    {
+        var file = Path.Combine(Path.GetTempPath(), "TestLoom_TICKET_" + Guid.NewGuid().ToString("N") + ".xlsx");
+        try
+        {
+            File.WriteAllText(file, "contenuto precedente");
+            using var canceled = new CancellationTokenSource();
+            canceled.Cancel();
+            Assert.Throws<OperationCanceledException>(() =>
+                PolarionExcelReportService.SaveToFile([], DateTimeOffset.UtcNow, file, canceled.Token));
+            Assert.Equal("contenuto precedente", File.ReadAllText(file));
+
+            PolarionExcelReportService.SaveToFile(
+                [new PolarionReportService.Row { TicketId = "TICKET-42", Title = "Prova" }],
+                DateTimeOffset.UtcNow, file);
+            using var workbook = new XLWorkbook(file);
+            Assert.Equal("TICKET-42", workbook.Worksheet("Ticket TICKET").Cell("A2").GetString());
+            Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(file)!,
+                "." + Path.GetFileName(file) + ".*.tmp.xlsx"));
+        }
+        finally { if (File.Exists(file)) File.Delete(file); }
+    }
+
+    [Fact]
     public void EmptyResultsStillExportAnExcelWorkbook()
     {
         using var xlsx = new XLWorkbook(new MemoryStream(

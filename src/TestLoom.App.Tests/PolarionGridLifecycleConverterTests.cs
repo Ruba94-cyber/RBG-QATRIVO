@@ -22,6 +22,23 @@ public sealed class PolarionGridLifecycleConverterTests
     }
 
     [Fact]
+    public void StatoSconosciutoInCache_NonEConfusoConTicketMaiSincronizzato()
+    {
+        var cached = new PolarionReportService.Row
+        {
+            TicketId = "TICKET-3", HasCache = true, Status = ""
+        };
+        var missing = new PolarionReportService.Row
+        {
+            TicketId = "TICKET-4", HasCache = false, Status = ""
+        };
+        Assert.Contains(new[] { "Stato sconosciuto", "Unknown status", "Statut inconnu" },
+            x => PolarionGridLifecycleConverter.FormatRows([cached], "status").Contains(x));
+        Assert.Contains(new[] { "Non sincronizzato", "Not synchronized", "Non synchronisé" },
+            x => PolarionGridLifecycleConverter.FormatRows([missing], "status").Contains(x));
+    }
+
+    [Fact]
     public void MultipleLinksAreNotFalselyCombinedIntoSingleClosureDate()
     {
         var a = new PolarionReportService.Row { TicketId = "TICKET-1", Status = "assigned" };

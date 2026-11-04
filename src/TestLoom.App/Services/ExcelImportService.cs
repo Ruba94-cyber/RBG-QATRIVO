@@ -73,6 +73,18 @@ public static class ExcelImportService
         $"Impossibile leggere il file Excel: {ex.Message} Verifica che non sia protetto da password e che non " +
         "sia danneggiato, poi riprova.");
 
+    private static FormatoExcelNonValidoException ErroreFoglio(string nomeFoglio) => new(
+        LocalizationService.Instance.Scegli(
+            $"Il foglio Excel '{nomeFoglio}' non esiste più nel file. Seleziona nuovamente il foglio: nessun dato è stato caricato.",
+            $"Excel worksheet '{nomeFoglio}' was not found. Select the worksheet again; no data was imported.",
+            $"La feuille Excel '{nomeFoglio}' est introuvable. Sélectionnez-la à nouveau ; aucune donnée n'a été importée."));
+
+    private static FormatoExcelNonValidoException ErroreIntestazione(int riga) => new(
+        LocalizationService.Instance.Scegli(
+            $"La riga di intestazione {riga} è vuota o non valida. Seleziona la riga corretta prima di importare.",
+            $"Header row {riga} is empty or invalid. Select the correct header row before importing.",
+            $"La ligne d'en-tête {riga} est vide ou invalide. Sélectionnez la bonne ligne avant l'importation."));
+
     /// <summary>Nomi dei fogli del workbook, nell'ordine in cui compaiono — popola il selettore foglio del
     /// dialog di import.</summary>
     public static List<string> ElencaFogli(Stream file)
@@ -110,6 +122,8 @@ public static class ExcelImportService
     /// dell'intestazione non vengono letti: <paramref name="avvisi"/>, se valorizzato, riceve un avviso per quelle colonne.</summary>
     public static List<List<string>> LeggiRigheOrdinate(Stream file, string? nomeFoglio, int rigaIntestazione, List<string>? avvisi = null)
     {
+        if (rigaIntestazione < 1)
+            throw new ArgumentOutOfRangeException(nameof(rigaIntestazione), "La riga di intestazione deve essere >= 1.");
         return RilevaFormato(file) switch
         {
             Formato.Xlsx => LeggiConClosedXml(file, nomeFoglio, rigaIntestazione, avvisi),
@@ -126,13 +140,21 @@ public static class ExcelImportService
         catch (Exception ex) { throw ErroreLettura(ex); }
         using (wb)
         {
-            var ws = (string.IsNullOrWhiteSpace(nomeFoglio) ? null : wb.Worksheets.FirstOrDefault(w => w.Name == nomeFoglio))
-                     ?? wb.Worksheets.FirstOrDefault();
-            if (ws == null || rigaIntestazione < 1) return righe;
+            // Un foglio esplicitamente selezionato non puo' essere sostituito
+            // silenziosamente con il primo: sarebbe un import di dati sbagliati.
+            var ws = string.IsNullOrWhiteSpace(nomeFoglio) ? wb.Worksheets.FirstOrDefault()
+                : wb.Worksheets.FirstOrDefault(w => w.Name.Equals(nomeFoglio, StringComparison.OrdinalIgnoreCase))
+                  ?? throw ErroreFoglio(nomeFoglio);
+            if (ws == null) return righe;
 
             var headerRow = ws.Row(rigaIntestazione);
             var ultimaColonna = headerRow.LastCellUsed()?.Address.ColumnNumber ?? 0;
-            if (ultimaColonna == 0) return righe;
+            if (ultimaColonna == 0)
+            {
+                if (ws.RowsUsed().Any(row => row.RowNumber() > rigaIntestazione))
+                    throw ErroreIntestazione(rigaIntestazione);
+                return righe;
+            }
 
             var senzaIntestazione = new SortedSet<int>();
             foreach (var row in ws.RowsUsed().Where(r => r.RowNumber() > rigaIntestazione))
@@ -151,7 +173,7 @@ public static class ExcelImportService
     /// ExcelDataReader (forward-only: due passate sullo stream — una per i nomi dei fogli, la seconda per i
     /// dati — invece di una, perché IExcelDataReader non permette di tornare indietro a un foglio già
     /// superato). Stessa regola di fallback di ClosedXML: se il foglio richiesto non esiste (più) nel file, usa
-    /// il primo invece di restituire una lista vuota per un nome ormai sbagliato.</summary>
+    /// non esiste piu', blocca l'import invece di utilizzare il primo foglio.</summary>
     private static List<List<string>> LeggiConExcelDataReader(Stream file, string? nomeFoglio, int rigaIntestazione, List<string>? avvisi)
     {
         var righe = new List<List<string>>();
@@ -175,8 +197,9 @@ public static class ExcelImportService
         }
         catch (Exception ex) { throw ErroreLettura(ex); }
 
-        var nomeTarget = (string.IsNullOrWhiteSpace(nomeFoglio) ? null : nomiFogli.FirstOrDefault(n => n == nomeFoglio))
-                         ?? nomiFogli.FirstOrDefault();
+        var nomeTarget = string.IsNullOrWhiteSpace(nomeFoglio) ? nomiFogli.FirstOrDefault()
+            : nomiFogli.FirstOrDefault(n => n.Equals(nomeFoglio, StringComparison.OrdinalIgnoreCase))
+              ?? throw ErroreFoglio(nomeFoglio);
         if (nomeTarget == null) return righe;
 
         try
@@ -193,7 +216,14 @@ public static class ExcelImportService
                 {
                     numeroRiga++;
                     if (numeroRiga == rigaIntestazione) { ultimaColonna = UltimaColonnaUsata(reader); continue; }
-                    if (numeroRiga <= rigaIntestazione || ultimaColonna < 0) continue;
+                    if (numeroRiga <= rigaIntestazione) continue;
+                    if (ultimaColonna < 0)
+                    {
+                        // Un foglio popolato ma senza intestazione non equivale a
+                        // un import riuscito di zero righe.
+                        if (UltimaColonnaUsata(reader) >= 0) throw ErroreIntestazione(rigaIntestazione);
+                        continue;
+                    }
                     var valori = Enumerable.Range(0, ultimaColonna + 1).Select(i => (reader.GetValue(i)?.ToString() ?? "").Trim()).ToList();
                     if (valori.Any(v => !string.IsNullOrWhiteSpace(v))) righe.Add(valori);
                     for (var i = ultimaColonna + 1; i < reader.FieldCount; i++)

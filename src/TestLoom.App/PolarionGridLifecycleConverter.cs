@@ -135,7 +135,12 @@ public sealed class PolarionGridLifecycleConverter : IMultiValueConverter
                 $"Aperto: {r.CreatedText} | Testing: {r.TestingText} | Closed: {r.ClosedText} | {r.DataQuality}"));
         if (field == "status")
         {
-            var statuses = rows.Select(r => string.IsNullOrWhiteSpace(r.Status) ? "Non sincronizzato" : r.Status)
+            // Una cache presente con stato mancante NON equivale a un ticket
+            // mai sincronizzato: distinguerli è essenziale durante il triage TICKET.
+            var statuses = rows.Select(r => !string.IsNullOrWhiteSpace(r.Status) ? r.Status
+                : r.HasCache
+                    ? LocalizationService.Instance.Scegli("Stato sconosciuto", "Unknown status", "Statut inconnu")
+                    : LocalizationService.Instance.Scegli("Non sincronizzato", "Not synchronized", "Non synchronisé"))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
             return rows.Count == 1 ? statuses.First() : $"{rows.Count} TICKET · {string.Join(", ", statuses)}";
         }

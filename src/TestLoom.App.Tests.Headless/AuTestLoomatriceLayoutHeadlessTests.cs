@@ -139,6 +139,41 @@ public class AuditMatriceLayoutHeadlessTests
             }
         });
 
+    [Fact]
+    public void FiltroStatiD4d_NascondeLeColonneEcuSoloNa_ELeRipristinaQuandoSiAzzera() =>
+        LayoutHeadlessSessione.Esegui(() =>
+        {
+            using var stato = CreaStato(0, 2); // ST0001 e Extra-001 sono creati sotto, senza collisione di chiave
+            var extra = new Requisito
+            {
+                Id = "Extra-001",
+                VeicoliEcuD4D = [new RequisitoVeicoloEcu { Veicolo = "Veicolo-A", Componente = "Componente01" }]
+            };
+            RequisitoApplicabilita.ImpostaTipo(extra, TipoRequisito.Extra);
+            stato.State.Master.Requisiti.Save([new Requisito { Id = "ST0001" }, extra]);
+
+            var vm = new AuditViewModel(stato.State) { SottoveicoloSelezionato = "Veicolo-A" };
+            var vista = new AuditView { DataContext = vm };
+            var finestra = MostraInSidebar(vista, 1280, 672);
+            try
+            {
+                var intestazione = vista.FindControl<StackPanel>("MatriceIntestazione")!;
+                Assert.Equal(2, vm.EcuColonne.Count); // Standard tiene entrambe i componenti nell'universo
+                Assert.Equal(3, intestazione.Children.Count); // requisito + componente01 + componente02
+
+                vm.FiltroTipoRequisito.Opzioni.Single(o => o.Valore == "Extra").Selezionato = true;
+                vm.FiltroStatiMatrice.Opzioni.Single(o => o.Valore == "DaTestare").Selezionato = true;
+                LayoutHeadlessSessione.Assesta(finestra);
+                Assert.Equal(2, intestazione.Children.Count); // requisito + componente01, componente02 era solo N.A. nel Extra
+                Assert.Equal(2, vm.EcuColonne.Count); // filtro solo UI: i dati restano invariati
+
+                vm.FiltroStatiMatrice.DeselezionaTutto();
+                LayoutHeadlessSessione.Assesta(finestra);
+                Assert.Equal(3, intestazione.Children.Count); // nessuna selezione: matrice non ridotta
+            }
+            finally { finestra.Hide(); }
+        });
+
     /// <summary>True se un blocco di testo con quel contenuto e' costruito e visibile nella vista.</summary>
     private static bool TestoVisibile(Visual vista, string testo) =>
         vista.GetVisualDescendants().OfType<TextBlock>().Any(t => t.IsEffectivelyVisible && t.Text == testo);

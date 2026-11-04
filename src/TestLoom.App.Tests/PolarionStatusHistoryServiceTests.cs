@@ -77,6 +77,38 @@ public sealed class PolarionStatusHistoryServiceTests : IDisposable
     }
 
     [Fact]
+    public void ReportBatch_DirectorySnapshotRiutilizzata_ProduceLoStessoStoricoDelMergeStandard()
+    {
+        var now = DateTimeOffset.UtcNow.AddMinutes(-10);
+        Store("deviceA").Observe(Snap("assigned", now));
+        Store("deviceB").Observe(Snap("testing", now.AddMinutes(2)));
+        var service = Store("deviceA");
+        var folders = service.SnapshotDeviceDirectories("TICKET_Tickets");
+        Assert.Equal(2, folders.Count);
+        var batch = service.ReadMerged("TICKET_Tickets", "TICKET-123", folders)!;
+        var single = service.ReadMerged("TICKET_Tickets", "TICKET-123")!;
+        Assert.Equal(single.Observations.Select(o => (o.Status, o.FirstSeenUtc)),
+            batch.Observations.Select(o => (o.Status, o.FirstSeenUtc)));
+        // Ogni nuovo refresh cattura nuovamente le cartelle; nessuna cache
+        // persistente puo' occultare un device arrivato in seguito.
+        Store("deviceC").Observe(Snap("closed", now.AddMinutes(4), "done"));
+        Assert.Equal(3, service.SnapshotDeviceDirectories("TICKET_Tickets").Count);
+        Assert.Equal(3, service.ReadMerged("TICKET_Tickets", "TICKET-123")!.Observations.Count);
+    }
+
+    [Fact]
+    public void StoriaEstaJsonValidoMaListaOsservazioniNull_NonMascheraLaCorruzione()
+    {
+        var paths = new DataPaths(_root);
+        var path = Path.Combine(paths.PolarionHistoryDir, "TICKET_Tickets", "corruptDevice", "TICKET-123.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, """
+            {"ProjectId":"TICKET_Tickets","TicketId":"TICKET-123","DeviceId":"corruptDevice","Observations":null}
+            """);
+        Assert.Throws<InvalidDataException>(() => Store("deviceA").ReadMerged("TICKET_Tickets", "TICKET-123"));
+    }
+
+    [Fact]
     public void AStalePolarionRevisionMustNotCreateFalseReopening()
     {
         var store = Store("deviceC");

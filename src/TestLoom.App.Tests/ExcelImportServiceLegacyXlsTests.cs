@@ -58,6 +58,15 @@ public sealed class ExcelImportServiceLegacyXlsTests
     }
 
     [Fact]
+    public void LeggiRigheOrdinate_XlsLegacyFoglioNonPresente_NonImportaSilenziosamenteIlPrimo()
+    {
+        using var fs = File.OpenRead(PercorsoFixture("funzionalita_legacy.xls"));
+        var ex = Assert.Throws<FormatoExcelNonValidoException>(() =>
+            ExcelImportService.LeggiRigheOrdinate(fs, "CatalogoNonPresente", 1));
+        Assert.Contains("CatalogoNonPresente", ex.Message);
+    }
+
+    [Fact]
     public void Funzionalita_ImportaFileXlsLegacyRinominatoXlsx_FunzionaEndToEndAttraversoIlViewModel()
     {
         // Riproduce esattamente il caso dell'utente: sceglie un file ".xlsx" che è in realtà un vecchio .xls,

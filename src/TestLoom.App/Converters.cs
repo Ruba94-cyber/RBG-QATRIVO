@@ -476,6 +476,21 @@ public class StatoWorkingUnitColorConverter : IValueConverter
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
+/// <summary>Testo dei badge WU: lo sfondo degli stati e' un pastello chiaro anche nel
+/// tema scuro; usare la tinta di primo piano dello stesso stato evita testo chiaro
+/// su sfondo chiaro. I colori corrispondono a quelli degli esiti Report.</summary>
+public class StatoWorkingUnitTextColorConverter : IValueConverter
+{
+    public static readonly StatoWorkingUnitTextColorConverter Instance = new();
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
+    {
+        Models.StatoManualeWorkingUnit.Ok => new SolidColorBrush(Color.Parse("#166534")),
+        Models.StatoManualeWorkingUnit.Problemi => new SolidColorBrush(Color.Parse("#991B1B")),
+        _ => new SolidColorBrush(Color.Parse("#334155"))
+    };
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
 public class StatoManualeWorkingUnitLabelConverter : IValueConverter
 {
     public static readonly StatoManualeWorkingUnitLabelConverter Instance = new();
@@ -840,7 +855,10 @@ public class CellaStatoPennelloConverter : IValueConverter
     {
         var testo = string.Equals(parameter as string, "testo", StringComparison.OrdinalIgnoreCase);
         if (value is not CellaMatriceReport cella) return testo ? AvaloniaProperty.UnsetValue : Brushes.Transparent;
-        if (cella.NonApplicabile && !testo) return new SolidColorBrush(Color.Parse("#E2E8F0"));
+        // N.A. ha uno sfondo grigio CHIARO fisso anche in Dark. Il testo deve
+        // quindi avere l'inchiostro scuro (mai ereditarne uno bianco dal tema).
+        if (cella.NonApplicabile)
+            return new SolidColorBrush(Color.Parse(testo ? "#334155" : "#E2E8F0"));
         var (sfondo, colore) = cella.ModalitaStato ? ColoriStato(cella.CodiceStato) : ("", "");
         if (testo) return colore.Length == 0 ? AvaloniaProperty.UnsetValue : new SolidColorBrush(Color.Parse(colore));
         return sfondo.Length == 0 ? Brushes.Transparent : new SolidColorBrush(Color.Parse(sfondo));

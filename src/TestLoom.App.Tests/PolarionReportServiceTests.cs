@@ -10,6 +10,58 @@ public sealed class PolarionReportServiceTests
         new() { Status = status, FirstSeenUtc = Baseline.AddMinutes(minutes) };
 
     [Fact]
+    public void ReportEsta_FiltriVeicoliEGammeRichiedonoCorrispondenzaEsatta()
+    {
+        var rows = new[]
+        {
+            new PolarionReportService.Row
+            {
+                TicketId = "TICKET-1", Status = "testing",
+                Vehicles = "Daily MY24, Eurocargo MY25", Ranges = "LCV, MCV"
+            }
+        };
+        Assert.Single(PolarionReportService.Apply(rows,
+            new PolarionReportService.Filter(Vehicle: "Daily MY24", Range: "LCV")));
+        Assert.Empty(PolarionReportService.Apply(rows,
+            new PolarionReportService.Filter(Vehicle: "Daily", Range: "LCV")));
+        Assert.Empty(PolarionReportService.Apply(rows,
+            new PolarionReportService.Filter(Vehicle: "Daily MY24", Range: "LC")));
+    }
+
+    [Fact]
+    public void ReportEsta_RiepilogoMoltiTicket_ContaUnVoltaPerRecord()
+    {
+        var rows = Enumerable.Range(0, 10_000).Select(i => new PolarionReportService.Row
+        {
+            TicketId = $"TICKET-{i}", HasCache = i % 5 != 0,
+            Status = i % 2 == 0 ? "closed" : "testing",
+            HistoryUnavailable = i % 10 == 0,
+            FirstClosedObservedAt = i % 4 == 0 ? Baseline : null
+        }).ToArray();
+        var result = PolarionReportService.Summarize(rows);
+        Assert.Equal(10_000, result.Total);
+        Assert.Equal(2_000, result.NotSynced);
+        Assert.Equal(5_000, result.Closed);
+        Assert.Equal(5_000, result.Testing);
+        Assert.Equal(4_000, result.Open); // solo i Testing sincronizzati
+        Assert.Equal(1_000, result.HistoriesUnavailable);
+        Assert.Equal(2_500, result.ObservedClosures);
+        Assert.Equal(2, result.StatusDistribution.Count);
+    }
+
+    [Fact]
+    public void ReportEsta_CsvDaSnapshotFiltratoNeutralizzaFormule()
+    {
+        var text = "=HYPERLINK(\"https://example.invalid\")";
+        var csv = TestLoom.App.ViewModels.PolarionLifecycleViewModel.PolarionCsv(
+            [new PolarionReportService.Row { TicketId = "TICKET-123", Title = text }]);
+        Assert.StartsWith("\uFEFF", csv);
+        Assert.Contains("\"'=HYPERLINK(", csv);
+        Assert.Contains("https://example.invalid", csv);
+        Assert.Contains("\"\"https://example.invalid\"\"", csv); // quote escaping CSV
+    }
+
+    [Fact]
     public void MissingStatusIsUnknownRatherThanOpenEvenWithCache()
     {
         var associations = new[]
@@ -27,6 +79,51 @@ public sealed class PolarionReportServiceTests
         Assert.Equal(1, summary.NotSynced);
         Assert.Equal(2, summary.UnknownStatus);
         Assert.Contains(new[] { "Stato sconosciuto", "Unknown status", "Statut inconnu" }, x => rows.Single(r => r.TicketId == "TICKET-1").DataQuality.Contains(x, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ReportEsta_DataDigitataNonValida_NonMostraStatisticheGlobaliComeFiltrate()
+    {
+        using var state = TestStateFactory.Create();
+        using var vm = new TestLoom.App.ViewModels.PolarionLifecycleViewModel(state, "NC");
+        var rowsField = typeof(TestLoom.App.ViewModels.PolarionLifecycleViewModel)
+            .GetField("_polarionAllRows",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(rowsField);
+        var rows = Assert.IsType<List<PolarionReportService.Row>>(rowsField!.GetValue(vm));
+        rows.Add(new PolarionReportService.Row { TicketId = "TICKET-1", Status = "testing" });
+
+        vm.PolarionReportQuery = "TICKET";
+        Assert.Equal(1, vm.PolarionReportCount);
+        vm.PolarionReportFrom = "31/02/2026";
+        Assert.NotEmpty(vm.PolarionDateFilterError);
+        Assert.Equal(0, vm.PolarionReportCount);
+        Assert.Empty(vm.PolarionReportRows);
+        Assert.False(vm.PolarionCanExport);
+    }
+
+    [Fact]
+    public void ReportEsta_StatoCacheDiversoDaStorico_VisibileMaSenzaInventareChiusure()
+    {
+        var id = "TICKET-987";
+        var history = new PolarionStatusHistoryService.History
+        {
+            Observations = [Event("testing", 0)]
+        };
+        var row = Assert.Single(PolarionReportService.Build(
+            [new PolarionReportService.Association(id, "NC", "NC-1", [])],
+            _ => new PolarionTicketSnapshot
+            {
+                Id = id, Status = "closed", Resolution = "done",
+                RetrievedAtUtc = Baseline.AddHours(1)
+            },
+            _ => history, new Dictionary<string, string>()));
+        Assert.True(row.HistoryStatusMismatch);
+        Assert.Equal("closed", row.Status); // Stato attuale della cache resta visibile
+        Assert.Null(row.FirstClosedObservedAt); // Lo storico non dimostra la transizione
+        Assert.Equal(0, row.ClosureTransitionsObserved);
+        Assert.Contains(new[] { "discordante", "differs", "différent" },
+            word => row.DataQuality.Contains(word, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

@@ -71,6 +71,24 @@ public sealed class ThemePaletteContrastTests
                 $"{variant} {fg} on {bg} has {Ratio(p[fg], p[bg]):F2}:1, below WCAG AA");
     }
 
+    [Fact]
+    public void AuditDialoghiGeneratiInCodeBehind_ErroreEAvvisoRaggiungonoWcagAaInDark()
+    {
+        var p = Palette("Dark");
+        var source = File.ReadAllText(Path.Combine(Path.GetDirectoryName(AppXaml())!, "Views", "AuditView.axaml.cs"));
+        Assert.Contains("private static IBrush PennelloErrore", source);
+        Assert.Contains("private static IBrush PennelloAvviso", source);
+        Assert.Contains("#F17D82", source);
+        Assert.Contains("#E2AD54", source);
+        foreach (var surface in new[] { "WindowBackgroundBrush", "SurfaceBrush", "SurfaceMutedBrush" })
+        {
+            Assert.True(Ratio("#F17D82", p[surface]) >= 4.5,
+                $"Audit error text has low contrast on {surface}");
+            Assert.True(Ratio("#E2AD54", p[surface]) >= 4.5,
+                $"Audit warning text has low contrast on {surface}");
+        }
+    }
+
     [Theory]
     [InlineData("Light")]
     [InlineData("Dark")]

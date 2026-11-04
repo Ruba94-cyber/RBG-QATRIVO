@@ -111,7 +111,7 @@ public partial class HomeViewModel
             Asincrono = _aggiornaInBackground,
             Testata = testata,
             ModalitaPercentualeConformita = ModalitaPercentualeConformita,
-            FiltroStato = testata ? FiltroStatoConformita() : new DashboardFilter(),
+            FiltroStato = testata ? FiltroRiepilogoTestata() : new DashboardFilter(),
             Copertura = copertura,
             Liste = liste,
             ListeNelBatch = liste && string.IsNullOrWhiteSpace(_testoRicercaApplicato),
@@ -120,6 +120,7 @@ public partial class HomeViewModel
             Recenti = recenti,
             CampiDaCaricare = filtri,
             Indice = GetScalableArchiveQuery(),
+            QueryTempo = _homeDashboardQuery,
             Coordinatore = _state.CartellaValida ? _state.TestCases.IndexRecovery : null,
             Operatore = operatore,
             SoloMiei = SoloMiei,
@@ -343,6 +344,7 @@ public partial class HomeViewModel
         var indice = r.Indice!;
         LocalHomeAggiornaBatchResult? batch = null;
         StatiMatrice? distribuzioneConformita = null;
+        ValoreTempo? riepilogoTempo = null;
         long nonConformitaAperte = 0, changeRequestAperte = 0, daClassificare = 0;
         var ok = TentaIndice(r.Coordinatore, "Aggiorna Home (batch unificato)", () =>
         {
@@ -389,7 +391,23 @@ public partial class HomeViewModel
             });
             if (r.Testata)
             {
-                distribuzioneConformita = r.ModalitaPercentualeConformita == 1
+                if (r.ModalitaPercentualeConformita is 3 or 4 && r.QueryTempo != null)
+                {
+                    // Filtri dimensione gamma/categoria risolti sugli stessi cataloghi
+                    // della dashboard indicizzata, senza caricare i Test in memoria.
+                    var gamma = r.FiltroStato.Gamma.Count == 0 ? null
+                        : veicoli.Value.Where(v => r.FiltroStato.Gamma.Contains(v.GammaNome, StringComparer.OrdinalIgnoreCase))
+                            .Select(v => v.Nome).ToList();
+                    var categorie = r.FiltroStato.CategoriaFunzionalita.Count == 0 ? null
+                        : _state.Master.Funzionalita.Load()
+                            .Where(f => f.Categorie.Any(cat => r.FiltroStato.CategoriaFunzionalita.Contains(cat, StringComparer.OrdinalIgnoreCase)))
+                            .Select(f => f.Nome).ToList();
+                    riepilogoTempo = r.QueryTempo.GetTimeSummary(r.FiltroStato, gamma, categorie,
+                        soloConformi: r.ModalitaPercentualeConformita == 4);
+                }
+                distribuzioneConformita = r.ModalitaPercentualeConformita is 3 or 4
+                    ? default
+                    : r.ModalitaPercentualeConformita == 1
                     ? batch.Summary.TestStatusDistribution
                     // 6.7.1: con filtri (operatore, TIME, ...) le fonti dell'indice non bastano: stesso calcolo del Report sui Test.
                     : r.FiltroStato.HaFiltriAttivi
@@ -413,6 +431,7 @@ public partial class HomeViewModel
         if (!uno.IndiceOk) return;
         uno.Batch = batch;
         uno.DistribuzioneConformita = distribuzioneConformita;
+        uno.RiepilogoTempo = riepilogoTempo;
         // Scorciatoia "nessuna revisione" della dashboard: vale solo se il sommario e' stato letto in questo giro.
         uno.SenzaRevisioni = r.Testata && !batch!.HasAnyRevision
             ? (batch.Summary.TotalTests, batch.Revisione)
@@ -490,6 +509,7 @@ public partial class HomeViewModel
             DaRitestare = batch.Summary.ToRetest;
             MieiAttivi = batch.Summary.MyActive;
             ImpostaDistribuzioneConformita(uno.DistribuzioneConformita ?? default);
+            ImpostaRiepilogoTempo(uno.RiepilogoTempo ?? default);
             TotaleNcAperte = uno.NonConformitaAperte;
             ChangeRequestAperte = uno.ChangeRequestAperte;
             DaClassificare = uno.DaClassificare;
@@ -758,6 +778,7 @@ public partial class HomeViewModel
         public required bool Recenti { get; init; }
         public required bool CampiDaCaricare { get; init; }
         public required LocalTestArchiveQueryService? Indice { get; init; }
+        public LocalHomeDashboardQueryService? QueryTempo { get; init; }
         public required LocalIndexRecoveryCoordinator? Coordinatore { get; init; }
         public required string? Operatore { get; init; }
         public required bool SoloMiei { get; init; }
@@ -777,6 +798,7 @@ public partial class HomeViewModel
         public bool FallimentoIndice { get; set; }
         public LocalHomeAggiornaBatchResult? Batch { get; set; }
         public StatiMatrice? DistribuzioneConformita { get; set; }
+        public ValoreTempo? RiepilogoTempo { get; set; }
         public (long Conteggio, long Revisione)? SenzaRevisioni { get; set; }
         public long NonConformitaAperte { get; set; }
         public long ChangeRequestAperte { get; set; }

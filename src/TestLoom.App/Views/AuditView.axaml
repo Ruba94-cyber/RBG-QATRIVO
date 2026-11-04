@@ -100,7 +100,8 @@
                     </StackPanel>
                 </Grid>
 
-                <WrapPanel Grid.Row="2" Orientation="Horizontal" Margin="0,4">
+                <StackPanel Grid.Row="2" Spacing="6">
+                <WrapPanel Orientation="Horizontal" Margin="0,4">
                         <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,12,2">
                             <Border Background="{DynamicResource AuditCellaDaTestareBrush}" Width="14" Height="14" CornerRadius="3" />
                             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditDaTestare}" FontSize="12" Classes="Muted" />
@@ -134,6 +135,18 @@
                             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPropagabileLegenda}" FontSize="12" Classes="Muted" />
                         </StackPanel>
                     </WrapPanel>
+                    <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=MatriceFiltroStatiLabel}"
+                                   VerticalAlignment="Center" FontWeight="SemiBold" />
+                        <Button Classes="Secondary" Content="{Binding FiltroStatiMatrice.TestoRiepilogo}"
+                                Click="OnApriFiltroStatiMatrice" AutomationProperties.AutomationId="Audit_Matrice_FiltroStati_Button" />
+                        <Button Classes="Link" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AzzeraFiltriBtn}"
+                                Click="OnAzzeraFiltroStatiMatrice" IsVisible="{Binding HaFiltroStatiMatrice}"
+                                AutomationProperties.AutomationId="Audit_Matrice_FiltroStati_Azzera_Button" />
+                        <TextBlock Classes="Muted" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditFiltroStatiD4dInfo}" />
+                    </WrapPanel>
+                </StackPanel>
                 <Grid Grid.Row="3">
                     <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditMatriceVuota}" Classes="Muted"
                                HorizontalAlignment="Center" Margin="0,16" IsVisible="{Binding MatriceVuota}" />

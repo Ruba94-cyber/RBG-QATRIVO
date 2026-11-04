@@ -63,6 +63,7 @@ public partial class AuditView : UserControl
         Point PosizioneIniziale, double ValoreIniziale, int IndiceIniziale);
 
     private PreferenzeMatriceAudit _preferenzeMatrice = new();
+    private IReadOnlyList<string> _colonneVisualizzate = Array.Empty<string>();
     private StatoManigliaMatrice? _ridimensionamentoMatrice;
 
     /// <summary>CellaMatriceAuditVisual.Colore pesca da una tavolozza chiusa di 8 esadecimali: prima
@@ -78,6 +79,14 @@ public partial class AuditView : UserControl
             PennelliCella[colore] = pennello = new SolidColorBrush(Color.Parse(colore));
         return pennello;
     }
+
+    // I dialoghi Audit sono generati in code-behind e non beneficiano dei
+    // DynamicResource delle View AXAML. I colori storici dei messaggi di errore
+    // (#B91C1C/#DC2626) non superano 4.5:1 su superfici scure.
+    private static bool TemaScuro =>
+        Application.Current?.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+    private static IBrush PennelloErrore => PennelloPer(TemaScuro ? "#F17D82" : "#B91C1C");
+    private static IBrush PennelloAvviso => PennelloPer(TemaScuro ? "#E2AD54" : "#C2410C");
 
     // Sottoscrizioni tenute a mano e simmetriche su Attached/DetachedFromVisualTree (Addendum: audit
     // prestazioni 2026-08-25; corretto ulteriormente 2026-09-25 per il riuso View del ViewLocator). Prima
@@ -100,6 +109,12 @@ public partial class AuditView : UserControl
         DataContextChanged += OnDataContextChanged;
         AttachedToVisualTree += OnAttachedToVisualTree;
         DetachedFromVisualTree += OnDetachedFromVisualTree;
+        // Le celle sono generate in code-behind: i DynamicResource XAML non
+        // aggiornano automaticamente i colori dei Border appena costruiti.
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            if (DataContext is AuditViewModel vm) RicostruisciGriglia(vm);
+        };
     }
 
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
@@ -118,7 +133,11 @@ public partial class AuditView : UserControl
     private void OnLinguaCambiata(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(LocalizationService.Lingua) or nameof(LocalizationService.EInglese)
-            && DataContext is AuditViewModel vm) RicostruisciGriglia(vm);
+            && DataContext is AuditViewModel vm)
+        {
+            vm.AggiornaEtichetteFiltroStati();
+            RicostruisciGriglia(vm);
+        }
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -164,7 +183,23 @@ public partial class AuditView : UserControl
         CaricaPreferenzeMatrice();
         MatriceIntestazione.Children.Clear();
         MatriceRighe.ItemsSource = null;
+        _colonneVisualizzate = Array.Empty<string>();
         if (vm.MatriceVuota) return;
+
+        // Come il filtro stati Report: nasconde simultaneamente le righe prive degli stati
+        // selezionati e le colonne componente che non hanno alcuna corrispondenza. Extra N.A.
+        // scompare anche dall'ingombro, non solo dal testo delle celle.
+        var righeStandard = vm.MostraSezioneStandard
+            ? vm.Righe.Where(r => !vm.HaFiltroStatiMatrice || r.Celle.Values.Any(vm.CellaVisibilePerStato)).ToList()
+            : new List<RigaMatriceAudit>();
+        var righeD4d = vm.MostraSezioneD4d
+            ? vm.RigheD4d.Where(r => !vm.HaFiltroStatiMatrice || r.Celle.Values.Any(vm.CellaVisibilePerStato)).ToList()
+            : new List<RigaMatriceAudit>();
+        var righeVisibili = righeStandard.Concat(righeD4d).ToList();
+        _colonneVisualizzate = OrdineEcuComplete(vm)
+            .Where(componente => !vm.HaFiltroStatiMatrice ||
+                righeVisibili.Any(r => r.Celle.TryGetValue(componente, out var c) && vm.CellaVisibilePerStato(c)))
+            .ToList();
 
         var angolo = IntestazioneCella(LocalizationService.Instance.Traduci("AuditRequisito"));
         angolo.Tag = TagColonnaRequisito;
@@ -182,20 +217,38 @@ public partial class AuditView : UserControl
         }
 
         var voci = new List<object>();
-        if (vm.MostraSezioneStandard && vm.Righe.Count > 0)
+        if (righeStandard.Count > 0)
         {
-            voci.Add(new VoceSezioneMatrice(vm.TitoloSezioneStandard, "Audit_Sezione_Standard_Text"));
-            voci.AddRange(vm.Righe);
+            voci.Add(new VoceSezioneMatrice(vm.HaFiltroStatiMatrice
+                ? $"Standard · {righeStandard.Count}/{vm.Righe.Count}" : vm.TitoloSezioneStandard, "Audit_Sezione_Standard_Text"));
+            voci.AddRange(righeStandard);
         }
-        if (vm.MostraSezioneD4d && vm.RigheD4d.Count > 0)
+        if (righeD4d.Count > 0)
         {
-            voci.Add(new VoceSezioneMatrice(vm.TitoloSezioneD4d, "Audit_Sezione_Extra_Text"));
+            voci.Add(new VoceSezioneMatrice(vm.HaFiltroStatiMatrice
+                ? $"Extra · {righeD4d.Count}/{vm.RigheD4d.Count}" : vm.TitoloSezioneD4d, "Audit_Sezione_Extra_Text"));
             if (!string.IsNullOrEmpty(vm.RiepilogoD4d)) voci.Add(new VoceRiepilogoD4d(vm.RiepilogoD4d));
-            voci.AddRange(vm.RigheD4d);
+            voci.AddRange(righeD4d);
         }
+        if (voci.Count == 0 && vm.HaFiltroStatiMatrice)
+            voci.Add(new VoceRiepilogoD4d(LocalizationService.Instance.Scegli(
+                "Nessuna corrispondenza per gli stati selezionati. Azzera il filtro per mostrare tutta la matrice.",
+                "No cells match the selected states. Clear the filter to show the full matrix.",
+                "Aucune cellule ne correspond aux états sélectionnés. Effacez le filtre pour afficher toute la matrice.")));
         // Il template costruisce la voce solo quando la virtualizzazione la porta a schermo: il costo non dipende dal numero di righe.
         MatriceRighe.ItemTemplate = new FuncDataTemplate<object>((voce, _) => CostruisciVoce(vm, voce));
         MatriceRighe.ItemsSource = voci;
+    }
+
+    private void OnApriFiltroStatiMatrice(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && DataContext is AuditViewModel vm)
+            FiltroMultiSelectFlyoutHelper.Apri(button, vm.FiltroStatiMatrice);
+    }
+
+    private void OnAzzeraFiltroStatiMatrice(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is AuditViewModel vm) vm.AzzeraFiltroStatiMatrice();
     }
 
     /// <summary>L'intestazione componente scorre in orizzontale insieme al corpo della matrice (che e' l'unico ScrollViewer della pagina).</summary>
@@ -221,7 +274,12 @@ public partial class AuditView : UserControl
             Tag = TagContenutoRiga,
         }.Con("Audit_Matrice_RigaContenuto_" + Uri.EscapeDataString(riga.RequisitoId));
         pannello.Children.Add(CostruisciCellaRequisito(vm, riga, altezza));
-        foreach (var ecuColonna in OrdineEcu(vm)) pannello.Children.Add(CostruisciCellaEcu(vm, riga, ecuColonna, altezza));
+        foreach (var ecuColonna in OrdineEcu(vm))
+            pannello.Children.Add(vm.HaFiltroStatiMatrice &&
+                (!riga.Celle.TryGetValue(ecuColonna, out var c) || !vm.CellaVisibilePerStato(c))
+                ? new Border { Width = LarghezzaEcuCorrente(ecuColonna), Height = altezza,
+                    BorderBrush = new SolidColorBrush(Color.Parse("#475569")), BorderThickness = new Thickness(0, 0, 1, 1) }
+                : CostruisciCellaEcu(vm, riga, ecuColonna, altezza));
 
         var contenitore = new Grid { Height = altezza, Tag = TagRiga + riga.RequisitoId };
         AutomationProperties.SetAutomationId(contenitore, IdRiga(riga.RequisitoId));
@@ -302,7 +360,7 @@ public partial class AuditView : UserControl
                 {
                     Content = "×", Classes = { "Link" }, Padding = new Thickness(2, 0),
                     FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = new SolidColorBrush(Color.Parse("#B91C1C")),
+                    Foreground = PennelloErrore,
                 };
                 ToolTip.SetTip(rimuoviRiga, LocalizationService.Instance.Scegli(
                     $"Rimuovi {riga.NumeroValutazioniRimuovibili} valutazioni manuali o propagate da questo requisito sul veicolo selezionato",
@@ -319,8 +377,10 @@ public partial class AuditView : UserControl
             Tag = TagColonnaRequisito,
             Width = LarghezzaRequisitoCorrente,
             Height = altezza,
-            Background = new SolidColorBrush(Color.Parse("#F8FAFC")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#E2E8F0")),
+            // Il testo del requisito eredita PrimaryTextBrush; non usare mai un fondino
+            // chiaro fisso nel tema scuro (testo chiaro su bianco diventava invisibile).
+            Background = PennelloPer(ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark ? "#141B23" : "#F8FAFC"),
+            BorderBrush = PennelloPer(ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark ? "#576B7C" : "#E2E8F0"),
             BorderThickness = new Thickness(0, 0, 1, 1),
             Padding = new Thickness(6, 2),
             Child = contenuto,
@@ -353,6 +413,7 @@ public partial class AuditView : UserControl
             var testoCella = new TextBlock
             {
                 Text = cella?.Testo ?? "",
+                Foreground = new SolidColorBrush(Color.Parse("#1E293B")),
                 FontSize = 12,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -362,8 +423,8 @@ public partial class AuditView : UserControl
             AutomationProperties.SetAutomationId(testoCella, $"Audit_Cella_{ecuColonna}_{riga.RequisitoId}_Element");
             cellaVisuale = new Border
             {
-                Background = cella != null ? PennelloPer(cella.Colore) : Brushes.White,
-                BorderBrush = Brushes.White,
+                Background = cella != null ? PennelloPer(cella.Colore) : Brushes.Transparent,
+                BorderBrush = Brushes.Transparent,
                 BorderThickness = new Thickness(1),
                 Child = testoCella,
             };
@@ -406,10 +467,10 @@ public partial class AuditView : UserControl
         {
             Background = PennelloPer(cella.Colore),
             BorderThickness = new Thickness(1),
-            BorderBrush = Brushes.White,
+            BorderBrush = Brushes.Transparent,
             CornerRadius = new CornerRadius(0),
             Padding = new Thickness(0),
-            Content = new TextBlock { Text = cella.Testo, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+            Content = new TextBlock { Text = cella.Testo, FontSize = 12, Foreground = new SolidColorBrush(Color.Parse("#1E293B")), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
         };
         bottone.Click += (_, _) => ApriRisolviConflittoFlyout(bottone, vm, cella);
         return bottone;
@@ -423,10 +484,10 @@ public partial class AuditView : UserControl
         {
             Background = PennelloPer(cella.Colore),
             BorderThickness = new Thickness(1),
-            BorderBrush = Brushes.White,
+            BorderBrush = Brushes.Transparent,
             CornerRadius = new CornerRadius(0),
             Padding = new Thickness(0),
-            Content = new TextBlock { Text = cella.Testo, FontSize = 12, FontWeight = FontWeight.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+            Content = new TextBlock { Text = cella.Testo, FontSize = 12, Foreground = new SolidColorBrush(Color.Parse("#1E293B")), FontWeight = FontWeight.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
         };
         AutomationProperties.SetAutomationId(bottone, $"Audit_Propagabile_{cella.Componente}_{cella.RequisitoId}_Button");
         bottone.Click += (_, _) => ApriPropagaFlyout(bottone, vm, cella, veicoloCliccato);
@@ -441,10 +502,10 @@ public partial class AuditView : UserControl
         {
             Background = PennelloPer(cella.Colore),
             BorderThickness = new Thickness(1),
-            BorderBrush = Brushes.White,
+            BorderBrush = Brushes.Transparent,
             CornerRadius = new CornerRadius(0),
             Padding = new Thickness(0),
-            Content = new TextBlock { Text = cella.Testo, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+            Content = new TextBlock { Text = cella.Testo, FontSize = 12, Foreground = new SolidColorBrush(Color.Parse("#1E293B")), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
         };
         AutomationProperties.SetAutomationId(bottone, $"Audit_ValutazioneSalvata_{cella.Componente}_{cella.RequisitoId}_Button");
         bottone.Click += (_, _) => ApriValutazioneSalvataFlyout(bottone, vm, cella, veicolo);
@@ -457,10 +518,10 @@ public partial class AuditView : UserControl
         {
             Background = PennelloPer(cella.Colore),
             BorderThickness = new Thickness(1),
-            BorderBrush = Brushes.White,
+            BorderBrush = Brushes.Transparent,
             CornerRadius = new CornerRadius(0),
             Padding = new Thickness(0),
-            Content = new TextBlock { Text = cella.Testo, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+            Content = new TextBlock { Text = cella.Testo, FontSize = 12, Foreground = new SolidColorBrush(Color.Parse("#1E293B")), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
         };
         AutomationProperties.SetAutomationId(bottone, $"Audit_ManualeLegacy_{cella.Componente}_{cella.RequisitoId}_Button");
         bottone.Click += (_, _) => ApriInserimentoManualeFlyout(bottone, vm, cella.Componente, cella.RequisitoId, cella);
@@ -513,7 +574,7 @@ public partial class AuditView : UserControl
         AutomationProperties.SetAutomationId(motivazioneBox, "Audit_Propaga_Nota_TextBox");
         panel.Children.Add(motivazioneBox);
 
-        var erroreText = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#DC2626")), FontSize = 11, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+        var erroreText = new TextBlock { Foreground = PennelloErrore, FontSize = 11, TextWrapping = TextWrapping.Wrap, IsVisible = false };
         panel.Children.Add(erroreText);
 
         var bottoni = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
@@ -674,7 +735,7 @@ public partial class AuditView : UserControl
         };
         AutomationProperties.SetAutomationId(nota, "Audit_Storico_Nota_TextBox");
         panel.Children.Add(nota);
-        var avviso = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#C2410C")), FontSize = 11, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+        var avviso = new TextBlock { Foreground = PennelloAvviso, FontSize = 11, TextWrapping = TextWrapping.Wrap, IsVisible = false };
         panel.Children.Add(avviso);
         var bottoni = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         var annulla = new Button { Content = t.Traduci("AnnullaSemplice"), Classes = { "Secondary" } };
@@ -768,7 +829,7 @@ public partial class AuditView : UserControl
         var motivazioneBox = new TextBox { PlaceholderText = T("AuditMotivoPlaceholder"), AcceptsReturn = true, Height = 60, TextWrapping = TextWrapping.Wrap };
         panel.Children.Add(motivazioneBox);
 
-        var erroreText = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#DC2626")), FontSize = 11, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+        var erroreText = new TextBlock { Foreground = PennelloErrore, FontSize = 11, TextWrapping = TextWrapping.Wrap, IsVisible = false };
         panel.Children.Add(erroreText);
 
         var bottoni = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
@@ -906,7 +967,7 @@ public partial class AuditView : UserControl
         AutomationProperties.SetAutomationId(motivazioneBox, "Audit_ValutazioneVeicolo_Nota_TextBox");
         panel.Children.Add(motivazioneBox);
 
-        var erroreText = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#DC2626")), FontSize = 11, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+        var erroreText = new TextBlock { Foreground = PennelloErrore, FontSize = 11, TextWrapping = TextWrapping.Wrap, IsVisible = false };
         panel.Children.Add(erroreText);
 
         var bottoni = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
@@ -997,7 +1058,7 @@ public partial class AuditView : UserControl
                 $"Confirmez-vous l'application de la nouvelle valeur manuelle aux {anteprima.CelleDaSovrascrivere} cellules déjà évaluées du seul véhicule sélectionné ? La saisie est datée maintenant ; un Test ultérieur peut prévaloir. L'annulation n'écrit rien."),
             FontWeight = FontWeight.SemiBold, FontSize = 11, TextWrapping = TextWrapping.Wrap,
         });
-        var errore = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#DC2626")), FontSize = 11, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+        var errore = new TextBlock { Foreground = PennelloErrore, FontSize = 11, TextWrapping = TextWrapping.Wrap, IsVisible = false };
         panel.Children.Add(errore);
         panel.Children.Add(confermaSovrascrittura);
 
@@ -1123,7 +1184,10 @@ public partial class AuditView : UserControl
     private static string TagPerColonnaEcu(string componente) => "AUDIT:COLONNA:componente:" + componente;
     private static string IdRiga(string requisitoId) => "Audit_Matrice_Riga_" + Uri.EscapeDataString(requisitoId);
 
-    private IReadOnlyList<string> OrdineEcu(AuditViewModel vm)
+    private IReadOnlyList<string> OrdineEcu(AuditViewModel vm) =>
+        vm.HaFiltroStatiMatrice ? _colonneVisualizzate : OrdineEcuComplete(vm);
+
+    private IReadOnlyList<string> OrdineEcuComplete(AuditViewModel vm)
     {
         var colonne = vm.EcuColonne;
         if (colonne.Count < 2) return colonne;
@@ -1494,7 +1558,7 @@ public partial class AuditView : UserControl
                 {
                     Content = "×", Classes = { "Link" }, Padding = new Thickness(2, 0), FontSize = 11,
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    Foreground = new SolidColorBrush(Color.Parse("#B91C1C")),
+                    Foreground = PennelloErrore,
                 };
                 var etichettaRimuovi = LocalizationService.Instance.Scegli(
                     $"Rimuovi {numeroRimuovibili} valutazioni manuali o propagate di questa componente sul veicolo selezionato",
@@ -1598,7 +1662,7 @@ public partial class AuditView : UserControl
 
         if (anteprima.Conflitti.Count > 0)
         {
-            panel.Children.Add(new TextBlock { Text = string.Format(T("AuditPropagaMassivaConflittiFmt"), anteprima.Conflitti.Count), FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = new SolidColorBrush(Color.Parse("#C2410C")) });
+            panel.Children.Add(new TextBlock { Text = string.Format(T("AuditPropagaMassivaConflittiFmt"), anteprima.Conflitti.Count), FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = PennelloAvviso });
             var conflittiBox = new ScrollViewer { MaxHeight = 100, Content = new ItemsControl { ItemsSource = anteprima.Conflitti.Select(c => (object)new TextBlock
             {
                 Text = string.Format(T("AuditPropagaMassivaConflittoVoceFmt"), c.Componente, c.RequisitoId),
@@ -1790,15 +1854,16 @@ public partial class AuditView : UserControl
         flyout.ShowAt(anchor);
     }
 
-    private static Border IntestazioneCella(string testo) => new()
+    private Border IntestazioneCella(string testo) => new()
     {
-        Background = new SolidColorBrush(Color.Parse("#F8FAFC")),
-        BorderBrush = new SolidColorBrush(Color.Parse("#E2E8F0")),
+        Background = new SolidColorBrush(Color.Parse(ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark ? "#293540" : "#F8FAFC")),
+        BorderBrush = new SolidColorBrush(Color.Parse(ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark ? "#576B7C" : "#E2E8F0")),
         BorderThickness = new Thickness(0, 0, 1, 1),
         Padding = new Thickness(6, 4),
         Child = new TextBlock
         {
             Text = testo, FontWeight = FontWeight.SemiBold, FontSize = 11,
+            Foreground = new SolidColorBrush(Color.Parse(ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark ? "#EDF2F5" : "#1E293B")),
             TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
         },

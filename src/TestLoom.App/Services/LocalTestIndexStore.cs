@@ -1148,7 +1148,9 @@ public sealed class LocalTestIndexStore
     /// Creato qui (non in CreateProjectionSchema) perche' su un indice v2..v7 la colonna esiste solo dopo la migrazione.
     /// v14: ix_test_vehicle_home copre la query Veicoli × esito con il solo periodo della Home (vedi GetSnapshot).
     /// ix_test_summary_origine (origine_test, v7) sta qui per la stessa ragione: CreateProjectionSchema gira prima dei passi di migrazione,
-    /// e su un indice v2..v6 (o interrotto alla versione 5) la colonna non c'e' ancora.</summary>
+    /// e su un indice v2..v6 (o interrotto alla versione 5) la colonna non c'e' ancora.
+    /// ix_operation_uid_revision accelera la query TIME ultima-occorrrenza per TestUid/CondizioneUid,
+    /// senza cambiare schema_version né dati aziendali (è una cache SQLite locale).</summary>
     private static void EnsureHomeIndex(SqliteConnection connection)
     {
         using var command = connection.CreateCommand();
@@ -1159,6 +1161,10 @@ public sealed class LocalTestIndexStore
                 eliminato, data_creazione_ticks, uid, current_outcome, executed_revision_count, first_conforme_revision);
             CREATE INDEX IF NOT EXISTS ix_test_vehicle_home ON test_vehicle(
                 eliminato, origine_test, value COLLATE NOCASE, esito_home, data_creazione_ticks, test_uid);
+            -- TIME Home: anti-join sull'ultima revisione di (Test UID, Condizione UID).
+            -- Anche gli indici v16 esistenti lo ottengono qui senza riscrivere dati o proiezioni.
+            CREATE INDEX IF NOT EXISTS ix_operation_uid_revision
+                ON test_operation_attempt(test_uid, condition_uid, revision_index DESC);
             """;
         command.ExecuteNonQuery();
     }

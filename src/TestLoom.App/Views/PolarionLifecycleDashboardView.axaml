@@ -5,7 +5,13 @@
              x:Class="TestLoom.App.Views.PolarionLifecycleDashboardView"
              x:DataType="vm:PolarionLifecycleViewModel"
              x:Name="Root">
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <!-- Chiusura sempre accessibile su display piccoli, fuori dallo scroll del report. -->
+    <Grid RowDefinitions="Auto,*">
+        <Button Grid.Row="0" Content="✕" Classes="Secondary" HorizontalAlignment="Right"
+                Margin="4" MinWidth="36" MinHeight="32"
+                ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Chiudi}" Click="OnChiudiDashboard"
+                AutomationProperties.AutomationId="Report_Ticketing_Close_Button"/>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Border Classes="Card" AutomationProperties.AutomationId="Report_Ticketing_Card">
             <StackPanel Spacing="12">
                 <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
@@ -252,5 +258,6 @@
         </Border>
 
 
-    </ScrollViewer>
+        </ScrollViewer>
+    </Grid>
 </UserControl>
