@@ -63,7 +63,11 @@ public sealed class DtcInjectionSoloOperazioniUiTests : UiTestBase
             Assert.Equal(TestWorkspace.DefaultEcuName, TestoCombo(window, "Editor_DtcInjection_Componente_Combo"));
             ElementFinders.WaitTextBoxById(window, "Editor_DtcInjection_Manuale_Text").SetText("P0100");
             ElementFinders.WaitButtonById(window, "Editor_DtcInjection_Aggiungi_Button").SafeInvoke();
-            Wait.ForCondition(() => editor.NumeroCondizioni() == 2, "coppia Validazione e Devalidazione");
+            // Regola guasto: la devalidazione e' nascosta finche' la validazione non e' Conforme, ma inseribile (facoltativa) su richiesta.
+            Wait.ForCondition(() => editor.NumeroCondizioni() == 1, "solo la Validazione visibile (devalidazione nascosta)");
+            var uidValidazione = editor.GetUidCondizione(0);
+            ElementFinders.WaitButtonById(window, $"Editor_Condizione_{uidValidazione}_Devalidazione_Aggiungi_Button").SafeInvoke();
+            Wait.ForCondition(() => editor.NumeroCondizioni() == 2, "coppia Validazione e Devalidazione dopo l'inserimento facoltativo");
             editor.GoToTab(CreateTestCaseFlow.TabRiferimenti);
             editor.Save();
             Wait.ForCondition(() => !editor.CanSave, "test salvato");
@@ -82,7 +86,8 @@ public sealed class DtcInjectionSoloOperazioniUiTests : UiTestBase
             var riaperto = new TestListPage(window, window).OpenOnlyRow();
             // In sola lettura la barra delle tab non c'e e le operazioni sono gia visibili; in modifica servirebbe la tab Operazioni.
             if (ElementFinders.ExistsById(window, "Editor_Tab_2_Button")) riaperto.GoToTab(2);
-            Wait.ForCondition(() => riaperto.NumeroCondizioni() == 2, "coppia presente alla riapertura");
+            // Alla riapertura la devalidazione (ancora da eseguire, validazione non conforme) e' di nuovo nascosta, ma resta persistita.
+            Wait.ForCondition(() => riaperto.NumeroCondizioni() == 1, "validazione visibile alla riapertura");
             foreach (var c in condizioni)
                 Assert.False(ElementFinders.ExistsById(window, $"Editor_Condizione_{c.Uid}_Funzionalita_Combo"));
         }

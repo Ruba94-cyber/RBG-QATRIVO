@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="TestLoom.App.App"
              xmlns:local="using:TestLoom.App"
-             RequestedThemeVariant="Light">
+             RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.DataTemplates>
@@ -95,7 +95,7 @@
             <SolidColorBrush x:Key="PurpleTextBrush">#5B21B6</SolidColorBrush>
             <!-- Reusable high-contrast interaction tokens. Keep the light edition stable. -->
             <SolidColorBrush x:Key="SplashBackgroundBrush">#101820</SolidColorBrush>
-            <!-- Printed/chart PNGs use a fixed dark-ink palette; their canvas must stay white in both variants. -->
+            <!-- Esportazioni/PNG: sempre inchiostro scuro su bianco. Su schermo il grafico segue il tema (canvas scuro nel tema scuro). -->
             <SolidColorBrush x:Key="ChartCanvasBrush">#FFFFFF</SolidColorBrush>
             <SolidColorBrush x:Key="PrimaryButtonBrush">#2563EB</SolidColorBrush>
             <SolidColorBrush x:Key="PrimaryHoverBrush">#1D4ED8</SolidColorBrush>
@@ -160,8 +160,8 @@
             <SolidColorBrush x:Key="PurpleTextBrush">#D8C4FF</SolidColorBrush>
             <!-- Graphite premium palette: readable text, muted metal/teal highlights. -->
             <SolidColorBrush x:Key="SplashBackgroundBrush">#101820</SolidColorBrush>
-            <!-- Printed/chart PNGs use a fixed dark-ink palette; their canvas must stay white in both variants. -->
-            <SolidColorBrush x:Key="ChartCanvasBrush">#FFFFFF</SolidColorBrush>
+            <!-- Esportazioni/PNG: sempre inchiostro scuro su bianco. Su schermo il grafico segue il tema (canvas scuro nel tema scuro). -->
+            <SolidColorBrush x:Key="ChartCanvasBrush">#141B23</SolidColorBrush>
             <SolidColorBrush x:Key="PrimaryButtonBrush">#366474</SolidColorBrush>
             <SolidColorBrush x:Key="PrimaryHoverBrush">#467787</SolidColorBrush>
             <SolidColorBrush x:Key="LinkHoverBrush">#B5DBE4</SolidColorBrush>

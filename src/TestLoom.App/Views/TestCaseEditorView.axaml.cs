@@ -100,11 +100,10 @@ public partial class TestCaseEditorView : UserControl
     }
 
     /// <summary>
-    /// Il gigantesco XAML storico lega il pulsante principale al SalvaCommand originale. Per non duplicare
-    /// 194 KB di markup soltanto per cambiare quel binding, appena la view è materializzata sostituiamo il
-    /// comando di qualunque Button che punti ESATTAMENTE al vecchio SalvaCommand con SalvaSicuroCommand.
-    /// GetVisualDescendants è l'API Avalonia prevista per attraversare il visual tree; il Post garantisce che
-    /// i binding XAML siano già stati applicati prima della sostituzione del valore locale Command.
+    /// I pulsanti Salva dello XAML puntano direttamente a SalvaSicuroCommand.
+    /// Questo instradamento resta come protezione per eventuali pulsanti legacy o
+    /// dinamici che usassero ancora SalvaCommand: applica il percorso transazionale
+    /// senza alterare le altre azioni dell'editor.
     /// </summary>
     private void InstradaComandoSalvaSicuro()
     {
@@ -272,6 +271,14 @@ public partial class TestCaseEditorView : UserControl
         if (condizione.DtcPasso == passo) return;
         condizione.DtcPasso = passo;
         vm.ModificheNonSalvate = true;
+    }
+
+    private void OnInserisciDevalidazioneFacoltativa(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: Condizione { DevalidazioneInseribile: { } devalidazione } }) return;
+        if (DataContext is not TestCaseEditorViewModel { PuoModificareContenuto: true } vm) return;
+        devalidazione.DevalidazioneForzata = true;
+        vm.SincronizzaEsitoCondizioni();
     }
 
     private void OnRimuoviDtcOperazione(object? sender, RoutedEventArgs e)

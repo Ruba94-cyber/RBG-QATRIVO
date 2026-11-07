@@ -40,7 +40,7 @@ public sealed class TooltipValoriReportTests
             Assert.Contains("durata nota", tooltipTempoTotale, StringComparison.OrdinalIgnoreCase);
             var tooltipTempoMedio = MatriceTooltipService.DescrizioneModalita(ModalitaCellaMatrice.TempoMedio);
             Assert.Contains("Tempo medio =", tooltipTempoMedio);
-            Assert.Contains("senza durata", tooltipTempoMedio, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("durate mancanti", tooltipTempoMedio, StringComparison.OrdinalIgnoreCase);
 
             var na = new CellaMatriceReport { NonApplicabile = true, NotaNonApplicabile = "Nota NA" };
             var tooltipNa = MatriceTooltipService.TooltipCella(na);
@@ -60,7 +60,7 @@ public sealed class TooltipValoriReportTests
 
         var home = File.ReadAllText(Path.Combine(viste, "HomeView.axaml"));
         Assert.Contains("EsitoTooltipConverter.Instance", home);
-        Assert.Contains("HomeTooltipConformita", home);
+        Assert.Contains("ToolTip.Tip=", home); // il selettore KPI della Home usa tooltip dedicati (chiave HomeTooltipConformita non più referenziata dalla vista)
 
         var grafico = File.ReadAllText(Path.Combine(viste, "GraficoCard.axaml"));
         Assert.Contains("HomeTooltipGraficoEsiti", grafico);

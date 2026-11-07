@@ -37,7 +37,7 @@ public sealed class UnsavedChangesTests : UiTestBase
 
             Wait.ForCondition(() => App.IsWindowClosedByContent("Confirm_Yes_Button"), "chiusura del dialog di conferma dopo 'No'");
             Assert.True(App.IsRunning, "Rispondendo 'No' alla conferma, TestLoom deve restare aperto con le modifiche ancora presenti.");
-            Assert.Contains("TestLoom", App.ListTopLevelWindowNames());
+            Assert.Contains("RBG - QATRIVO", App.ListTopLevelWindowNames());
         }
         catch (Exception ex)
         {
@@ -75,7 +75,7 @@ public sealed class UnsavedChangesTests : UiTestBase
             // WM_CLOSE deve essere annullato sincronicamente finché il ViewModel non ha completato l'I/O.
             window.Close();
             Assert.True(App.IsRunning, "TestLoom deve restare in esecuzione mentre il rilascio lock è in attesa.");
-            Assert.Contains(App.ListTopLevelWindowNames(), titolo => titolo.StartsWith("TestLoom", StringComparison.Ordinal));
+            Assert.Contains(App.ListTopLevelWindowNames(), titolo => titolo.StartsWith("RBG - QATRIVO", StringComparison.Ordinal));
 
             lockTrattenuto.Dispose();
             lockTrattenuto = null;

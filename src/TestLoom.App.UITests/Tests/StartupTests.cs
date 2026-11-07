@@ -15,7 +15,7 @@ public sealed class StartupTests : UiTestBase
         try
         {
             var window = App.WaitForMainWindow();
-            Assert.Equal("TestLoom", window.Title);
+            Assert.Equal("RBG - QATRIVO", window.Title);
 
             var shell = new MainShellPage(window);
             Assert.True(MainShellPage.IsShown(window), "La sidebar di navigazione principale dovrebbe essere visibile dopo un login già persistito.");
@@ -36,7 +36,7 @@ public sealed class StartupTests : UiTestBase
         try
         {
             var window = App.WaitForMainWindow();
-            Assert.Equal(1, App.ListTopLevelWindowNames().Count(t => t == "TestLoom"));
+            Assert.Equal(1, App.ListTopLevelWindowNames().Count(t => t == "RBG - QATRIVO"));
 
             // SingleInstanceService (§6.7): un secondo processo RBG - QATRIVO.exe sullo stesso PC non deve mai aprire
             // una seconda finestra — chiede alla prima di attivarsi e termina da solo. Verificato lanciando
@@ -53,7 +53,7 @@ public sealed class StartupTests : UiTestBase
 
             Wait.ForCondition(() => secondProcess.HasExited, "uscita del secondo processo TestLoom (single-instance)", TimeSpan.FromSeconds(15));
             Assert.True(secondProcess.HasExited);
-            Assert.Equal(1, App.ListTopLevelWindowNames().Count(t => t == "TestLoom"));
+            Assert.Equal(1, App.ListTopLevelWindowNames().Count(t => t == "RBG - QATRIVO"));
             Assert.True(App.IsRunning, "Il primo processo deve restare in esecuzione dopo il tentativo di doppio avvio.");
         }
         catch (Exception ex)

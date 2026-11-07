@@ -459,7 +459,35 @@ public class Esecuzione
     /// nella sincronizzazione live della UI) subito prima del salvataggio.</summary>
     public void SincronizzaEsito()
     {
+        AggiornaDevalidazioniNascoste();
         if (!EsitoSovrascritto) Esito = EsitoCalcolato;
+    }
+
+    /// <summary>Regola guasto: la devalidazione compare (ed e' richiesta) solo quando la validazione dello stesso guasto e' Conforme o
+    /// Conforme con deviazioni. Una devalidazione gia' eseguita non viene mai nascosta: l'evidenza registrata resta visibile.</summary>
+    public void AggiornaDevalidazioniNascoste()
+    {
+        var effettive = CondizioniEffettive;
+        static string Chiave(Condizione c) => (c.DtcRequisitoId ?? "").Trim() + "#" + (c.DtcVeicolo ?? "").Trim().ToUpperInvariant() + "#"
+            + string.Join(",", c.Componente.Select(e => (e ?? "").Trim().ToUpperInvariant()).Where(e => e.Length > 0).OrderBy(e => e, StringComparer.Ordinal))
+            + "#" + (c.Guasto ?? "").Trim().ToUpperInvariant();
+        var validazioni = new Dictionary<string, Esito>();
+        foreach (var c in effettive)
+            if (c.RiguardaDtc && (c.DtcPasso ?? PassoDtc.Validazione) == PassoDtc.Validazione)
+                validazioni[Chiave(c)] = c.Esito;
+        var inseribili = new Dictionary<string, Condizione>();
+        foreach (var c in Condizioni)
+        {
+            var nonRichiesta = c.RiguardaDtc && c.DtcPasso == PassoDtc.Devalidazione && c.Esito == Esito.DaEseguire
+                && validazioni.TryGetValue(Chiave(c), out var esitoValidazione)
+                && esitoValidazione is not (Esito.Conforme or Esito.ConformeConDeviazioni);
+            c.DevalidazioneNonRichiesta = nonRichiesta;
+            c.DevalidazioneNascosta = nonRichiesta && !c.DevalidazioneForzata;
+            if (c.DevalidazioneNascosta) inseribili[Chiave(c)] = c;
+        }
+        foreach (var c in Condizioni)
+            c.DevalidazioneInseribile = c.RiguardaDtc && (c.DtcPasso ?? PassoDtc.Validazione) == PassoDtc.Validazione
+                && inseribili.TryGetValue(Chiave(c), out var dev) ? dev : null;
     }
 
 }
@@ -609,6 +637,46 @@ public class Condizione : INotifyPropertyChanged
     /// <summary>Vero se l'operazione e un'operazione guasto (Guasto valorizzato).</summary>
     [JsonIgnore]
     public bool RiguardaDtc => !string.IsNullOrWhiteSpace(Guasto);
+
+    /// <summary>Solo runtime (mai persistito): vero per un passo di DEVALIDAZIONE guasto ancora "Da eseguire" la cui VALIDAZIONE
+    /// (stesso guasto) non e' Conforme/Conforme con deviazioni. Se non si riesce a validare un guasto non ha senso devalidarlo: la riga
+    /// non va mostrata ne' richiesta per concludere il Test. Calcolato da <see cref="Esecuzione.AggiornaDevalidazioniNascoste"/>.</summary>
+    [JsonIgnore]
+    public bool DevalidazioneNascosta
+    {
+        get => _devalidazioneNascosta;
+        set { if (_devalidazioneNascosta == value) return; _devalidazioneNascosta = value; OnPropertyChanged(nameof(DevalidazioneNascosta)); }
+    }
+    private bool _devalidazioneNascosta;
+
+    /// <summary>Solo runtime: l'operatore ha scelto di inserire comunque la devalidazione (facoltativa) anche se la validazione
+    /// non e' conforme. Resta Non richiesta: non blocca la conclusione del Test.</summary>
+    [JsonIgnore]
+    public bool DevalidazioneForzata
+    {
+        get => _devalidazioneForzata;
+        set { if (_devalidazioneForzata == value) return; _devalidazioneForzata = value; OnPropertyChanged(nameof(DevalidazioneForzata)); }
+    }
+    private bool _devalidazioneForzata;
+
+    /// <summary>Solo runtime: devalidazione ancora "Da eseguire" con validazione non conforme. Non e' richiesta per concludere il Test.</summary>
+    [JsonIgnore]
+    public bool DevalidazioneNonRichiesta
+    {
+        get => _devalidazioneNonRichiesta;
+        set { if (_devalidazioneNonRichiesta == value) return; _devalidazioneNonRichiesta = value; OnPropertyChanged(nameof(DevalidazioneNonRichiesta)); }
+    }
+    private bool _devalidazioneNonRichiesta;
+
+    /// <summary>Solo runtime, sulla VALIDAZIONE: esiste la devalidazione dello stesso guasto, nascosta e inseribile su richiesta.</summary>
+    [JsonIgnore]
+    public Condizione? DevalidazioneInseribile
+    {
+        get => _devalidazioneInseribile;
+        set { if (ReferenceEquals(_devalidazioneInseribile, value)) return; _devalidazioneInseribile = value; OnPropertyChanged(nameof(DevalidazioneInseribile)); OnPropertyChanged(nameof(HaDevalidazioneInseribile)); }
+    }
+    private Condizione? _devalidazioneInseribile;
+    [JsonIgnore] public bool HaDevalidazioneInseribile => _devalidazioneInseribile != null;
 
     /// <summary>Operazione guasto di PROPRIETA di uno strumento (blocco "Aggiungi guasto" del Test): passo/componente/requisito si gestiscono dal
     /// blocco, non operazione per operazione.</summary>

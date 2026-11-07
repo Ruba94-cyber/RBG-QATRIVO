@@ -11,9 +11,9 @@
     <AssemblyTitle>RBG - QATRIVO</AssemblyTitle>
     <Description>Quality Assurance &amp; Traceability Platform</Description>
     <Authors>Paolo Rubagotti</Authors>
-    <Version>7.0.1</Version>
-    <AssemblyVersion>7.0.1.0</AssemblyVersion>
-    <FileVersion>7.0.1.0</FileVersion>
+    <Version>7.1.0</Version>
+    <AssemblyVersion>7.1.0.0</AssemblyVersion>
+    <FileVersion>7.1.0.0</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <SelfContained>true</SelfContained>

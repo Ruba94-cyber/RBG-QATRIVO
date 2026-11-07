@@ -122,7 +122,7 @@ public static partial class ChartRenderer
         var area = new SKRect(Margine, inizio + 4f, larghezza - Margine, altezza - 12f);
         var rettangoli = LayoutTreemap(ordinate.Select(v => v.Valore).ToList(), area);
         using var paintFill = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
-        using var paintBordo = new SKPaint { Color = SKColors.White, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
+        using var paintBordo = new SKPaint { Color = ColSfondo, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
         using var paintTestoBianco = new SKPaint { Color = SKColors.White, IsAntialias = true };
         for (int i = 0; i < ordinate.Count; i++)
         {

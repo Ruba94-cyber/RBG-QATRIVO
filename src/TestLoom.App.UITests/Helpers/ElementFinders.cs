@@ -1,3 +1,4 @@
+using System.Linq;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using TestLoom.App.UITests.Infrastructure;
@@ -15,11 +16,68 @@ namespace TestLoom.App.UITests.Helpers;
 public static class ElementFinders
 {
     public static AutomationElement WaitById(AutomationElement scope, string automationId, TimeSpan? timeout = null) =>
-        Wait.ForElement(() => scope.FindFirstDescendant(cf => cf.ByAutomationId(automationId)),
+        Wait.ForElement(() => TryFindById(scope, automationId),
             $"elemento con AutomationId='{automationId}'", timeout);
 
     public static AutomationElement? TryFindById(AutomationElement scope, string automationId) =>
-        scope.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+        scope.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) ?? TryFindInSettingsTabs(scope, automationId)
+            ?? TryFindInCampiStrumentoExpander(scope, automationId);
+
+    /// <summary>I campi degli strumenti ("Editor_Campo_*") stanno in riquadri compressi dell'editor Test (campi del Test e "Parametri tecnici
+    /// dello strumento" di ogni operazione): se il campo non e' visibile i riquadri chiusi vengono espansi, uno alla volta e una sola
+    /// volta ciascuno (come farebbe l'utente), cercando il campo dopo ogni espansione.</summary>
+    private static AutomationElement? TryFindInCampiStrumentoExpander(AutomationElement scope, string automationId)
+    {
+        if (!automationId.StartsWith("Editor_Campo_", StringComparison.Ordinal)) return null;
+        try
+        {
+            var riquadri = scope.FindAllDescendants(cf => cf.ByControlType(ControlType.Group))
+                .Where(g =>
+                {
+                    var id = g.Properties.AutomationId.ValueOrDefault ?? "";
+                    return id == "Editor_CampiStrumentiSpecifici_Expander" || id.EndsWith("_Parametri_Expander", StringComparison.Ordinal);
+                }).ToList();
+            foreach (var riquadro in riquadri)
+            {
+                var intestazione = riquadro.FindFirstDescendant(cf => cf.ByAutomationId("ExpanderHeader"));
+                if (intestazione == null) continue;
+                var toggle = intestazione.Patterns.Toggle.PatternOrDefault;
+                var aperto = toggle != null && toggle.ToggleState.Value == FlaUI.Core.Definitions.ToggleState.On;
+                if (aperto) continue;
+                var invoke = intestazione.Patterns.Invoke.PatternOrDefault;
+                if (invoke != null) invoke.Invoke(); else intestazione.Click();
+                for (var i = 0; i < 12; i++)
+                {
+                    var trovato = scope.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+                    if (trovato != null) return trovato;
+                    System.Threading.Thread.Sleep(100);
+                }
+            }
+            return scope.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+        }
+        catch (Exception) { return null; }
+    }
+
+    /// <summary>Le Impostazioni generali sono organizzate in schede: un controllo "Impostazioni_*" non visibile viene cercato
+    /// selezionando in sequenza le schede (la scheda resta quella in cui l'elemento e' stato trovato). Solo per scope finestra.</summary>
+    private static AutomationElement? TryFindInSettingsTabs(AutomationElement scope, string automationId)
+    {
+        if (!automationId.StartsWith("Impostazioni_", StringComparison.Ordinal)
+            || automationId is "Impostazioni_Generale_Tab" or "Impostazioni_Sidebar_List" or "Impostazioni_Title_Text") return null;
+        try
+        {
+            var tab = scope.FindFirstDescendant(cf => cf.ByAutomationId("Impostazioni_Generale_Tab"));
+            if (tab == null) return null;
+            foreach (var scheda in tab.FindAllDescendants(cf => cf.ByControlType(ControlType.TabItem)))
+            {
+                scheda.AsTabItem().Select();
+                var trovato = scope.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+                if (trovato != null) return trovato;
+            }
+        }
+        catch (Exception) { /* UIA transitorio: l'attesa riprova */ }
+        return null;
+    }
 
     public static bool ExistsById(AutomationElement scope, string automationId) =>
         TryFindById(scope, automationId) != null;

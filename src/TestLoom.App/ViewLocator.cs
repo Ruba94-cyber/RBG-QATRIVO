@@ -60,6 +60,18 @@ public class ViewLocator : IDataTemplate
         return new TextBlock { Text = "Not Found: " + name };
     }
 
+    /// <summary>
+    /// Precaricamento NON invasivo dopo la prima finestra: una View gia' associata
+    /// al ViewModel, anche se montata nella UI, non va mai ricreata o sostituita.
+    /// Build() resta invariato per la navigazione reale e per la multi-window.
+    /// Chiamare esclusivamente dal thread UI Avalonia.
+    /// </summary>
+    public void PreparaInCacheSeAssente(ViewModelBase vm)
+    {
+        if (_viewCache.TryGetValue(vm, out _)) return;
+        _ = Build(vm);
+    }
+
     /// <summary>Riusabile solo se non e' attualmente agganciata da nessuna parte (ne' genitore logico ne'
     /// visuale): altrimenti staccarla da dove si trova per rimetterla altrove romperebbe quella visualizzazione.
     /// </summary>

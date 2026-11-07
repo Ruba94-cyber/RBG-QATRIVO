@@ -211,4 +211,48 @@ public sealed class EsportaOpzioniDialogoHeadlessTests : IDisposable
         }
         finally { d.Finestra.Close(); }
     });
+    [Fact]
+    public void RicercaColonne_MantieneSelezioniNascoste_EPermetteDeselezioneDeiSoliRisultati() =>
+        LayoutHeadlessSessione.Esegui(() =>
+    {
+        var campi = Enumerable.Range(1, 12)
+            .Select(i => new ExportColonna("K" + i.ToString("D2"),
+                i == 5 ? "UnitLogger · Versione" : "Campo strumento " + i)).ToList();
+        var descrittore = Descrittore() with
+        {
+            Sezioni = [new ExportSezione("vista", "Vista", campi)]
+        };
+        var dialogo = new EsportaOpzioniDialogo(_state, descrittore);
+        Mostra(dialogo);
+        try
+        {
+            var ricerca = Trova<TextBox>(dialogo.Finestra, "EsportaOpzioni_CercaColonne_vista");
+            ricerca.Text = "Versione";
+            LayoutHeadlessSessione.Assesta(dialogo.Finestra);
+
+            var versione = Trova<CheckBox>(dialogo.Finestra, "EsportaOpzioni_Colonna_vista_K05");
+            var altro = Trova<CheckBox>(dialogo.Finestra, "EsportaOpzioni_Colonna_vista_K01");
+            Assert.True(versione.IsVisible);
+            Assert.False(altro.IsVisible);
+            Clic(Trova<Button>(dialogo.Finestra, "EsportaOpzioni_NessunaVisibile_vista"));
+            Assert.False(versione.IsChecked == true);
+            Assert.True(altro.IsChecked == true); // la ricerca non modifica i campi nascosti
+
+            var scelte = dialogo.Corrente().ColonneDi("vista");
+            Assert.NotNull(scelte);
+            Assert.Equal(11, scelte!.Count);
+            Assert.DoesNotContain("K05", scelte);
+            Assert.Contains("K01", scelte);
+
+            ricerca.Text = "";
+            LayoutHeadlessSessione.Assesta(dialogo.Finestra);
+            Assert.True(altro.IsVisible);
+            Assert.False(versione.IsChecked == true); // selezione preservata anche dopo reset
+
+            Clic(Trova<Button>(dialogo.Finestra, "EsportaOpzioni_TutteVisibili_vista"));
+            Assert.Null(dialogo.Corrente().ColonneDi("vista")); // null = tutte le colonne
+        }
+        finally { dialogo.Finestra.Close(); }
+    });
+
 }

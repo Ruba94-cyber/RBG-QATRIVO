@@ -54,8 +54,8 @@ public class AppConfig
     /// il proprio operatore che preferisce una lingua diversa da chi condivide la stessa cartella dati.</summary>
     public string Lingua { get; set; } = "it";
 
-    /// <summary>Preferenza visiva locale: Light, Dark o System. Assente nei vecchi config = Light.</summary>
-    public string TemaInterfaccia { get; set; } = "Light";
+    /// <summary>Preferenza visiva locale: Light, Dark o System. Predefinito (nessuna scelta esplicita) = System: segue il tema di Windows.</summary>
+    public string TemaInterfaccia { get; set; } = "System";
 
     /// <summary>Storico dei report esportati con "Salva con nome" (Addendum: grill-me 2026-08-18, follow-up):
     /// locale come il resto di AppConfig, perché il percorso scelto può essere ovunque sul PC, non solo nella

@@ -21,6 +21,8 @@ public sealed record RilascioLockMassaInAttesa(string TestId, string Percorso, s
 public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile, IScorciatoiePagina
 {
     private readonly AppState _state;
+    /// <summary>Stato proprietario per il dialogo di configurazione export.</summary>
+    public AppState StatoPerExport => _state;
     private readonly Action<string?> _apriTestCase;
     private LocalTestArchiveQueryService? _archiveQuery;
     private bool _sospendiApplicaFiltri;
@@ -294,6 +296,209 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
     }
 
     // Errore di un'azione sulla lista (vista salvata, azioni di massa): resta nel banner della pagina finché non cambia (P4 2).
+    /// <summary>Dialogo condiviso Export (filtri correnti, sezioni e colonne) con
+    /// selezione aggiuntiva dei singoli campi dei tool definiti nel Master.</summary>
+    public ExportDescrittore CreaDescrittoreExport()
+    {
+        // Una ricerca appena digitata e' gia' visibile nel TextBox anche prima
+        // del debounce: il dialogo deve ripartire ESATTAMENTE da quel testo.
+        ConfermaRicercaTestoImmediata();
+        var filtri = new List<ExportFiltro>
+        {
+            new ExportFiltroTesto("testo", Traduci("TestListChipTesto"),
+                () => FiltroTestoDigitato, ImpostaTestoImmediato),
+        };
+        filtri.AddRange(CampiChipMultiSelect.Select(x =>
+            (ExportFiltro)new ExportFiltroMultiplo(x.Chiave, Traduci(x.Chiave), x.Filtro)));
+        filtri.Add(new ExportFiltroSingolo("ticketing", "Ticketing",
+            ["ConPolarion", "SenzaPolarion"],
+            () => FiltroHaPolarion == FiltroPolarioneOpzione.Tutti ? null : FiltroHaPolarion.ToString(),
+            v => FiltroHaPolarion = Enum.TryParse<FiltroPolarioneOpzione>(v, out var scelta)
+                ? scelta : FiltroPolarioneOpzione.Tutti));
+        filtri.Add(new ExportFiltroData("dataDa",
+            LocalizationService.Instance.Scegli("Creazione dal", "Created from", "Créé à partir du"),
+            () => FiltroDataDa?.Date, d => FiltroDataDa = d.HasValue ? new DateTimeOffset(d.Value) : null));
+        filtri.Add(new ExportFiltroData("dataA",
+            LocalizationService.Instance.Scegli("Creazione al", "Created to", "Créé jusqu'au"),
+            () => FiltroDataA?.Date, d => FiltroDataA = d.HasValue ? new DateTimeOffset(d.Value) : null));
+        filtri.Add(new ExportFiltroBooleano("senzaEcu",
+            LocalizationService.Instance.Scegli("Solo Test senza componente", "Tests without componente only", "Tests sans componente uniquement"),
+            () => FiltroSoloSenzaEcu, v => FiltroSoloSenzaEcu = v));
+        filtri.Add(new ExportFiltroBooleano("importatoUdt",
+            LocalizationService.Instance.Scegli("Solo importati UnitLogger", "UnitLogger imports only", "Imports UnitLogger uniquement"),
+            () => FiltroSoloImportatoUdt, v => FiltroSoloImportatoUdt = v));
+        foreach (var campo in FiltriCampiCustomLista)
+            filtri.Add(new ExportFiltroMultiplo("custom-" + campo.Chiave, campo.Etichetta, campo.Filtro));
+
+        var riepilogo = HaFiltriAttivi
+            ? string.Join(" · ", ChipFiltriAttivi.Select(x => x.Etichetta))
+            : LocalizationService.Instance.Traduci("ExpDlgNessunFiltro");
+        return TestCaseExportSelezioneService.CreaDescrittore(
+            _state.Master.Strumenti.Load(), _state.Master.TestTemplate.Load(), riepilogo,
+            filtri, ApplicaFiltriExportInBlocco);
+    }
+
+    private void ApplicaFiltriExportInBlocco(Action applica)
+    {
+        var sospesoPrima = _sospendiApplicaFiltri;
+        _sospendiApplicaFiltri = true;
+        try { applica(); }
+        finally { _sospendiApplicaFiltri = sospesoPrima; }
+        if (!sospesoPrima)
+        {
+            PersistiFiltriCorrenti();
+            PaginaCorrente = 1;
+            Applica(); // Una sola query, anche quando nel dialogo cambiano molti filtri.
+        }
+    }
+
+    /// <summary>Congela i valori dei filtri dopo la conferma del dialogo, cosi'
+    /// la lettura dei Test e le operazioni Excel non dipendono dalla UI.</summary>
+    private TestCaseExportFiltro CatturaFiltriExport()
+    {
+        var multipli = new Dictionary<string, IReadOnlySet<string>>(StringComparer.OrdinalIgnoreCase);
+        var filtri = new (string Chiave, FiltroMultiSelect Valori)[]
+        {
+            ("Componente", FiltroEcu), ("Veicolo", FiltroVeicolo),
+            ("TemplateUid", FiltroTemplate), ("Esito", FiltroEsito),
+            ("Assegnatario", FiltroAssegnatario), ("CreatoDa", FiltroCreatoDa),
+            ("StatoLavoro", FiltroStatoLavoro), ("Requisito", FiltroRequisito),
+            ("Funzionalita", FiltroFunzionalita), ("Severita", FiltroSeverita),
+            ("Priorita", FiltroPriorita), ("StatoAnomalia", FiltroStatoAnomalia)
+        };
+        foreach (var (chiave, filtro) in filtri)
+            multipli[chiave] = filtro.Selezionati.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Lo stesso comportamento della Lista Test: selezioni stale che non si
+        // possono piu' convertire in enum/Guid non diventano filtri che escludono
+        // silenziosamente ogni risultato dall'Excel.
+        multipli["TemplateUid"] = (ValoriGuid(FiltroTemplate) ?? [])
+            .Select(v => v.ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        multipli["Esito"] = (ValoriEnum<Esito>(FiltroEsito) ?? [])
+            .Select(v => v.ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        multipli["StatoLavoro"] = (ValoriEnum<StatoLavoroTest>(FiltroStatoLavoro) ?? [])
+            .Select(v => v.ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        multipli["Severita"] = (ValoriEnum<SeveritaAnomalia>(FiltroSeverita) ?? [])
+            .Select(v => v.ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        multipli["Priorita"] = (ValoriEnum<PrioritaOperativa>(FiltroPriorita) ?? [])
+            .Select(v => v.ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var statiSelezionati = ValoriEnum<StatoAnomalia>(FiltroStatoAnomalia);
+        multipli["StatoAnomalia"] = (statiSelezionati ?? [])
+            .Select(v => v.ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var ncStato = statiSelezionati is { Count: > 0 }
+            ? UidTestConNcCheSoddisfa(nc => nc.Stato == StatoNonConformita.Aperta
+                && statiSelezionati.Contains(nc.StatoWorkflow))
+                .ToHashSet()
+            : new HashSet<Guid>();
+        var ncPolarion = FiltroHaPolarion != FiltroPolarioneOpzione.Tutti
+            ? UidTestConNcCheSoddisfa(nc => nc.CollegamentiPolarion.Count > 0).ToHashSet()
+            : new HashSet<Guid>();
+        var custom = SelezioniCampiCustomAttive();
+        return new TestCaseExportFiltro
+        {
+            Ricerca = FiltroTesto,
+            Dal = FiltroDataDa?.Date, Al = FiltroDataA?.Date,
+            SoloSenzaEcu = FiltroSoloSenzaEcu,
+            SoloImportatoUdt = FiltroSoloImportatoUdt,
+            Ticketing = FiltroHaPolarion,
+            UidTestConNcStato = ncStato,
+            UidTestConNcPolarion = ncPolarion,
+            Multi = multipli,
+            CampiCustom = custom?.ToDictionary(
+                kv => kv.Key,
+                kv => (IReadOnlyCollection<string>)kv.Value.ToArray(),
+                StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
+    private readonly EsportazioneInBackground _esportazioneCompleta = new();
+    [ObservableProperty] private string? messaggioExportCompleto;
+    public bool HaMessaggioExportCompleto => !string.IsNullOrWhiteSpace(MessaggioExportCompleto);
+    partial void OnMessaggioExportCompletoChanged(string? value) => OnPropertyChanged(nameof(HaMessaggioExportCompleto));
+    [ObservableProperty] private bool esportazioneCompletaInCorso;
+
+    /// <summary>
+    /// Esporta i Test attivi autorizzati che corrispondono ai filtri confermati
+    /// (non soltanto quelli della pagina corrente), o tutti i Test accessibili
+    /// quando l'operatore sceglie esplicitamente IgnoraFiltri.
+    /// Si riutilizza il perimetro operatore della Lista Test e si escludono i template CR.
+    /// Generazione e salvataggio avvengono fuori dal thread UI; annullamento e scrittura atomica
+    /// impediscono file incompleti, anche su archivi numerosi.
+    /// </summary>
+    public async Task EsportaTuttiTestVerso(string percorso,
+        ExportConfigurazione? opzioni = null, ExportDescrittore? descrittore = null)
+    {
+        if (IsBusy || !_state.CartellaValida) return;
+        ArgumentException.ThrowIfNullOrWhiteSpace(percorso);
+        // null = compatibilita' con export generale precedente, nessun filtro.
+        // L'opzione IgnoraFiltri e' esplicita, mai inferita dalla pagina.
+        var filtro = opzioni == null || opzioni.IgnoraFiltri ? null : CatturaFiltriExport();
+        var colonneTool = opzioni != null && descrittore != null
+            ? TestCaseExportSelezioneService.ChiaviStrumentoSelezionate(opzioni, descrittore) : null;
+        var colonneCustom = opzioni != null && descrittore != null
+            ? TestCaseExportSelezioneService.ChiaviCustomSelezionate(opzioni, descrittore) : null;
+        var riepilogoConfermato = filtro == null
+            ? "Nessun filtro utente (tutti i Test accessibili)"
+            : HaFiltriAttivi
+                ? string.Join(" · ", ChipFiltriAttivi.Select(c => c.Etichetta))
+                : "Nessun filtro attivo";
+        IsBusy = true;
+        MessaggioErrore = null;
+        MessaggioExportCompleto = null;
+        EsportazioneCompletaInCorso = true;
+        var totaleEsportati = 0;
+        try
+        {
+            var risultato = await _esportazioneCompleta.EseguiAsync(percorso, (temporaneo, ct) =>
+            {
+                ct.ThrowIfCancellationRequested();
+                var catalogoTipiTest = _state.Master.TestTemplate.Load();
+                var templatesCr = catalogoTipiTest
+                    .Where(t => t.IsChangeRequest).Select(t => t.Uid).ToHashSet();
+                IEnumerable<TestCase> candidati = _state.FiltraTestCaseVisibiliPerOperatore(
+                    _state.TestCases.GetAll()).Where(t => !templatesCr.Contains(t.TestTemplateUid));
+                if (filtro != null) candidati = filtro.Applica(candidati, ct);
+                var test = candidati.OrderBy(t => t.Id, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(t => t.Uid).ToList();
+                totaleEsportati = test.Count;
+                // Catalogo strumenti letto nello stesso scope snapshot dell'export:
+                // comprende anche definizioni di campi opzionali ancora non valorizzati.
+                var catalogoStrumenti = _state.Master.Strumenti.Load();
+                using var workbook = TestCaseCompleteExportService.CreaWorkbook(
+                    test, ct, catalogoStrumenti, catalogoTipiTest, colonneTool, colonneCustom, opzioni);
+                TestCaseExportSelezioneService.ScriviContesto(workbook, opzioni, riepilogoConfermato, totaleEsportati);
+                ct.ThrowIfCancellationRequested();
+                if (opzioni != null) TestCaseExportSelezioneService.Applica(workbook, opzioni);
+                ct.ThrowIfCancellationRequested();
+                // Il temporaneo non ha estensione Excel: ClosedXML accetta SaveAs(percorso) solo con .xlsx/.xlsm, quindi si scrive su stream.
+                using var flusso = new FileStream(temporaneo, FileMode.Create, FileAccess.Write, FileShare.None);
+                workbook.SaveAs(flusso);
+            });
+            switch (risultato.Stato)
+            {
+                case StatoEsportazione.Completata:
+                    MessaggioExportCompleto = string.Format(
+                        LocalizationService.Instance.Traduci("TestListExportCompletoSuccessoFmt"), totaleEsportati);
+                    break;
+                case StatoEsportazione.Annullata:
+                    MessaggioExportCompleto = LocalizationService.Instance.Traduci("EsportazioneAnnullata");
+                    break;
+                default:
+                    MessaggioExportCompleto = null;
+                    MessaggioErrore = risultato.Errore?.Message ?? LocalizationService.Instance.Traduci("TestListExportCompletoErrore");
+                    break;
+            }
+        }
+        finally
+        {
+            IsBusy = false;
+            EsportazioneCompletaInCorso = false;
+        }
+    }
+
+    [RelayCommand]
+    private void AnnullaEsportazioneCompleta() => _esportazioneCompleta.Annulla();
+
     [ObservableProperty] private string? messaggioErrore;
     public bool HaMessaggioErrore => !string.IsNullOrEmpty(MessaggioErrore);
     partial void OnMessaggioErroreChanged(string? value) => OnPropertyChanged(nameof(HaMessaggioErrore));

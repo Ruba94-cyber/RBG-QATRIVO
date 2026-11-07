@@ -10,6 +10,30 @@ public sealed class PolarionReportServiceTests
         new() { Status = status, FirstSeenUtc = Baseline.AddMinutes(minutes) };
 
     [Fact]
+    public void UltimoCommentoEsta_CacheLeggeIlPiuRecenteEMostraSoloTestoSicuro()
+    {
+        var now = new DateTimeOffset(2026, 11, 6, 15, 0, 0, TimeSpan.Zero);
+        var snapshot = new PolarionTicketSnapshot
+        {
+            Id = "TICKET-77", ProjectId = "TICKET_Tickets", Status = "testing", RetrievedAtUtc = now,
+            Comments = new List<PolarionCommentSnapshot>
+            {
+                new() { Id = "old", AuthorId = "tester", Created = now.AddDays(-1), Text = "<p>Older note</p>" },
+                new() { Id = "new", AuthorId = "developer", Created = now, Text = "<p>Validazione &amp; analisi guasto <strong>completata</strong></p>" }
+            }
+        };
+        var row = Assert.Single(PolarionReportService.Build(
+            [new PolarionReportService.Association("TICKET-77", "NC", "NC-77", [])],
+            _ => snapshot, _ => null, new Dictionary<string, string>()));
+        Assert.Equal(2, row.CommentsCount);
+        Assert.Equal("developer", row.LatestCommentAuthor);
+        Assert.Contains("Validazione & analisi guasto", row.LatestCommentPreview);
+        Assert.Contains("completata", row.LatestCommentPreview);
+        Assert.DoesNotContain("<", row.LatestCommentPreview);
+        Assert.DoesNotContain("Older note", row.LatestCommentPreview);
+    }
+
+    [Fact]
     public void ReportEsta_FiltriVeicoliEGammeRichiedonoCorrispondenzaEsatta()
     {
         var rows = new[]

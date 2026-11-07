@@ -37,7 +37,8 @@ public sealed class RigaVisibileFiltroConverter : IMultiValueConverter
     public static readonly RigaVisibileFiltroConverter Instance = new();
 
     public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture) =>
-        !(values.Count > 0 && values[0] is true) || (values.Count > 1 && values[1] is Esito.DaEseguire);
+        !(values.Count > 2 && values[2] is true)   // devalidazione guasto non applicabile (validazione non conforme)
+        && (!(values.Count > 0 && values[0] is true) || (values.Count > 1 && values[1] is Esito.DaEseguire));
 }
 
 /// <summary>Restituisce il primo valore solo se il secondo (bool) e' vero, altrimenti null: crea il contenuto pesante di una riga

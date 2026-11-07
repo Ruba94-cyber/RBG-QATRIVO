@@ -3,12 +3,11 @@ using Avalonia.Controls;
 namespace TestLoom.App.Views;
 
 /// <summary>
-/// Finestra di avvio mostrata SOLO quando il bootstrap di AppState supera una soglia breve (vedi
-/// App.axaml.cs, RunStartupAsync): su un workspace con indice locale già presente il bootstrap dura pochi
-/// secondi e questa finestra non viene mai creata, per non far sfarfallare nulla. Quando invece serve
-/// davvero (indice locale assente/scaduto su un workspace da centinaia di migliaia di elementi, misurato
-/// fino a 5-7 minuti senza alcuna finestra visibile) resta aperta e reattiva finché App.axaml.cs non la
-/// chiude esplicitamente dopo aver mostrato la finestra principale.
+/// Finestra di avvio mostrata SUBITO, prima che AppState inizi l'indicizzazione
+/// del workspace: elimina la precedente attesa intenzionale di 500 ms, durante
+/// la quale l'app sembrava non partire. Resta visibile e reattiva durante il
+/// caricamento dei dati e viene chiusa dopo MainWindow.Show(). Le pagine
+/// secondarie vengono precaricate solo in seguito, a finestra principale aperta.
 ///
 /// AutomationId="AvvioWindow" e Title diverso da "TestLoom": TestLoomApplication.WaitForMainWindow (suite UI) cerca
 /// finestre con titolo "TestLoom"/"TestLoom*" ed esclude esplicitamente questo AutomationId, cosi' un collaudo non

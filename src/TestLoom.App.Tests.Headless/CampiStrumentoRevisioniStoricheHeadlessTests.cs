@@ -35,6 +35,11 @@ public sealed class CampiStrumentoRevisioniStoricheHeadlessTests
             [
                 new DefinizioneCampoStrumento
                 {
+                    Nome = "VersioneClient",
+                    Ambito = TipoAmbitoCampo.PerTest,
+                },
+                new DefinizioneCampoStrumento
+                {
                     Nome = nomeCampoRevisione,
                     Ambito = TipoAmbitoCampo.PerRevisione,
                 },
@@ -61,6 +66,13 @@ public sealed class CampiStrumentoRevisioniStoricheHeadlessTests
                 vm.StrumentiOptions.Single(s => s.Valore == strumento).Selezionato = true;
                 LayoutHeadlessSessione.Assesta(finestra);
 
+                var specifici = pagina.GetVisualDescendants().OfType<Expander>()
+                    .Single(e => AutomationProperties.GetAutomationId(e) == "Editor_CampiStrumentiSpecifici_Expander");
+                Assert.False(specifici.IsExpanded);
+                Assert.Contains(vm.CampiTestCostanti, campo => campo.Nome == "VersioneClient");
+                specifici.IsExpanded = true; // apribile quando l'utente vuole compilare i dettagli
+                LayoutHeadlessSessione.Assesta(finestra);
+
                 var campoRevisione = vm.CampiRevisioneCostanti.Single(c => c.Nome == nomeCampoRevisione);
                 campoRevisione.Valore = "release-42";
                 LayoutHeadlessSessione.Assesta(finestra);
@@ -74,6 +86,14 @@ public sealed class CampiStrumentoRevisioniStoricheHeadlessTests
                 Assert.DoesNotContain($"{strumento}::{nomeCampoRevisione}", fixture.State.OperatoreCorrente!.ValoriDefaultCampi.Keys);
 
                 var operazione = vm.RevisioneCorrente!.Condizioni.Single(c => c.Uid == fixture.Prima);
+                // UX: i parametri operazione ora partono chiusi anche nell'editor completo.
+                // Aprirli prima di cercare il gruppo, che viene materializzato soltanto in espansione.
+                var parametri = pagina.GetVisualDescendants().OfType<Expander>()
+                    .Single(e => AutomationProperties.GetAutomationId(e) ==
+                        $"Editor_Condizione_{operazione.Uid}_Parametri_Expander");
+                Assert.False(parametri.IsExpanded);
+                parametri.IsExpanded = true;
+                LayoutHeadlessSessione.Assesta(finestra);
                 var gruppo = operazione.GruppiVisual!.Single(g => g.Nome == nomeGruppo);
                 var campoGruppo = Assert.Single(gruppo.Campi);
                 var expander = pagina.GetVisualDescendants().OfType<Expander>().Single(e => ReferenceEquals(e.DataContext, gruppo));

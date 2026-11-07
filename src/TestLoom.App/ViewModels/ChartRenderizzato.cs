@@ -176,12 +176,24 @@ public sealed class ChartRenderizzato : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(AltezzaGrafico));
     }
 
+    private volatile bool _temaScuro;
+
+    /// <summary>Tema della card a schermo: al cambio il grafico viene ridisegnato (le esportazioni restano sempre su bianco).</summary>
+    public void ImpostaTemaScuro(bool scuro)
+    {
+        if (_temaScuro == scuro) return;
+        _temaScuro = scuro;
+        _render?.Dispose();
+        _render = null;   // la richiesta con le stesse dimensioni verrebbe altrimenti scartata
+        if (_ultimaRichiesta is { } r) RichiediRender(r.Larghezza, r.Altezza, r.Scala);
+    }
+
     /// <summary>Rigenera l'immagine alla dimensione data (debounce, render fuori dal thread UI, applicazione sul thread UI).</summary>
     public void RichiediRender(double larghezza, double altezza, double scala)
     {
         if (_disposto || Dati == null || larghezza <= 0 || altezza <= 0) return;
         _render ??= new RenderGraficoAsincrono<Bitmap>(
-            dimensioni => GraficoRenderer.Render(Dati, Tipo, Titolo, dimensioni),
+            dimensioni => GraficoRenderer.Render(Dati, Tipo, Titolo, dimensioni, temaScuro: _temaScuro),
             GraficoBitmap.Decodifica,
             AplicaImmagine,
             alFallimento: () => NonDisponibile = true);

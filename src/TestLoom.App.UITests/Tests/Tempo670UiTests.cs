@@ -198,7 +198,8 @@ public sealed class Tempo670UiTestsReport : UiTestBase
             pagina.AttendiTestoCella(Riga, Colonna, t => t == "40 min · 2/3", "tempo totale 30+10 min, 2 noti su 3");
 
             pagina.ImpostaModalitaMatrice("Tempo medio");
-            pagina.AttendiTestoCella(Riga, Colonna, t => t == "20 min · 2/3", "tempo medio 40/2 min, 2 noti su 3");
+            // Regola attuale: il tempo medio considera SOLO le operazioni Conformi (NOK e deviazioni non entrano nella media).
+            pagina.AttendiTestoCella(Riga, Colonna, t => t == "30 min · 1/2", "tempo medio sulle sole operazioni conformi: 30 min, 1 nota su 2");
 
             pagina.ImpostaModalitaMatrice("Tempo totale");
             pagina.ImpostaBaseTempo("Ultimo stato");

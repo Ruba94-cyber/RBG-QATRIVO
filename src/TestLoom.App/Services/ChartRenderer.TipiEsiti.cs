@@ -233,7 +233,7 @@ public static partial class ChartRenderer
                 }
                 x += w;
                 // separatore sottile tra segmenti adiacenti
-                paintSeg.Color = SKColors.White;
+                paintSeg.Color = ColSfondo;
                 canvas.DrawRect(new SKRect(x - 0.75f, y, x, y + spessore), paintSeg);
             }
             canvas.DrawText(etichette[i], sinistra - 8, y + spessore - 4, SKTextAlign.Right, font, paintTesto);
@@ -278,7 +278,7 @@ public static partial class ChartRenderer
                     canvas.DrawText(valore, xs + larghezzaBarra / 2f, y - h / 2f + 4f, SKTextAlign.Center, font, paintTestoSeg);
                 }
                 y -= h;
-                paintSeg.Color = SKColors.White;
+                paintSeg.Color = ColSfondo;
                 canvas.DrawRect(new SKRect(xs, y, xs + larghezzaBarra, y + 0.75f), paintSeg);
             }
             canvas.DrawText(v.Totale.ToString(), xs + larghezzaBarra / 2f, y - 5f, SKTextAlign.Center, font, paintTesto);
@@ -401,7 +401,7 @@ public static partial class ChartRenderer
         // il margine fisso cancellava gli esiti con ampiezza inferiore a 1,5 gradi.
         using var separatore = new SKPaint
         {
-            Color = SKColors.White,
+            Color = ColSfondo,
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
             StrokeWidth = 1.5f,
@@ -435,7 +435,7 @@ public static partial class ChartRenderer
         IReadOnlyList<ArcoVeicoloTorta> veicoli)
     {
         if (veicoli.Count < 2) return;
-        using var paint = new SKPaint { Color = SKColors.White, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f };
+        using var paint = new SKPaint { Color = ColSfondo, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f };
         foreach (var veicolo in veicoli)
         {
             var angolo = veicolo.Inizio * Math.PI / 180.0;
@@ -456,7 +456,7 @@ public static partial class ChartRenderer
         var area = new SKRect(corpo.Left, corpo.Top + 2f, corpo.Right, corpo.Bottom);
         var rettangoli = LayoutTreemap(veicoli.Select(v => v.Totale).ToList(), area);
         using var paintFill = new SKPaint { IsAntialias = false, Style = SKPaintStyle.Fill };
-        using var paintBordo = new SKPaint { Color = SKColors.White, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
+        using var paintBordo = new SKPaint { Color = ColSfondo, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
         using var paintPillola = new SKPaint { Color = new SKColor(15, 23, 42, 215), IsAntialias = true };
         using var paintBianco = new SKPaint { Color = SKColors.White, IsAntialias = true };
         using var paintVal = new SKPaint { IsAntialias = true };
@@ -548,7 +548,7 @@ public static partial class ChartRenderer
                 riempi.Color = colore;
                 canvas.DrawPath(chiusa, riempi);
             }
-            linea.Color = area ? SKColors.White : colore;
+            linea.Color = area ? ColSfondo : colore;
             linea.StrokeWidth = area ? 1f : 2.5f;
             canvas.DrawPath(path, linea);
             if (!area)

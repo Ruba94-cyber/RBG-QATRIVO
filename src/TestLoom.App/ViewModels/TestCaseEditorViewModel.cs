@@ -325,13 +325,17 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     public bool MostraSchedaRevisioni => ModoEditorRapido ? _rapidaRevisioni : !IsNew || SchedaCorrente == 5;
     public bool MostraCronologiaEditor => !IsNew && (!ModoEditorRapido || _rapidaRevisioni);
     private bool _parametriApertiDaValidazione;
-    public bool EspandiParametriOperazione => !ModoEditorRapido || !InModifica || _parametriApertiDaValidazione;
+    // I dettagli tecnici delle singole operazioni non devono occupare tutta la pagina
+    // all'apertura, ne' nella modalita' completa ne' in quella rapida/read-only.
+    // Il controllo Expander e' sempre apribile manualmente; la validazione puo' forzarne
+    // l'apertura quando occorre completare un campo obbligatorio.
+    public bool EspandiParametriOperazione => _parametriApertiDaValidazione;
 
     /// <summary>Reveal required technical fields when validation navigates to a missing field.
     /// Presentation only: does not mutate TestCase, revisions, locks or persisted JSON.</summary>
     public void ApriParametriPerValidazione()
     {
-        if (!ModoEditorRapido || _parametriApertiDaValidazione) return;
+        if (_parametriApertiDaValidazione) return;
         _parametriApertiDaValidazione = true;
         OnPropertyChanged(nameof(EspandiParametriOperazione));
     }
@@ -4676,6 +4680,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     private void CaricaPannelloAnomalie(bool creaMancanti = false)
     {
         if (_inCostruzione) return; // vedi commento su _inCostruzione: la chiamata finale del costruttore rifà comunque tutto
+        RevisioneCorrente?.AggiornaDevalidazioniNascoste();   // regola guasto: devalidazione solo dopo validazione conforme
 
         // Il pannello si ricostruisce da zero a ogni chiamata (anche solo per un cambio di selezione altrove
         // nella pagina, es. l'Esito di una condizione: OnCampoSelezioneModificato in code-behind reagisce a
@@ -4909,8 +4914,32 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
 
     /// <summary>Anomalia suggerita per un'operazione non conforme. Stessa regola per la riga creata e per il ricalcolo
     /// mentre l'operatore scrive il problema.</summary>
+    private static string ChiaveDtcCondizione(Condizione c) =>
+        DtcOperazioneRegole.ChiaveDtc(c.DtcRequisitoId, c.DtcVeicolo, EcuTesto(c), c.Guasto);
+
+    /// <summary>NC aperta gia' collegata (tramite segnalazione classificata) all'altro passo dello STESSO guasto nella revisione corrente.</summary>
+    private SuggerimentoAnomalia? SuggerisciNcDelloStessoDtc(Condizione condizione)
+    {
+        if (!condizione.RiguardaDtc || RevisioneCorrente == null || _candidatePerUid.Count == 0) return null;
+        var chiave = ChiaveDtcCondizione(condizione);
+        var fratelli = RevisioneCorrente.Condizioni
+            .Where(c => !ReferenceEquals(c, condizione) && c.RiguardaDtc && c.SegnalazioneUid != null
+                && ChiaveDtcCondizione(c).Equals(chiave, StringComparison.OrdinalIgnoreCase))
+            .Select(c => c.SegnalazioneUid!.Value).ToHashSet();
+        if (fratelli.Count == 0) return null;
+        var segnalazioni = _state.Segnalazioni.GetByTestIdOrSenzaTest(TestCase.Id, TestCase).Concat(_segnalazioniNuove);
+        foreach (var seg in segnalazioni)
+            if (fratelli.Contains(seg.Uid) && seg.Stato == StatoSegnalazione.Classificata && seg.AnomaliaUid is { } uid
+                && _candidatePerUid.TryGetValue(uid, out var nc))
+                return new SuggerimentoAnomalia(nc.Uid, nc.Id, MotivoSuggerimentoAnomalia.StessaOperazione, 1.0);
+        return null;
+    }
+
     private SuggerimentoAnomalia? SuggerisciPer(Condizione condizione, int iterazione)
     {
+        // Regola guasto: per ogni guasto esiste UNA sola NC (sul comportamento generale del guasto), non una per validazione e una per
+        // devalidazione. Se l'altro passo dello stesso guasto ha gia' una NC aperta, la si propone come collegamento.
+        if (SuggerisciNcDelloStessoDtc(condizione) is { } stessoDtc) return stessoDtc;
         var operazione = new OperazioneAnomalia(AnomaliaWorkflowService.Radice(condizione), condizione.Componente, condizione.Funzionalita);
         var titolo = NonConformitaRulesService.TitoloDaOperazione(condizione.Funzionalita, condizione.Componente, condizione.DescrizioneProblema,
             SegnalazioneTestRiga.EtichettaOperazione(condizione, iterazione));
@@ -5016,6 +5045,51 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         return $"NC-{maxNum:D4}";
     }
 
+    /// <summary>
+    /// Two operators may classify separate NCs before either saves: both can temporarily receive
+    /// the same suggested NC number. Never overwrite another NC. Only a NEW (still staged) NC
+    /// can receive another number; persisted NCs always keep their identity and revision checks.
+    /// </summary>
+    private bool IdNuovaNcOccupatoDaAltra(NonConformita nuova)
+    {
+        var path = _state.Paths.NonConformitaFile(nuova.Id);
+        if (!File.Exists(path)) return false;
+        // Un ID tombstoned resta occupato per sempre: non tentare neppure di leggerlo
+        // come una NC ordinaria e non riciclarlo con l'identita' della nuova.
+        if (WorkflowTransactionVisibilityService.IsCommittedTombstone(_state.Paths, path)) return true;
+        var esistente = JsonIo.TryRead<NonConformita>(path, out var errore)
+            ?? throw new InvalidDataException(LocalizationService.Instance.Scegli(
+                $"Il file NC {nuova.Id} non è leggibile. Salvataggio interrotto: {errore}",
+                $"The NC file {nuova.Id} cannot be read. Save stopped: {errore}",
+                $"Le fichier NC {nuova.Id} est illisible. Enregistrement interrompu : {errore}"));
+        return esistente.Uid != nuova.Uid;
+    }
+
+    private void SalvaNcNuovaRisolvendoCollisioneId(NonConformita nuova)
+    {
+        for (var tentativo = 0; tentativo < 3; tentativo++)
+        {
+            if (IdNuovaNcOccupatoDaAltra(nuova))
+            {
+                DiagnosticTraceService.Registra("Test.Workflow", "create-nc ID collision: selecting new ID");
+                nuova.Id = ProssimoIdAnomalia();
+            }
+            try
+            {
+                _state.NonConformita.Save(nuova);
+                return;
+            }
+            catch (IOException) when (tentativo < 2 && IdNuovaNcOccupatoDaAltra(nuova))
+            {
+                // A second workstation may have published the same number AFTER our preflight.
+                // Retry only if the ID actually belongs to a different UID, never after a
+                // generic I/O failure or an incomplete write of this very NC.
+                DiagnosticTraceService.Registra("Test.Workflow", "create-nc concurrent ID collision: retry");
+                nuova.Id = ProssimoIdAnomalia();
+            }
+        }
+    }
+
     [RelayCommand]
     private Task CreaAnomaliaDaTest(SegnalazioneTestRiga? riga) =>
         ComandoAsincrono.EseguiAsync(() => CreaAnomaliaDaTestCoreAsync(riga), "Creazione di un'anomalia dal Test", AggiungiAvvisoErrore);
@@ -5040,7 +5114,21 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
                 locConferma.Traduci("CreaBtn"), locConferma.Traduci("Annulla")))
             return;
 
-        CreaAnomaliaInMemoria(riga);
+        // Il dialogo e' asincrono: nel frattempo la riga puo' essere stata ricostruita,
+        // classificata altrove o resa conforme. Non creare una NC da una selezione obsoleta.
+        var corrente = SegnalazioniTest.FirstOrDefault(x => x.Segnalazione.Uid == riga.Segnalazione.Uid);
+        if (_disposto || _annullamentoInCorso || corrente == null
+            || corrente.Segnalazione.Stato != StatoSegnalazione.DaClassificare
+            || !corrente.Severita.HasValue)
+        {
+            DiagnosticTraceService.Registra("Test.Workflow",
+                "create-nc skipped: editor closed or pending issue changed during confirmation");
+            return;
+        }
+
+        CreaAnomaliaInMemoria(corrente);
+        DiagnosticTraceService.Registra("Test.Workflow",
+            "create-nc draft prepared (not persisted; save Test to commit)");
         CaricaPannelloAnomalie();
         ModificheNonSalvate = true;
     }
@@ -5109,7 +5197,22 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
             return;
 
         foreach (var riga in collegamenti) CollegaAnomaliaInMemoria(riga, riga.AnomaliaSelezionata!);
-        foreach (var riga in nuove) CreaAnomaliaInMemoria(riga);
+        // Regola guasto: una sola NC per guasto. Se validazione e devalidazione dello stesso guasto sono entrambe da creare,
+        // la prima crea la NC e la seconda vi si collega.
+        var ncPerDtc = new Dictionary<string, NonConformita>(StringComparer.OrdinalIgnoreCase);
+        foreach (var riga in nuove)
+        {
+            var chiaveDtc = riga.Condizione.RiguardaDtc ? ChiaveDtcCondizione(riga.Condizione) : null;
+            if (chiaveDtc != null && ncPerDtc.TryGetValue(chiaveDtc, out var ncDelDtc))
+            {
+                CollegaAnomaliaInMemoria(riga, ncDelDtc);
+                continue;
+            }
+            CreaAnomaliaInMemoria(riga);
+            if (chiaveDtc != null && riga.Segnalazione.AnomaliaUid is { } uidCreata
+                && _anomalieNuove.FirstOrDefault(n => n.Uid == uidCreata) is { } ncCreata)
+                ncPerDtc[chiaveDtc] = ncCreata;
+        }
         CaricaPannelloAnomalie();
         ModificheNonSalvate = true;
     }
@@ -5191,31 +5294,54 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     /// nel limbo se l'operatore poi non salva o abbandona il Test (feedback utente 2026-08-21, punto 8/9).
     /// La modifica dei semplici campi (stato/severità/priorità/ticket) NON passa più di qui: viaggia con il
     /// salvataggio del Test, vedi CommitAnomalieDalTest.</summary>
-    private void SalvaAnomaliaDalTest(NcRiga? riga)
+    private bool SalvaAnomaliaDalTest(NcRiga? riga)
     {
         if (riga == null || !riga.Nc.Severita.HasValue)
         {
             ErroriValidazione = new() { LocalizationService.Instance.Traduci("ValSeveritaAnomalia") };
-            return;
+            return false;
         }
         var nc = riga.Nc;
         if (_anomalieNuove.Contains(nc))
         {
+            // Una NC in bozza si persiste solo con il Test: la chiusura non e'
+            // ancora durevole, ma puo' essere confermata con il prossimo Salva Test.
             ModificheNonSalvate = true;
             CaricaPannelloAnomalie();
-            return;
+            DiagnosticTraceService.Registra("Test.Workflow", "close-nc prepared in draft (Test save pending)");
+            return true;
         }
         try
         {
             _state.NonConformita.Save(nc, nc.RevisioneDati);
-            // La NC e' stata scritta per intero (anche con eventuali collegamenti in sospeso): il tracciamento del Salva
-            // non deve riproporre la revisione precedente, altrimenti il Test risulterebbe in conflitto con se stesso.
-            _anomalieDaAggiornare.Remove(nc.Uid);
-            ErroriValidazione = new();
+        }
+        catch (Exception ex)
+        {
+            CrashLogService.Registra("Test.Workflow: close-nc persistence failed", ex);
+            DiagnosticTraceService.Registra("Test.Workflow", "close-nc failed: " + ex.GetType().Name);
+            ErroriValidazione = new() { string.Format(LocalizationService.Instance.Traduci("TcSalvataggioAnomaliaFallitoFmt"), ex.Message) };
+            return false;
+        }
+        // Da questo momento la NC e' persistita: un errore di refresh NON e' un
+        // fallimento del Save e non deve causare un nuovo tentativo di chiusura.
+        _anomalieDaAggiornare.Remove(nc.Uid);
+        ErroriValidazione = new();
+        DiagnosticTraceService.Registra("Test.Workflow", "close-nc committed");
+        try
+        {
             _state.RicaricaTutto();
             CaricaPannelloAnomalie();
         }
-        catch (Exception ex) { ErroriValidazione = new() { string.Format(LocalizationService.Instance.Traduci("TcSalvataggioAnomaliaFallitoFmt"), ex.Message) }; }
+        catch (Exception ex)
+        {
+            CrashLogService.Registra("Test.Workflow: close-nc refresh after commit", ex);
+            DiagnosticTraceService.Registra("Test.Workflow", "close-nc committed; UI refresh failed");
+            Avvisi = Avvisi.Append(LocalizationService.Instance.Scegli(
+                "La NC e' stata salvata, ma non e' stato possibile aggiornare la vista. Riapri il Test per visualizzare lo stato aggiornato.",
+                "The NC was saved, but the view could not be refreshed. Reopen the Test to see the updated status.",
+                "La NC a été enregistrée, mais la vue n'a pas pu être actualisée. Rouvrez le test pour voir l'état mis à jour.")).ToList();
+        }
+        return true;
     }
 
     /// <summary>Committa nel modello un riferimento ticket TICKET digitato ma non ancora aggiunto — chiamato dal
@@ -5269,8 +5395,18 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
                 loc.Traduci("ChiudiAnomaliaBtn"), loc.Traduci("Annulla")))
             return;
 
+        var statoPrima = riga.Nc.StatoWorkflow;
+        var chiusuraPrima = riga.Nc.DataChiusura;
         NonConformitaRulesService.Chiudi(riga.Nc);
-        SalvaAnomaliaDalTest(riga);
+        if (!SalvaAnomaliaDalTest(riga))
+        {
+            // Un conflitto/errore I/O non deve lasciare la NC apparentemente
+            // chiusa nella riga locale, ne' proporre "Concluso" per il Test.
+            riga.Nc.StatoWorkflow = statoPrima;
+            riga.Nc.DataChiusura = chiusuraPrima;
+            CaricaPannelloAnomalie();
+            return;
+        }
 
         // L'avanzamento automatico dello StatoLavoro del Test è una conseguenza più grande della sola chiusura
         // di questa anomalia (feedback utente 2026-08-21, punto 9/chiudi): merita una conferma dedicata e
@@ -7319,10 +7455,13 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         // riferito al campo davvero modificabile e non a quello storico mostrato.
         if (VisualizzaStorico) RevisioneVisualizzata = RevisioneCorrente;
         CampiObbligatoriMancanti = ValidaCampiObbligatoriDaTemplate().ToList();
-        // Funzionalita mancante con UnitLogger+componente+Veicolo: non e' un blocco duro, e' gestita dal pop-up "prosegui/indietro"
-        // piu' sotto (dopo le altre validazioni), quindi qui esce dall'elenco dei campi bloccanti.
-        var funzionalitaMancanteSoft = FunzionalitaMancanteConUdtEcuVeicolo;
-        if (funzionalitaMancanteSoft) CampiObbligatoriMancanti.RemoveAll(c => c.Chiave == CampiSistema.Funzionalita);
+        // Ogni Test che espone Funzionalita riceve un avviso non bloccante se il campo e' vuoto,
+        // anche nella modalita Rapida. I soli strumenti di supporto mantengono invece il vincolo
+        // rigido preesistente; guasto-only non prevede la Funzionalita e non richiede l'avviso.
+        var funzionalitaMancanteSoft = TestCase.Funzionalita.Count == 0
+            && (MostraCampo(CampiSistema.Funzionalita) || FunzionalitaMancanteConUdtEcuVeicolo);
+        if (funzionalitaMancanteSoft && !SoloStrumentiSupporto)
+            CampiObbligatoriMancanti.RemoveAll(c => c.Chiave == CampiSistema.Funzionalita);
         errori.AddRange(CampiObbligatoriMancanti.Select(c => c.Messaggio));
         // Un errore per-operazione porta comunque al popup "campi mancanti" con salto diretto (invece del
         // banner generico) — la sezione Operazioni non ha uno Spotlight per singola riga, ma la vista
@@ -7397,16 +7536,33 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         }
         if (TestCase.StatoLavoro == StatoLavoroTest.Annullato && string.IsNullOrWhiteSpace(TestCase.MotivoAnnullamento))
             errori.Add(loc.Traduci("ValMotivoAnnullamentoObbl"));
-        if (SegnalazioniTest.Any(s => !s.Esclusa && !segnalazioniDaEscludere.Contains(s.Segnalazione.Uid)))
+        // I problemi non ancora classificati devono restare salvabili durante l'esecuzione,
+        // senza perdere la bozza o forzare una classificazione prematura. Sono bloccanti solo alla conclusione.
+        if (TestCase.StatoLavoro == StatoLavoroTest.Concluso &&
+            SegnalazioniTest.Any(s => !s.Esclusa && !segnalazioniDaEscludere.Contains(s.Segnalazione.Uid)))
             errori.Add(loc.Traduci("ValClassificaPrimaConclusione"));
         if (TestCase.StatoLavoro == StatoLavoroTest.Concluso && AnomalieTestAperte.Count > 0)
+        {
+            // L'NC e' stata classificata, ma rimane APERTA: e' corretto impedire "Concluso".
+            // Indicare l'azione concreta evita che l'operatore interpreti il blocco come
+            // un salvataggio guasto e perda le modifiche/NC in bozza.
             errori.Add(loc.Traduci("ValAnomalieAperteConclusione"));
+            var ids = AnomalieTestAperte.Select(x => x.Nc.Id)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase).Take(5).ToArray();
+            var dettaglio = ids.Length == 0 ? "" : string.Join(", ", ids);
+            if (AnomalieTestAperte.Count > ids.Length) dettaglio += ", ...";
+            errori.Add(loc.Scegli(
+                $"NC aperte ({AnomalieTestAperte.Count}): {dettaglio}. Per salvare il Test senza chiudere queste NC, seleziona 'Da ritestare' (oppure 'In corso') e premi Salva. 'Concluso' sara' disponibile dopo la chiusura delle NC.",
+                $"Open NCs ({AnomalieTestAperte.Count}): {dettaglio}. To save the Test while these NCs remain open, select 'To retest' (or 'In progress') and Save. 'Completed' requires closing the NCs.",
+                $"NC ouvertes ({AnomalieTestAperte.Count}) : {dettaglio}. Pour enregistrer le test en conservant ces NC ouvertes, choisissez 'À retester' (ou 'En cours') puis Enregistrer. La clôture nécessite de fermer les NC."));
+        }
         // Decisione utente 6.4.0, punto 1: un Test Concluso non può lasciare operazioni ancora "Da eseguire"
         // (esito mai inserito) — N.A. resta invece un esito legittimo di chiusura, non blocca. Stesso pattern
         // di blocco duro già usato sopra per anomalie aperte/segnalazioni da classificare, coerente con
         // l'idea che "Concluso" descriva un lavoro davvero finito.
         if (TestCase.StatoLavoro == StatoLavoroTest.Concluso && RevisioneCorrente != null &&
-            RevisioneCorrente.CondizioniEffettive.Any(c => !c.Esito.EEseguito() && c.Esito != Esito.NonApplicabile))
+            RevisioneCorrente.CondizioniEffettive.Any(c => !c.Esito.EEseguito() && c.Esito != Esito.NonApplicabile && !c.DevalidazioneNonRichiesta))
             errori.Add(loc.Traduci("ValOperazioniNonEseguiteConclusione"));
         foreach (var nc in anomalieChiudibili.Where(n => string.IsNullOrWhiteSpace(n.MotivoChiusura)))
             errori.Add(string.Format(loc.Traduci("ValMotivoChiusuraConformeFmt"), nc.Id));
@@ -7424,6 +7580,13 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         ErroriValidazione = errori;
         if (errori.Count > 0)
         {
+            // Solo metadati di flusso: niente note, descrizioni, nomi o valori dei campi
+            // nei trace locali. Le eccezioni di I/O/conflitto sono registrate separatamente.
+            DiagnosticTraceService.Registra("Test.Workflow",
+                $"save blocked by validation: requested={TestCase.StatoLavoro}; " +
+                $"issues={errori.Count}; openNc={AnomalieTestAperte.Count}; " +
+                $"unclassified={SegnalazioniTest.Count(x => !x.Esclusa)}; " +
+                $"newNcPending={_anomalieNuove.Count}");
             // Sempre un popup, mai solo il banner in cima alla pagina (feedback utente 2026-08-20): con un
             // form lungo e l'utente scrollato sull'ultima sezione, un banner in cima sembra "il pulsante non fa
             // niente". Il dialog dedicato ai campi mancanti (con salto diretto al campo) resta prioritario
@@ -7433,7 +7596,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
             return;
         }
 
-        // Funzionalita mancante con UnitLogger+componente+Veicolo: l'utente puo' proseguire comunque oppure tornare indietro sul campo.
+        // Funzionalita' assente: conferma prima di salvare ogni Test nel quale il campo e' disponibile.
         // Nessuna mutazione di TestCase prima di questo punto: tornando indietro la bozza resta intatta.
         if (funzionalitaMancanteSoft)
         {
@@ -7639,7 +7802,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
                 nc.TestCaseId = TestCase.Id;
                 nc.TestUid = TestCase.Uid;
                 foreach (var prova in nc.ProveCollegate.Where(p => string.IsNullOrEmpty(p.TestId))) prova.TestId = TestCase.Id;
-                _state.NonConformita.Save(nc);
+                SalvaNcNuovaRisolvendoCollisioneId(nc);
                 _salvatiInQuestoSalva.Add(nc.Uid);
                 // Già su disco (RevisioneDati aggiornata in place dal Save): sposta la NC nel percorso "esistenti".
                 // Un retry dopo un fallimento successivo non ne crea una seconda e, se l'utente la modifica prima di
@@ -7691,6 +7854,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         }
         catch (ConflittoRevisioneException ex)
         {
+            DiagnosticTraceService.Registra("Test.Workflow", "save conflict: optimistic revision mismatch");
             _state.Notifiche.Add(new NotificaApp { Destinatario = _state.Config.OperatoreAttivo, Tipo = "Conflitto", Titolo = LocalizationService.Instance.Traduci("NotificaConflittoTitolo"), Messaggio = string.Format(LocalizationService.Instance.Traduci("NotificaConflittoBodyFmt"), TestCase.Id), ElementoId = TestCase.Id });
             if (!_state.EMaster)
             {
@@ -7733,8 +7897,10 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
             };
             return;
         }
-        catch (TestCaseSaveLockTimeoutException)
+        catch (TestCaseSaveLockTimeoutException ex)
         {
+            CrashLogService.Registra("Test.Save: timeout lock", ex);
+            DiagnosticTraceService.Registra("Test.Workflow", "save failed: lock-timeout");
             // Non è un conflitto di revisione (il contenuto non è mai stato confrontato): un'altra
             // postazione/processo sta scrivendo esattamente questo Test in questo istante. Nessuna mutazione di
             // TestCase è avvenuta (l'eccezione viene lanciata prima di qualunque rilettura/scrittura), quindi la
@@ -7745,6 +7911,8 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         }
         catch (Exception ex)
         {
+            CrashLogService.Registra("Test.Save: persistence/workflow", ex);
+            DiagnosticTraceService.Registra("Test.Workflow", "save failed: " + ex.GetType().Name);
             ErroriValidazione = new List<string> { string.Format(LocalizationService.Instance.Traduci("SalvataggioTestErroreFmt"), ex.Message) };
             return;
         }
@@ -7774,6 +7942,10 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         ModificheNonSalvate = false;
         InModifica = false;
         _snapshot = Clona(TestCase);
+        DiagnosticTraceService.Registra("Test.Workflow",
+            WorkflowTransactionService.ActiveId is null
+                ? $"save completed (direct): status={TestCase.StatoLavoro}"
+                : $"save staged (awaiting transaction commit): status={TestCase.StatoLavoro}");
         if (!_sopprimiRitornoAllaLista) _tornaAllaLista();
     }
 

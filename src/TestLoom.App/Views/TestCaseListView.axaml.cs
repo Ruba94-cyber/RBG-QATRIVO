@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using TestLoom.App.Models;
 using TestLoom.App.Services;
 using TestLoom.App.ViewModels;
@@ -116,6 +117,33 @@ public partial class TestCaseListView : UserControl
     /// <summary>Click sulle voci del menu "Cambia stato…" della barra azioni di massa. Tag+Click invece di
     /// Command dati-guidato perché il MenuFlyout vive in un popup separato dall'albero visuale nominato
     /// (stesso motivo di OnImpostaColoreEvidenziato in TestCaseEditorView).</summary>
+    /// <summary>Export interattivo dalla pagina Test: parte dai filtri correnti,
+    /// consente di modificare criteri, sezioni e colonne e di scegliere esplicitamente
+    /// l'esportazione senza filtri. Il percorso si sceglie con picker nativo.</summary>
+    private async void OnEsportaTuttiTest(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not TestCaseListViewModel vm || vm.IsBusy ||
+            TopLevel.GetTopLevel(this) is not Window top) return;
+        await UiExceptionGuard.Esegui(async () =>
+        {
+            // Prima il dialogo interattivo, con filtri ricavati dalla vista corrente.
+            // Annulla non cambia il filtro o genera alcun file.
+            var descrittore = vm.CreaDescrittoreExport();
+            var opzioni = await EsportaOpzioniDialogo.Apri(top, vm.StatoPerExport, descrittore);
+            if (opzioni == null) return;
+            var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = LocalizationService.Instance.Traduci("TestListExportCompletoTitolo"),
+                SuggestedFileName = $"TestLoom_TestExport_{DateTime.Now:yyyyMMdd_HHmmss}",
+                DefaultExtension = "xlsx",
+                FileTypeChoices = new[] { new FilePickerFileType("Excel") { Patterns = new[] { "*.xlsx" } } }
+            });
+            var percorso = file?.TryGetLocalPath();
+            if (!string.IsNullOrWhiteSpace(percorso))
+                await vm.EsportaTuttiTestVerso(percorso, opzioni, descrittore);
+        }, "Esportazione completa Test");
+    }
+
     private void OnCambiaStatoSelezionati(object? sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem { Tag: string statoTesto } || DataContext is not TestCaseListViewModel vm) return;

@@ -60,4 +60,32 @@ public class TableLayoutLarghezzeDecisioniTests
         Assert.True(TableLayoutPreferences.LarghezzeCambiate(a, diverse));
         Assert.True(TableLayoutPreferences.LarghezzeCambiate(a, a.Take(1).ToArray()));
     }
+    [Theory]
+    [InlineData(45, 38, 125, 40, false, true)]   // Bordo inferiore reale: resize consentito
+    [InlineData(45, 35, 125, 40, false, true)]   // Inizio fascia di 5 px
+    [InlineData(45, 34.9, 125, 40, false, false)]
+    [InlineData(45, 38, 125, 40, true, false)]   // Click sul menu Ruolo: non intercettare
+    [InlineData(45, 40, 125, 40, false, false)]  // Popup sotto la riga: fuori dal limite
+    [InlineData(45, 90, 125, 40, false, false)]  // Popup molto piu' sotto
+    [InlineData(-1, 38, 125, 40, false, false)]
+    [InlineData(125, 38, 125, 40, false, false)]
+    [InlineData(45, -1, 125, 40, false, false)]
+    [InlineData(45, 38, 0, 40, false, false)]
+    [InlineData(45, 38, 125, 0, false, false)]
+    public void ResizeRiga_RichiedePuntatoreInternoENonIntercettaIlMenuRuolo(
+        double x, double y, double larghezza, double altezza, bool controlloInterattivo, bool atteso) =>
+        Assert.Equal(atteso, TableLayoutPreferences.SulBordoRidimensionabileRiga(
+            x, y, larghezza, altezza, controlloInterattivo));
+
+    [Fact]
+    public void ResizeRiga_CoordinateNonFiniteNonAttivanoIlCursore()
+    {
+        Assert.False(TableLayoutPreferences.SulBordoRidimensionabileRiga(
+            double.NaN, 38, 125, 40, false));
+        Assert.False(TableLayoutPreferences.SulBordoRidimensionabileRiga(
+            45, double.PositiveInfinity, 125, 40, false));
+        Assert.False(TableLayoutPreferences.SulBordoRidimensionabileRiga(
+            45, 38, double.PositiveInfinity, 40, false));
+    }
+
 }

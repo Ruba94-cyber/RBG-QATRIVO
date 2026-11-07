@@ -140,11 +140,16 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColNome}" Binding="{Binding Nome}" SortMemberPath="Nome" Width="*" MinWidth="120" />
                 <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColIniziali}" Binding="{Binding Iniziali}" Width="90" MinWidth="90" />
-                <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColRuolo}" Width="125">
+                <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColRuolo}" Width="160" MinWidth="150">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate x:DataType="models:Operatore">
-                            <ComboBox ItemsSource="{Binding #Root.((vm:OperatoriViewModel)DataContext).Ruoli}" SelectedItem="{Binding Ruolo}" HorizontalAlignment="Stretch" Margin="2"
-                                      IsEnabled="{Binding #Root.((vm:OperatoriViewModel)DataContext).InModifica}" />
+                            <!-- Il menu di ruolo e' un controllo interattivo nella riga. Il resize della DataGrid
+                                 deve ignorare il ComboBox e il suo popup (TableLayoutPreferences). -->
+                            <ComboBox Classes="Field" ItemsSource="{Binding #Root.((vm:OperatoriViewModel)DataContext).Ruoli}"
+                                      SelectedItem="{Binding Ruolo, Mode=TwoWay}" HorizontalAlignment="Stretch"
+                                      Margin="2" MinHeight="32"
+                                      IsEnabled="{Binding #Root.((vm:OperatoriViewModel)DataContext).InModifica}"
+                                      AutomationProperties.AutomationId="Oper_Ruolo_Combo" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

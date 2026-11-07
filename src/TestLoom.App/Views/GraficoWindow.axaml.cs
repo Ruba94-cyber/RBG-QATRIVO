@@ -33,6 +33,7 @@ public partial class GraficoWindow : Window
         // La dimensione viene dal contenitore (Border): l'Image senza sorgente vale 0x0, quindi le sue Bounds non possono
         // far partire il primo render. Render iniziale quando la finestra e' aperta; poi ogni cambio di area lo richiede.
         Opened += (_, _) => RidisegnaAlContenitore();
+        ActualThemeVariantChanged += (_, _) => RidisegnaAlContenitore();
         Contenitore.PropertyChanged += (_, e) =>
         {
             if (e.Property == Visual.BoundsProperty) RidisegnaAlContenitore();
@@ -46,6 +47,7 @@ public partial class GraficoWindow : Window
         var larghezza = Contenitore.Bounds.Width - padding.Left - padding.Right;
         var altezza = Contenitore.Bounds.Height - padding.Top - padding.Bottom;
         if (larghezza <= 0 || altezza <= 0) return;
+        _vm.ImpostaTemaScuro(ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark);
         _vm.RichiediRender(larghezza, altezza, RenderScaling);
     }
 

@@ -46,13 +46,23 @@ public sealed class TestCaseEditorQuickModeTests : IDisposable
         Assert.False(vm.ModoEditorRapido);
         Assert.True(vm.MostraSchedaPianificazione);
         Assert.False(vm.MostraSchedaRiferimenti); // wizard starts at the first tab
-        Assert.True(vm.EspandiParametriOperazione);
+        Assert.False(vm.EspandiParametriOperazione); // default chiuso anche nella modalità completa
         vm.AttivaModalitaRapidaCommand.Execute(null);
         Assert.True(vm.MostraSchedaRiferimenti); // earlier on-demand choice remains available
         Assert.False(vm.EspandiParametriOperazione);
         vm.ApriParametriPerValidazione();
         Assert.True(vm.EspandiParametriOperazione);
         Assert.False(vm.MostraCronologiaEditor);
+    }
+
+    [Fact]
+    public void ValidazioneApreIParametriAncheNellaModalitaCompleta()
+    {
+        var vm = CreaVm(rapido: false);
+        Assert.False(vm.EspandiParametriOperazione);
+        vm.ApriParametriPerValidazione();
+        Assert.True(vm.EspandiParametriOperazione);
+        Assert.False(vm.ModificheNonSalvate);
     }
 
     [Fact]
@@ -77,7 +87,7 @@ public sealed class TestCaseEditorQuickModeTests : IDisposable
         var secondo = new TestCaseEditorViewModel(state, null, () => { }, _ => { });
         _opened.Add(secondo);
         Assert.False(secondo.ModoEditorRapido);
-        Assert.True(secondo.EspandiParametriOperazione);
+        Assert.False(secondo.EspandiParametriOperazione); // ogni apertura parte collassata
 
         next.ModoEditorRapido = true;
         var third = new TestCaseEditorViewModel(state, null, () => { }, _ => { });

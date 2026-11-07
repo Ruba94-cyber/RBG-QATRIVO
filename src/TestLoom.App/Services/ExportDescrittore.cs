@@ -11,7 +11,8 @@ public sealed record ExportSezione(string Id, string Etichetta, IReadOnlyList<Ex
 /// <summary>Cosa una pagina puo' esportare e con quali filtri: e' tutto cio' che il dialogo generico deve sapere. Il riepilogo dei filtri e'
 /// quello a video al momento dell'apertura, e vale sempre per l'export.</summary>
 public sealed record ExportDescrittore(string Pagina, string Titolo, IReadOnlyList<ExportSezione> Sezioni, string RiepilogoFiltri,
-    IReadOnlyList<ExportFiltro>? Filtri = null, IReadOnlyList<ExportFontePivot>? FontiPivot = null);
+    IReadOnlyList<ExportFiltro>? Filtri = null, IReadOnlyList<ExportFontePivot>? FontiPivot = null,
+    Action<Action>? ApplicaFiltriInBlocco = null);
 
 public static class ExportSelezione
 {
@@ -25,7 +26,7 @@ public static class ExportSelezione
     /// aggiornata, campo rimosso) viene scartata, e una sezione senza piu' colonne valide torna a "tutte".</summary>
     public static ExportConfigurazione Normalizza(ExportConfigurazione c, ExportDescrittore d)
     {
-        var risultato = new ExportConfigurazione { Nome = c.Nome, PivotFonte = c.PivotFonte, PivotRighe = c.PivotRighe,
+        var risultato = new ExportConfigurazione { Nome = c.Nome, IgnoraFiltri = c.IgnoraFiltri, PivotFonte = c.PivotFonte, PivotRighe = c.PivotRighe,
             PivotColonne = c.PivotColonne, PivotPercentuale = c.PivotPercentuale,
             PivotMetrica = c.PivotMetrica, PivotCampoValore = c.PivotCampoValore,
             PivotMostraNumeri = c.PivotMostraNumeri, PivotMostraPercentuali = c.PivotMostraPercentuali };

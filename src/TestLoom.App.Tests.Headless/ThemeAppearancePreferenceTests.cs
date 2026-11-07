@@ -7,11 +7,11 @@ namespace TestLoom.App.Tests;
 public sealed class ThemeAppearancePreferenceTests
 {
     [Fact]
-    public void NuovaConfigurazione_RestaChiaraPerCompatibilita()
+    public void NuovaConfigurazione_SegueIlTemaDiSistema()
     {
         var config = new AppConfig();
-        Assert.Equal("Light", config.TemaInterfaccia);
-        Assert.Equal(ThemeVariant.Light, ThemeAppearanceService.FromPreference(config.TemaInterfaccia));
+        Assert.Equal("System", config.TemaInterfaccia);
+        Assert.Equal(ThemeVariant.Default, ThemeAppearanceService.FromPreference(config.TemaInterfaccia));
     }
 
     [Theory]

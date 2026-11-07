@@ -3,13 +3,17 @@
         xmlns:services="using:TestLoom.App.Services"
         x:Class="TestLoom.App.Views.ConfirmDialog"
         Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ConfermaSemplice}"
-        Width="420" SizeToContent="Height" CanResize="True"
+        Width="500" SizeToContent="Height" CanResize="True"
         WindowStartupLocation="CenterOwner">
+    <!-- Messaggi articolati (es. Test incompleto e impatto sui report): scorre solo il testo.
+         La conferma/annullamento resta raggiungibile anche su schermi piccoli o con DPI elevato. -->
     <StackPanel Margin="24" Spacing="16">
-        <TextBlock x:Name="MessaggioText" TextWrapping="Wrap" FontSize="14" AutomationProperties.AutomationId="Confirm_Message_Text" />
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+        <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <TextBlock x:Name="MessaggioText" TextWrapping="Wrap" FontSize="14" AutomationProperties.AutomationId="Confirm_Message_Text" />
+        </ScrollViewer>
+        <WrapPanel HorizontalAlignment="Right" ItemSpacing="10" LineSpacing="8">
             <Button x:Name="NoButton" Classes="Secondary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NoLabel}" AutomationProperties.AutomationId="Confirm_No_Button" />
             <Button x:Name="SiButton" Classes="Primary" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SiLabel}" AutomationProperties.AutomationId="Confirm_Yes_Button" />
-        </StackPanel>
+        </WrapPanel>
     </StackPanel>
 </Window>

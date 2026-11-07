@@ -62,6 +62,28 @@ public sealed class AnomalieDallaPaginaTestTests : IDisposable
     }
 
     [Fact]
+    public async Task ChiusuraInline_NcModificataAltrove_NonFingeChiusuraNeConcludeIlTest()
+    {
+        var (state, testId) = CreaTestConAnomalia();
+        var editor = new TestCaseEditorViewModel(state, testId, () => { }, _ => { });
+        var riga = Assert.Single(editor.AnomalieTestAperte);
+        riga.Nc.MotivoChiusura = "Controllo completato sulla REV corrente";
+
+        // Conflitto successivo all'apertura dell'editor: il suo optimistic lock e' vecchio.
+        var concorrente = state.NonConformita.GetById("NC-0001")!;
+        concorrente.Owner = "Altro operatore";
+        state.NonConformita.Save(concorrente, concorrente.RevisioneDati);
+
+        await editor.ChiudiAnomaliaDalTestCommand.ExecuteAsync(riga);
+
+        Assert.NotEmpty(editor.ErroriValidazione);
+        Assert.Equal(StatoAnomalia.Confermata, state.NonConformita.GetById("NC-0001")!.StatoWorkflow);
+        Assert.Contains(editor.AnomalieTestAperte, x => x.Nc.Id == "NC-0001"
+            && x.Nc.StatoWorkflow != StatoAnomalia.Conclusa);
+        Assert.NotEqual(StatoLavoroTest.Concluso, editor.StatoLavoroSelezionato);
+    }
+
+    [Fact]
     public async Task ChiusuraDalDettaglio_SenzaMotivazione_Rifiutata_ConMotivazione_ChiudeEIlTestSiConclude()
     {
         var (state, testId) = CreaTestConAnomalia();

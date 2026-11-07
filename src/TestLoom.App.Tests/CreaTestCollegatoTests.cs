@@ -109,7 +109,8 @@ public sealed class CreaTestCollegatoTests : IDisposable
 
         Assert.True(await vm.AssicuraTestSalvatoPerTestCollegato());
 
-        Assert.Equal("Salva e crea", Assert.Single(domande));
+        // Il Test di prova non ha Funzionalita': oltre a "Salva e crea" compare l'avviso soft "Salva Test incompleto" (confermato).
+        Assert.Equal("Salva e crea", Assert.Single(domande, d => d != LocalizationService.Instance.Traduci("FunzionalitaMancanteProsegui")));
         Assert.False(vm.ModificheNonSalvate);
         Assert.Equal(0, tornaAllaLista); // il Salva normale non deve riportare alla lista
         var salvato = state.TestCases.GetById(id)!;

@@ -60,7 +60,7 @@ public sealed class TestEditorChiusuraLockUiTests : UiTestBase
 
             window.Close();
             Assert.True(App.IsRunning, "TestLoom deve restare aperto finché il retry del lock Test è in attesa.");
-            Assert.Contains(App.ListTopLevelWindowNames(), titolo => titolo.StartsWith("TestLoom", StringComparison.Ordinal));
+            Assert.Contains(App.ListTopLevelWindowNames(), titolo => titolo.StartsWith("RBG - QATRIVO", StringComparison.Ordinal));
             Assert.False(editor.SaveEnabled, "l'editor deve congelare il salvataggio durante il rilascio del lock in chiusura");
             Assert.False(editor.CancelEnabled, "l'editor deve congelare l'annullamento durante il rilascio del lock in chiusura");
 

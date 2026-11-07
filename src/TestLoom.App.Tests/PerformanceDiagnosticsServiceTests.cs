@@ -148,6 +148,33 @@ public sealed class PerformanceDiagnosticsServiceTests
     }
 
     [Fact]
+    public async Task RecordDeferred_Navigazione_ScriveGliStessiCampiSenzaAttendereIlDiscoSulDispatcher()
+    {
+        var dir = NewTemp("TestLoom-perf-deferred");
+        try
+        {
+            using (RefreshTriggerContext.Push("utente"))
+                PerformanceDiagnosticsService.RecordDeferred(dir,
+                    "navigazione.pagina", TimeSpan.FromMilliseconds(37),
+                    detail: "test:prima-apertura");
+
+            PerformanceDiagnosticEvent? evento = null;
+            for (var tentativo = 0; tentativo < 150 && evento == null; tentativo++)
+            {
+                evento = PerformanceDiagnosticsService.ReadRecent(dir, 10)
+                    .FirstOrDefault(x => x.Operation == "navigazione.pagina");
+                if (evento == null) await Task.Delay(20);
+            }
+
+            Assert.NotNull(evento);
+            Assert.Equal("test:prima-apertura", evento.Detail);
+            Assert.Equal("utente", evento.Trigger);
+            Assert.InRange(evento.ElapsedMilliseconds, 36.5, 37.5);
+        }
+        finally { TryDelete(dir); }
+    }
+
+    [Fact]
     public void Record_WorkspaceDirectoryVuota_NonScriveNulla_CostoNulloQuandoNonApplicabile()
     {
         // Copre esplicitamente il requisito "nessuna misura che rallenti il percorso normale": quando il

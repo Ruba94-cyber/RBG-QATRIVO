@@ -10,7 +10,7 @@ namespace TestLoom.App.Views;
 /// <summary>
 /// Dialogo unico dell'export per tutte le pagine: l'operatore sceglie le sezioni (viste, dati, riepiloghi, grafici, pivot, info) e, dove
 /// la sezione e' una tabella, le colonne. La scelta si ricorda (ultima selezione) e si possono salvare fino a sei configurazioni con
-/// nome per pagina. I filtri sono quelli a video, mostrati in sola lettura: valgono sempre per l'export.
+/// nome per pagina. I filtri partono da quelli a video e sono modificabili nel dialogo prima della conferma.
 /// </summary>
 public sealed class EsportaOpzioniDialogo
 {
@@ -31,6 +31,7 @@ public sealed class EsportaOpzioniDialogo
     private readonly ComboBox _pivotFonte = new(), _pivotRighe = new(), _pivotColonne = new(), _pivotPercentuale = new();
     private readonly ComboBox _pivotMetrica = new(), _pivotCampoValore = new();
     private readonly CheckBox _pivotNumeri = new() { IsChecked = true }, _pivotPercentualiStandard = new() { IsChecked = true };
+    private readonly CheckBox _ignoraFiltriTest = new();
     private sealed record Scelta(string Id, string Etichetta) { public override string ToString() => Etichetta; }
     private bool _aggiornandoElenco;
 
@@ -47,12 +48,19 @@ public sealed class EsportaOpzioniDialogo
         _descrittore = descrittore;
         Finestra = new Window
         {
-            Title = descrittore.Titolo, Width = 640, Height = 720, MinHeight = 420,
+            Title = descrittore.Titolo, Width = 640, Height = 640, MinHeight = 360, MinWidth = 460,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
         AutomationProperties.SetAutomationId(Finestra, "EsportaOpzioni_Dialogo");
 
         var iniziale = ExportConfigurazioniService.CaricaUltimaSelezione(state, descrittore.Pagina) ?? ExportSelezione.Predefinita(descrittore);
+        // Ogni nuovo export parte dai filtri realmente visibili: non si riattiva
+        // automaticamente il vecchio "ignora filtri" dell'ultima esportazione.
+        if (string.Equals(descrittore.Pagina, TestCaseExportSelezioneService.Pagina, StringComparison.OrdinalIgnoreCase))
+        {
+            iniziale = iniziale.Clona();
+            iniziale.IgnoraFiltri = false;
+        }
         var sezioni = CostruisciSezioni(pivot: false);
         var pivot = CostruisciSezioni(pivot: true);
         Applica(ExportSelezione.Normalizza(iniziale, descrittore));
@@ -118,23 +126,47 @@ public sealed class EsportaOpzioniDialogo
         layout.Children.Add(pulsanti);
         var loc = LocalizationService.Instance;
         var filtriContenuto = new StackPanel { Spacing = 8 };
+        if (string.Equals(descrittore.Pagina, "test-list-complete", StringComparison.OrdinalIgnoreCase))
+        {
+            _ignoraFiltriTest.Content = loc.Scegli(
+                "Ignora i filtri ed esporta tutti i Test accessibili",
+                "Ignore filters and export all accessible Tests",
+                "Ignorer les filtres et exporter tous les tests accessibles");
+            _ignoraFiltriTest.IsChecked = iniziale.IgnoraFiltri;
+            AutomationProperties.SetAutomationId(_ignoraFiltriTest, "EsportaOpzioni_TuttiITest");
+            filtriContenuto.Children.Add(_ignoraFiltriTest);
+        }
         filtriContenuto.Children.Add(new TextBlock
         {
-            Text = loc.Scegli("I filtri partono dalla vista corrente. Le modifiche vengono applicate alla conferma.",
-                "Filters start from the current view. Changes are applied on confirmation.",
-                "Les filtres reprennent la vue actuelle. Les modifications sont appliquées à la confirmation."),
+            Text = string.Equals(descrittore.Pagina, TestCaseExportSelezioneService.Pagina, StringComparison.OrdinalIgnoreCase)
+                ? loc.Scegli(
+                    "I filtri partono da quelli visibili nella pagina Test. Le modifiche si applicano solo alla conferma. Con 'Ignora i filtri' la vista rimane invariata.",
+                    "Filters start from the current Test view. Changes apply on confirmation only. 'Ignore filters' leaves the view unchanged.",
+                    "Les filtres reprennent la vue Tests. Les modifications s'appliquent seulement à la confirmation. 'Ignorer les filtres' ne modifie pas la vue.")
+                : loc.Scegli("I filtri partono dalla vista corrente. Le modifiche vengono applicate alla conferma.",
+                    "Filters start from the current view. Changes are applied on confirmation.",
+                    "Les filtres reprennent la vue actuelle. Les modifications sont appliquées à la confirmation."),
             TextWrapping = TextWrapping.Wrap
         });
-        if (descrittore.Filtri is { Count: > 0 }) filtriContenuto.Children.Add(CostruisciFiltri(descrittore.Filtri));
-        else filtriContenuto.Children.Add(filtri);
+        Control editorFiltri = descrittore.Filtri is { Count: > 0 }
+            ? CostruisciFiltri(descrittore.Filtri) : filtri;
+        if (string.Equals(descrittore.Pagina, TestCaseExportSelezioneService.Pagina, StringComparison.OrdinalIgnoreCase))
+        {
+            editorFiltri.IsEnabled = _ignoraFiltriTest.IsChecked != true;
+            _ignoraFiltriTest.IsCheckedChanged += (_, _) => editorFiltri.IsEnabled = _ignoraFiltriTest.IsChecked != true;
+        }
+        filtriContenuto.Children.Add(editorFiltri);
         var schede = new TabControl { Margin = new Thickness(0, 12, 0, 0) };
         AutomationProperties.SetAutomationId(schede, "EsportaOpzioni_Schede");
-        schede.ItemsSource = new[]
+        var tabs = new List<TabItem>
         {
-            new TabItem { Header = loc.Scegli("Filtri della vista", "View filters", "Filtres de la vue"), Content = new ScrollViewer { Content = filtriContenuto } },
-            new TabItem { Header = loc.Scegli("Dati e colonne", "Data and columns", "Données et colonnes"), Content = new ScrollViewer { Content = sezioni } },
-            new TabItem { Header = "Pivot", Content = new ScrollViewer { Content = pivot } },
+            new() { Header = loc.Scegli("Filtri della vista", "View filters", "Filtres de la vue"), Content = new ScrollViewer { Content = filtriContenuto } },
+            new() { Header = loc.Scegli("Dati e colonne", "Data and columns", "Données et colonnes"), Content = new ScrollViewer { Content = sezioni } },
         };
+        if (descrittore.Sezioni.Any(sezione => sezione.Id == ReportSezioniExport.Pivot)
+            || descrittore.FontiPivot is { Count: > 0 })
+            tabs.Add(new TabItem { Header = "Pivot", Content = new ScrollViewer { Content = pivot } });
+        schede.ItemsSource = tabs;
         layout.Children.Add(schede);
         Finestra.Content = layout;
         Finestra.Closed += (_, _) => _risultato.TrySetResult(null);
@@ -303,19 +335,75 @@ public sealed class EsportaOpzioniDialogo
             }
             var colonne = new Dictionary<string, CheckBox>(StringComparer.OrdinalIgnoreCase);
             var elencoColonne = new WrapPanel { Orientation = Orientation.Horizontal };
+            var conteggio = new TextBlock { Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
+            void AggiornaConteggio() => conteggio.Text = string.Format(
+                LocalizationService.Instance.Scegli("{0} di {1} selezionati",
+                    "{0} of {1} selected", "{0} sur {1} sélectionnés"),
+                colonne.Values.Count(c => c.IsChecked == true), s.Colonne.Count);
             foreach (var k in s.Colonne)
             {
                 var c = new CheckBox { Content = k.Etichetta, Margin = new Thickness(0, 0, 14, 2), IsChecked = true };
                 AutomationProperties.SetAutomationId(c, $"EsportaOpzioni_Colonna_{s.Id}_{k.Id}");
+                c.IsCheckedChanged += (_, _) => AggiornaConteggio();
                 colonne[k.Id] = c;
                 elencoColonne.Children.Add(c);
             }
             _colonne[s.Id] = colonne;
-            var tutte = new Button { Content = T("ExpDlgTutteColonne"), Margin = new Thickness(0, 0, 8, 6) };
+            AggiornaConteggio();
+
+            var tutte = new Button { Content = T("ExpDlgTutteColonne") };
             tutte.Click += (_, _) => { foreach (var c in colonne.Values) c.IsChecked = true; };
-            var nessuna = new Button { Content = T("ExpDlgNessunaColonna"), Margin = new Thickness(0, 0, 8, 6) };
+            var nessuna = new Button { Content = T("ExpDlgNessunaColonna") };
             nessuna.Click += (_, _) => { foreach (var c in colonne.Values) c.IsChecked = false; };
-            var contenuto = new StackPanel { Margin = new Thickness(8, 0, 0, 0), Children = { new StackPanel { Orientation = Orientation.Horizontal, Children = { tutte, nessuna } }, elencoColonne } };
+            var azioni = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8,
+                Children = { tutte, nessuna, conteggio } };
+            var contenuto = new StackPanel { Margin = new Thickness(8, 0, 0, 0), Spacing = 6 };
+            // I cataloghi strumenti e i campi custom possono contenere centinaia di voci.
+            // La ricerca nasconde soltanto le caselle, senza perdere le selezioni non visibili.
+            if (s.Colonne.Count > SogliaRicercaVoci)
+            {
+                var ricerca = new TextBox
+                {
+                    PlaceholderText = LocalizationService.Instance.Scegli("Cerca campo o colonna...",
+                        "Search field or column...", "Rechercher un champ ou une colonne..."),
+                    HorizontalAlignment = HorizontalAlignment.Stretch
+                };
+                AutomationProperties.SetAutomationId(ricerca, "EsportaOpzioni_CercaColonne_" + s.Id);
+                void AggiornaVisibili()
+                {
+                    var testo = (ricerca.Text ?? "").Trim();
+                    foreach (var k in s.Colonne)
+                        colonne[k.Id].IsVisible = testo.Length == 0
+                            || k.Etichetta.Contains(testo, StringComparison.CurrentCultureIgnoreCase)
+                            || k.Id.Contains(testo, StringComparison.OrdinalIgnoreCase);
+                }
+                ricerca.TextChanged += (_, _) => AggiornaVisibili();
+                var selezionaVisibili = new Button
+                {
+                    Content = LocalizationService.Instance.Scegli("Seleziona risultati",
+                        "Select matches", "Sélectionner les résultats")
+                };
+                AutomationProperties.SetAutomationId(selezionaVisibili, "EsportaOpzioni_TutteVisibili_" + s.Id);
+                selezionaVisibili.Click += (_, _) =>
+                {
+                    foreach (var c in colonne.Values.Where(c => c.IsVisible)) c.IsChecked = true;
+                };
+                var deselezionaVisibili = new Button
+                {
+                    Content = LocalizationService.Instance.Scegli("Deseleziona risultati",
+                        "Deselect matches", "Désélectionner les résultats")
+                };
+                AutomationProperties.SetAutomationId(deselezionaVisibili, "EsportaOpzioni_NessunaVisibile_" + s.Id);
+                deselezionaVisibili.Click += (_, _) =>
+                {
+                    foreach (var c in colonne.Values.Where(c => c.IsVisible)) c.IsChecked = false;
+                };
+                contenuto.Children.Add(ricerca);
+                contenuto.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8,
+                    Children = { selezionaVisibili, deselezionaVisibili } });
+            }
+            contenuto.Children.Add(azioni);
+            contenuto.Children.Add(elencoColonne);
             pannello.Children.Add(new Expander { Header = casella, Content = contenuto });
         }
         if (pivot && pannello.Children.Count == 0)
@@ -405,6 +493,7 @@ public sealed class EsportaOpzioniDialogo
         Seleziona(_pivotPercentuale, c.PivotPercentuale);
         Seleziona(_pivotMetrica, c.PivotMetrica);
         Seleziona(_pivotCampoValore, c.PivotCampoValore);
+        _ignoraFiltriTest.IsChecked = c.IgnoraFiltri;
         _pivotNumeri.IsChecked = c.PivotMostraNumeri;
         _pivotPercentualiStandard.IsChecked = c.PivotMostraPercentuali;
         foreach (var s in _descrittore.Sezioni)
@@ -426,6 +515,7 @@ public sealed class EsportaOpzioniDialogo
             PivotColonne = (_pivotColonne.SelectedItem as Scelta)?.Id, PivotPercentuale = (_pivotPercentuale.SelectedItem as Scelta)?.Id };
         c.PivotMetrica = (_pivotMetrica.SelectedItem as Scelta)?.Id;
         c.PivotCampoValore = (_pivotCampoValore.SelectedItem as Scelta)?.Id;
+        c.IgnoraFiltri = _ignoraFiltriTest.IsChecked == true;
         c.PivotMostraNumeri = _pivotNumeri.IsChecked == true;
         c.PivotMostraPercentuali = _pivotPercentualiStandard.IsChecked == true;
         foreach (var s in _descrittore.Sezioni)
@@ -461,6 +551,7 @@ public sealed class EsportaOpzioniDialogo
     {
         if (!VerificaColonne() || !VerificaPivot()) return;
         var corrente = Corrente();
+        if (!VerificaFogliTest(corrente)) return;
         switch (ExportConfigurazioniService.Salva(_state, _descrittore.Pagina, corrente))
         {
             case EsitoSalvataggioExport.Salvata:
@@ -489,11 +580,28 @@ public sealed class EsportaOpzioniDialogo
     {
         var scelta = Corrente();
         if (scelta.Sezioni.Count == 0) { Messaggio(T("ExpDlgNessunaSezione")); return; }
-        if (!VerificaColonne() || !VerificaPivot()) return;
+        if (!VerificaColonne() || !VerificaPivot() || !VerificaFogliTest(scelta)) return;
         ExportConfigurazioniService.SalvaUltimaSelezione(_state, _descrittore.Pagina, scelta);
-        ApplicaFiltri();
+        if (!scelta.IgnoraFiltri)
+        {
+            if (_descrittore.ApplicaFiltriInBlocco is { } inBlocco) inBlocco(ApplicaFiltri);
+            else ApplicaFiltri();
+        }
         _risultato.TrySetResult(scelta);
         Finestra.Close();
+    }
+
+    private bool VerificaFogliTest(ExportConfigurazione scelta)
+    {
+        if (!string.Equals(_descrittore.Pagina, TestCaseExportSelezioneService.Pagina, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (scelta.Sezioni.Any(s => s != TestCaseExportSelezioneService.SingoliCampiStrumento
+                                    && s != TestCaseExportSelezioneService.SingoliCampiCustom))
+            return true;
+        Messaggio(LocalizationService.Instance.Scegli("Seleziona almeno un foglio da esportare.",
+            "Select at least one worksheet to export.",
+            "Sélectionnez au moins une feuille à exporter."));
+        return false;
     }
 
     private bool VerificaColonne()

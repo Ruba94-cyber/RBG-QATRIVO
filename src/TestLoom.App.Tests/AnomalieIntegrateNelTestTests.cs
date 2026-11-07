@@ -133,6 +133,59 @@ public sealed class AnomalieIntegrateNelTestTests : IDisposable
     }
 
     [Fact]
+    public async Task NcCreata_BloccaSoloConcluso_IndicandoComeSalvareDaRitestare()
+    {
+        var (state, tc) = CreaTestNegativo();
+        var vm = new TestCaseEditorViewModel(state, tc.Id, () => { }, _ => { });
+        var riga = Assert.Single(vm.SegnalazioniTest);
+        riga.Severita = SeveritaAnomalia.High;
+        await vm.CreaAnomaliaDaTestCommand.ExecuteAsync(riga);
+        var nc = Assert.Single(vm.AnomalieTestAperte).Nc;
+
+        vm.StatoLavoroSelezionato = StatoLavoroTest.Concluso;
+        await vm.SalvaCommand.ExecuteAsync(null);
+
+        Assert.Contains(vm.ErroriValidazione, e => e.Contains("anomalie", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(vm.ErroriValidazione, e => e.Contains(nc.Id, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(vm.ErroriValidazione, e => e.Contains("Da ritestare", StringComparison.OrdinalIgnoreCase));
+        Assert.Null(state.NonConformita.GetByUid(nc.Uid)); // NC ancora in bozza, non falso "salvataggio completato"
+
+        vm.StatoLavoroSelezionato = StatoLavoroTest.DaRitestare;
+        await vm.SalvaCommand.ExecuteAsync(null);
+
+        Assert.Empty(vm.ErroriValidazione);
+        Assert.Equal(StatoLavoroTest.DaRitestare, state.TestCases.GetById(tc.Id)!.StatoLavoro);
+        Assert.Single(state.NonConformita.GetAll(), x => x.Uid == nc.Uid && x.TestCaseId == tc.Id);
+    }
+
+    [Fact]
+    public async Task ConfermaCreazioneNcInRitardo_NonCreaAnomaliaSuSegnalazioneDiventataConforme()
+    {
+        var originale = ConfirmService.Handler;
+        var conferma = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            var (state, tc) = CreaTestNegativo();
+            var vm = new TestCaseEditorViewModel(state, tc.Id, () => { }, _ => { });
+            var riga = Assert.Single(vm.SegnalazioniTest);
+            riga.Severita = SeveritaAnomalia.High;
+            ConfirmService.Handler = (_, _, _, _) => conferma.Task;
+
+            var comando = vm.CreaAnomaliaDaTestCommand.ExecuteAsync(riga);
+            vm.CondizioniVisual[0].Esito = Esito.Conforme;
+            vm.SincronizzaEsitoCondizioni();
+            conferma.SetResult(true);
+            await comando;
+
+            Assert.Empty(vm.AnomalieTestAperte);
+            Assert.Empty(state.NonConformita.GetAll());
+            Assert.DoesNotContain(vm.SegnalazioniTest, x => x.Segnalazione.Uid == riga.Segnalazione.Uid
+                && x.Segnalazione.Stato == StatoSegnalazione.Classificata);
+        }
+        finally { ConfirmService.Handler = originale; }
+    }
+
+    [Fact]
     public async Task TestGiaConcluso_ConOperazioneNokEAnomaliaCreata_SiSalvaEPassaADaRitestare()
     {
         // Regressione 6.5.1: test Concluso su disco, in modifica un'operazione diventa NOK e si crea l'anomalia;
@@ -613,6 +666,196 @@ public sealed class AnomalieIntegrateNelTestTests : IDisposable
 
         Assert.Empty(vm.SegnalazioniTest);
         Assert.Null(condizione.SegnalazioneUid);
+    }
+
+    [Fact]
+    public async Task InCorso_ConUnaNcClassificataEUnaSegnalazionePendente_SalvaSenzaBloccare()
+    {
+        var (state, tc) = CreaTestNegativo();
+        tc.Esecuzioni[0].Condizioni.Add(new Condizione
+        {
+            Esito = Esito.NonConforme, Componente = "BCM", Nota = "Secondo problema guasto"
+        });
+        state.TestCases.Save(tc, isNew: false, revisioneAttesa: tc.RevisioneDati);
+
+        var vm = new TestCaseEditorViewModel(state, tc.Id, () => { }, _ => { });
+        Assert.Equal(2, vm.SegnalazioniTest.Count);
+        var riga = vm.SegnalazioniTest[0];
+        riga.Severita = SeveritaAnomalia.High;
+        vm.CreaAnomaliaDaTestCommand.Execute(riga);
+        Assert.Single(vm.SegnalazioniTest);
+
+        await vm.SalvaCommand.ExecuteAsync(null);
+
+        Assert.Empty(vm.ErroriValidazione);
+        Assert.Single(state.NonConformita.GetAll());
+        Assert.Single(state.Segnalazioni.GetAll(), s => s.Stato == StatoSegnalazione.Classificata);
+        Assert.Single(state.Segnalazioni.GetAll(), s => s.Stato == StatoSegnalazione.DaClassificare);
+        Assert.Equal(StatoLavoroTest.InCorso, state.TestCases.GetById(tc.Id)!.StatoLavoro);
+    }
+
+    [Fact]
+    public async Task DtcInjection_ConNcClassificata_CommitDellaNcAvvieneConIlTest()
+    {
+        var (state, tc) = CreaTestNegativo();
+        tc.StrumentiUsati.Add("Guasto Injection");
+        var condizione = tc.Esecuzioni[0].Condizioni[0];
+        condizione.Strumento = "Guasto Injection";
+        condizione.Guasto = "P0100";
+        condizione.DtcPasso = PassoDtc.Validazione;
+        state.TestCases.Save(tc, isNew: false, revisioneAttesa: tc.RevisioneDati);
+
+        var vm = new TestCaseEditorViewModel(state, tc.Id, () => { }, _ => { });
+        var riga = Assert.Single(vm.SegnalazioniTest);
+        riga.Severita = SeveritaAnomalia.High;
+        vm.CreaAnomaliaDaTestCommand.Execute(riga);
+
+        await vm.SalvaCommand.ExecuteAsync(null);
+
+        Assert.Empty(vm.ErroriValidazione);
+        Assert.Single(state.NonConformita.GetAll(), n => n.TestCaseId == tc.Id);
+        Assert.Single(state.Segnalazioni.GetAll(), s => s.Stato == StatoSegnalazione.Classificata);
+    }
+
+    [Fact]
+    public async Task SalvaSicuro_UiPath_ClassificaNcNuovaESalvaTestEWorkflowInsieme()
+    {
+        var (state, tc) = CreaTestNegativo();
+        var vm = new TestCaseEditorViewModel(state, tc.Id, () => { }, _ => { });
+        vm.IniziaModificaCommand.AttendiModifica();
+        var riga = Assert.Single(vm.SegnalazioniTest);
+        riga.Severita = SeveritaAnomalia.High;
+        vm.CreaAnomaliaDaTestCommand.Execute(riga);
+        var ncUid = Assert.Single(vm.AnomalieTestAperte).Nc.Uid;
+
+        // This is the route actually wired to the Save button in the Avalonia view.
+        await vm.SalvaSicuroCommand.ExecuteAsync(null);
+
+        Assert.Empty(vm.ErroriValidazione);
+        Assert.Contains(state.NonConformita.GetAll(), n => n.Uid == ncUid && n.TestCaseId == tc.Id);
+        Assert.Single(state.Segnalazioni.GetAll(), s => s.Stato == StatoSegnalazione.Classificata);
+        Assert.NotNull(state.TestCases.GetById(tc.Id));
+        vm.Dispose();
+    }
+
+    [Fact]
+    public async Task SalvaSicuro_ChiudeLaVistaSoloDopoIlCommitTestSegnalazioneNc()
+    {
+        var (state, tc) = CreaTestNegativo();
+        var navigazioni = new List<bool>();
+        var overlayAttiviDuranteNavigazione = new List<bool>();
+        var vm = new TestCaseEditorViewModel(state, tc.Id,
+            () =>
+            {
+                navigazioni.Add(WorkflowTransactionService.ActiveId.HasValue);
+                overlayAttiviDuranteNavigazione.Add(WorkflowWorkingCopyScope.Attivo);
+            }, _ => { });
+        vm.IniziaModificaCommand.AttendiModifica();
+        var riga = Assert.Single(vm.SegnalazioniTest);
+        riga.Severita = SeveritaAnomalia.High;
+        await vm.CreaAnomaliaDaTestCommand.ExecuteAsync(riga);
+        var ncUid = Assert.Single(vm.AnomalieTestAperte).Nc.Uid;
+
+        await vm.SalvaSicuroCommand.ExecuteAsync(null);
+
+        Assert.Empty(vm.ErroriValidazione);
+        Assert.Equal(new[] { false }, navigazioni); // mai navigare mentre il commit e' in corso
+        Assert.Equal(new[] { false }, overlayAttiviDuranteNavigazione); // mai leggere dati da working-copy
+        Assert.NotNull(state.TestCases.GetById(tc.Id));
+        Assert.Contains(state.NonConformita.GetAll(), n => n.Uid == ncUid);
+        Assert.Contains(state.Segnalazioni.GetAll(), s => s.AnomaliaUid == ncUid);
+    }
+
+    [Fact]
+    public async Task SalvaSicuro_ConclusoConNcAperta_NonNavigaENonPersisteUnaNcIncompleta()
+    {
+        var (state, tc) = CreaTestNegativo();
+        var navigazioni = 0;
+        var vm = new TestCaseEditorViewModel(state, tc.Id, () => navigazioni++, _ => { });
+        vm.IniziaModificaCommand.AttendiModifica();
+        var riga = Assert.Single(vm.SegnalazioniTest);
+        riga.Severita = SeveritaAnomalia.High;
+        await vm.CreaAnomaliaDaTestCommand.ExecuteAsync(riga);
+        var ncUid = Assert.Single(vm.AnomalieTestAperte).Nc.Uid;
+        vm.StatoLavoroSelezionato = StatoLavoroTest.Concluso;
+
+        await vm.SalvaSicuroCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, navigazioni);
+        Assert.NotEmpty(vm.ErroriValidazione);
+        Assert.Null(state.NonConformita.GetByUid(ncUid));
+        Assert.NotEqual(StatoLavoroTest.Concluso, state.TestCases.GetById(tc.Id)!.StatoLavoro);
+    }
+
+    [Fact]
+    public async Task SalvaSicuro_FileDelTestBloccatoDurantePreflight_MostraErroreESenzaCommit()
+    {
+        // FileShare.None e' una simulazione deterministica su Windows del file
+        // temporaneamente bloccato (antivirus/sync). La protezione della before-
+        // image fallisce PRIMA del normale SalvaCommand: anche questo errore deve
+        // passare dal catch transazionale, non uscire come eccezione UI non gestita.
+        if (!OperatingSystem.IsWindows()) return;
+        var (state, tc) = CreaTestNegativo();
+        var tornatoAllaLista = false;
+        var vm = new TestCaseEditorViewModel(state, tc.Id,
+            () => tornatoAllaLista = true, _ => { });
+        vm.IniziaModificaCommand.AttendiModifica();
+        var riga = Assert.Single(vm.SegnalazioniTest);
+        riga.Severita = SeveritaAnomalia.High;
+        await vm.CreaAnomaliaDaTestCommand.ExecuteAsync(riga);
+        var uidInBozza = Assert.Single(vm.AnomalieTestAperte).Nc.Uid;
+
+        var percorso = state.TestCases.PercorsoPer(tc);
+        try
+        {
+            using (var fileBloccato = new FileStream(percorso, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                await vm.SalvaSicuroCommand.ExecuteAsync(null);
+            }
+
+            Assert.False(tornatoAllaLista);
+            Assert.True(vm.InModifica);
+            Assert.NotEmpty(vm.ErroriValidazione);
+            Assert.Null(state.NonConformita.GetByUid(uidInBozza));
+        }
+        finally
+        {
+            vm.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task NcNuova_IdOccupatoPrimaDelSalvaNonSovrascriveLaNcDiUnAltroOperatore()
+    {
+        var (state, tc) = CreaTestNegativo();
+        var vm = new TestCaseEditorViewModel(state, tc.Id, () => { }, _ => { });
+        vm.IniziaModificaCommand.AttendiModifica();
+        var riga = Assert.Single(vm.SegnalazioniTest);
+        riga.Severita = SeveritaAnomalia.High;
+        vm.CreaAnomaliaDaTestCommand.Execute(riga);
+        var inBozza = Assert.Single(vm.AnomalieTestAperte).Nc;
+        var idProvvisorio = inBozza.Id;
+
+        // A second operator saved a DIFFERENT NC with the same number after we classified ours.
+        var altro = new NonConformita
+        {
+            Id = idProvvisorio, Uid = Guid.NewGuid(),
+            DataApertura = DateTime.Now, Descrizione = "NC di un altro operatore",
+            Severita = SeveritaAnomalia.Medium, StatoWorkflow = StatoAnomalia.Confermata
+        };
+        state.NonConformita.Save(altro);
+
+        await vm.SalvaSicuroCommand.ExecuteAsync(null);
+
+        Assert.Empty(vm.ErroriValidazione);
+        var tutte = state.NonConformita.GetAll();
+        Assert.Equal(2, tutte.Count);
+        Assert.Equal(idProvvisorio, tutte.Single(n => n.Uid == altro.Uid).Id);
+        var nostra = tutte.Single(n => n.Uid == inBozza.Uid);
+        Assert.NotEqual(idProvvisorio, nostra.Id);
+        Assert.Equal(tc.Id, nostra.TestCaseId);
+        Assert.Single(state.Segnalazioni.GetAll(), s => s.AnomaliaUid == nostra.Uid);
+        vm.Dispose();
     }
 
     private (AppState State, TestCase Test) CreaTestNegativo(bool salva = true)

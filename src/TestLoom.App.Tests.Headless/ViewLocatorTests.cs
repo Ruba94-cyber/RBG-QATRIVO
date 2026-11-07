@@ -66,6 +66,38 @@ public sealed class ViewLocatorTests
         });
 
     [Fact]
+    public void PreparaInCacheSeAssente_ViewGiaMontata_NonLaSostituisce()
+        => LayoutHeadlessSessione.Esegui(() =>
+        {
+            var locator = new ViewLocator();
+            var state = TestStateFactory.Create();
+            var vm = new NonConformitaViewModel(state, _ => { });
+            var prima = locator.Build(vm)!;
+            var host = new Decorator { Child = prima };
+
+            // Il precache arriva tardi, dopo la navigazione e il mount.
+            locator.PreparaInCacheSeAssente(vm);
+
+            Assert.Same(prima, host.Child);
+            host.Child = null;
+            Assert.Same(prima, locator.Build(vm));
+        });
+
+    [Fact]
+    public void PreparaInCacheSeAssente_PrimaNavigazione_RiusaLaViewPreparata()
+        => LayoutHeadlessSessione.Esegui(() =>
+        {
+            var locator = new ViewLocator();
+            var state = TestStateFactory.Create();
+            var vm = new NonConformitaViewModel(state, _ => { });
+
+            locator.PreparaInCacheSeAssente(vm);
+            var vista = locator.Build(vm);
+            Assert.NotNull(vista);
+            Assert.Same(vista, locator.Build(vm));
+        });
+
+    [Fact]
     public void Build_ParametroNullo_RestituisceNullo() =>
         LayoutHeadlessSessione.Esegui(() =>
         {

@@ -6,12 +6,17 @@ namespace TestLoom.App;
 
 sealed class Program
 {
+    // Timestamp leggero catturato prima di font/Avalonia/config/indicizzazione.
+    // La misura diagnostica viene scritta soltanto DOPO l'apertura della Home.
+    internal static long MainStartTimestamp { get; private set; }
+
     // Initialization code. Don't use any Avalonia, third-party APIs or any
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
     // yet and stuff might break.
     [STAThread]
     public static void Main(string[] args)
     {
+        MainStartTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         CrashLogService.Installa();
 
         // Esecuzione esplicita senza AppState/startup: dry-run non crea directory o migra i dati.

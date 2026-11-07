@@ -53,6 +53,9 @@ public class LayoutEditorTestHeadlessTests
                 LayoutHeadlessSessione.Assesta(finestra);
                 var salva = Trova<Button>(editor, "Editor_Save_Button");
                 Assert.True(salva.IsEffectivelyVisible);
+                Assert.Same(vm.SalvaSicuroCommand, salva.Command); // la barra usa il commit transazionale
+                var salvaInFondo = Trova<Button>(editor, "Editor_Save_Footer_Button");
+                Assert.Same(vm.SalvaSicuroCommand, salvaInFondo.Command); // anche il pulsante in fondo al form
                 foreach (var controllo in new Control[] { vaiA, annulla, salva, testo })
                     AsserisciDentroFinestra(controllo, finestra, controllo.GetType().Name);
             }

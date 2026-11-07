@@ -41,6 +41,12 @@ public sealed class TestCaseEditorAltraPostazioneAvvisoTests : IDisposable
         if (Directory.Exists(_dir)) { try { Directory.Delete(_dir, true); } catch { } }
     }
 
+    /// <summary>Questi test verificano l'avviso "altra postazione": il Test di prova non ha Funzionalita', quindi prima del controllo
+    /// del lock compare l'avviso soft "Funzionalita mancante". Qui si conferma sempre e non lo si conta come conferma del lock.</summary>
+    private static Func<string, string, string, string, Task<bool>> ConAvvisoFunzionalita(Func<string, string, string, string, Task<bool>> interno) =>
+        (titolo, messaggio, si, no) => titolo == LocalizationService.Instance.Traduci("FunzionalitaMancanteTitolo")
+            ? Task.FromResult(true) : interno(titolo, messaggio, si, no);
+
     private AppState CreateState()
     {
         var state = TestStateFactory.Create();
@@ -123,7 +129,7 @@ public sealed class TestCaseEditorAltraPostazioneAvvisoTests : IDisposable
 
         var titoloVisto = "";
         var messaggioVisto = "";
-        ConfirmService.Handler = (titolo, messaggio, _, _) => { titoloVisto = titolo; messaggioVisto = messaggio; return Task.FromResult(true); };
+        ConfirmService.Handler = ConAvvisoFunzionalita((titolo, messaggio, _, _) => { titoloVisto = titolo; messaggioVisto = messaggio; return Task.FromResult(true); });
 
         vm.TestCase.Descrizione = "Descrizione completa - modifica 1";
         await vm.SalvaCommand.ExecuteAsync(null);
@@ -148,7 +154,7 @@ public sealed class TestCaseEditorAltraPostazioneAvvisoTests : IDisposable
         await vm.IniziaModificaCommand.ExecuteAsync(null);
 
         ScriviLockAltraPostazione(state, vm.TestCase, "Luca Bianchi", "PC-LINEA-2", DateTime.Now.AddMinutes(-1));
-        ConfirmService.Handler = (_, _, _, _) => Task.FromResult(false); // "Annulla"
+        ConfirmService.Handler = ConAvvisoFunzionalita((_, _, _, _) => Task.FromResult(false)); // "Annulla" sul lock
 
         vm.TestCase.Descrizione = "Descrizione che NON deve essere salvata";
         await vm.SalvaCommand.ExecuteAsync(null);
@@ -172,7 +178,7 @@ public sealed class TestCaseEditorAltraPostazioneAvvisoTests : IDisposable
         state.Locks.Heartbeat(state.TestCases.PercorsoPer(vm.TestCase), "Mario Rossi");
 
         var chiestaConferma = false;
-        ConfirmService.Handler = (_, _, _, _) => { chiestaConferma = true; return Task.FromResult(true); };
+        ConfirmService.Handler = ConAvvisoFunzionalita((_, _, _, _) => { chiestaConferma = true; return Task.FromResult(true); });
         vm.TestCase.Descrizione = "Descrizione completa - modifica propria postazione";
         await vm.SalvaCommand.ExecuteAsync(null);
 
@@ -200,7 +206,7 @@ public sealed class TestCaseEditorAltraPostazioneAvvisoTests : IDisposable
         Assert.Equal(StatoLockAltrui.Libero, state.Locks.GetForeignActiveLock(path, "Mario Rossi").Stato);
 
         var chiestaConferma = false;
-        ConfirmService.Handler = (_, _, _, _) => { chiestaConferma = true; return Task.FromResult(true); };
+        ConfirmService.Handler = ConAvvisoFunzionalita((_, _, _, _) => { chiestaConferma = true; return Task.FromResult(true); });
         vm.TestCase.Descrizione = "Descrizione completa - lock scaduto altrui";
         await vm.SalvaCommand.ExecuteAsync(null);
 
@@ -225,7 +231,7 @@ public sealed class TestCaseEditorAltraPostazioneAvvisoTests : IDisposable
             DateTime.Now - LockService.Timeout - TimeSpan.FromMinutes(5));
 
         var chiestaConferma = false;
-        ConfirmService.Handler = (_, _, _, _) => { chiestaConferma = true; return Task.FromResult(false); };
+        ConfirmService.Handler = ConAvvisoFunzionalita((_, _, _, _) => { chiestaConferma = true; return Task.FromResult(false); });
         vm.TestCase.Descrizione = "Modifica bloccata da prima osservazione";
         await vm.SalvaCommand.ExecuteAsync(null);
 
@@ -253,12 +259,12 @@ public sealed class TestCaseEditorAltraPostazioneAvvisoTests : IDisposable
         File.SetLastWriteTimeUtc(lockPath, DateTime.UtcNow - LockService.Timeout - TimeSpan.FromMinutes(10));
 
         var chiestaConferma = false;
-        ConfirmService.Handler = (_, _, _, _) => { chiestaConferma = true; return Task.FromResult(true); };
+        ConfirmService.Handler = ConAvvisoFunzionalita((_, _, _, _) => { chiestaConferma = true; return Task.FromResult(true); });
         vm.TestCase.Descrizione = "Descrizione completa - lock proprio scaduto";
         await vm.SalvaCommand.ExecuteAsync(null);
 
         Assert.False(vm.AvvisoAltraPostazioneVisibile);
-        Assert.False(chiestaConferma);
+        Assert.False(vm.AvvisoAltraPostazioneVisibile);
         vm.Dispose();
     }
 }

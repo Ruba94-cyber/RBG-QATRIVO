@@ -23,6 +23,9 @@ public sealed class TestWorkspace : IDisposable
     public const string DefaultVehicleName = "Veicolo-QA-01";
 
     public string RootDir { get; }
+    /// <summary>Tema dei workspace di test: Light (deterministico) salvo TestLoom_TEST_THEME=Dark|System per le prove dedicate al tema.</summary>
+    public static string TemaDiTest => Environment.GetEnvironmentVariable("TestLoom_TEST_THEME") is { Length: > 0 } t ? t : "Light";
+
     public string ConfigPath { get; }
     public string WorkspaceDir { get; }
 
@@ -78,7 +81,7 @@ public sealed class TestWorkspace : IDisposable
         new AppConfigService(ws.ConfigPath).Save(new AppConfig
         {
             CartellaCondivisa = cartellaCondivisa,
-            Lingua = "it",
+            Lingua = "it", TemaInterfaccia = TemaDiTest,
             OperatoreAttivo = operatore,
             UltimaSelezionePagine = { [$"TestEditor.Mode|{operatore}"] = "full" },
             VersioniOnboardingCompletate = new(StringComparer.OrdinalIgnoreCase)
@@ -104,7 +107,7 @@ public sealed class TestWorkspace : IDisposable
         configService.Save(new AppConfig
         {
             CartellaCondivisa = ws.WorkspaceDir,
-            Lingua = "it",
+            Lingua = "it", TemaInterfaccia = TemaDiTest,
             OperatoreAttivo = DefaultOperatorName,
             UltimaSelezionePagine = { [$"TestEditor.Mode|{DefaultOperatorName}"] = "full" },
             VersioniOnboardingCompletate = new(StringComparer.OrdinalIgnoreCase)
@@ -141,7 +144,7 @@ public sealed class TestWorkspace : IDisposable
         configService.Save(new AppConfig
         {
             CartellaCondivisa = ws.WorkspaceDir,
-            Lingua = "it",
+            Lingua = "it", TemaInterfaccia = TemaDiTest,
             OperatoreAttivo = nomeOperatore,
             UltimaSelezionePagine = { [$"TestEditor.Mode|{nomeOperatore}"] = "full" },
             VersioniOnboardingCompletate = new(StringComparer.OrdinalIgnoreCase)
@@ -167,7 +170,7 @@ public sealed class TestWorkspace : IDisposable
         Directory.CreateDirectory(ws.WorkspaceDir);
 
         var configService = new AppConfigService(ws.ConfigPath);
-        configService.Save(new AppConfig { CartellaCondivisa = ws.WorkspaceDir, Lingua = "it", OperatoreAttivo = "" });
+        configService.Save(new AppConfig { CartellaCondivisa = ws.WorkspaceDir, Lingua = "it", TemaInterfaccia = TemaDiTest, OperatoreAttivo = "" });
 
         using var state = new AppState(configService, runBackgroundMaintenance: false);
         SeedOperator(state, DefaultOperatorName, DefaultOperatorPin, RuoloOperatore.Master);
@@ -182,7 +185,7 @@ public sealed class TestWorkspace : IDisposable
         var root = Path.Combine(Path.GetTempPath(), "TestLoom_UITests", $"{namePrefix}_{Guid.NewGuid():N}");
         var ws = new TestWorkspace(root);
         Directory.CreateDirectory(ws.WorkspaceDir);
-        new AppConfigService(ws.ConfigPath).Save(new AppConfig { CartellaCondivisa = ws.WorkspaceDir, Lingua = "it", OperatoreAttivo = "" });
+        new AppConfigService(ws.ConfigPath).Save(new AppConfig { CartellaCondivisa = ws.WorkspaceDir, Lingua = "it", TemaInterfaccia = TemaDiTest, OperatoreAttivo = "" });
         return ws;
     }
 
@@ -204,7 +207,7 @@ public sealed class TestWorkspace : IDisposable
         new AppConfigService(ws.ConfigPath).Save(new AppConfig
         {
             CartellaCondivisa = ws.WorkspaceDir,
-            Lingua = "it",
+            Lingua = "it", TemaInterfaccia = TemaDiTest,
             OperatoreAttivo = DemoCompletaOperatore,
             UltimaSelezionePagine = { [$"TestEditor.Mode|{DemoCompletaOperatore}"] = "full" },
             VersioniOnboardingCompletate = new(StringComparer.OrdinalIgnoreCase)

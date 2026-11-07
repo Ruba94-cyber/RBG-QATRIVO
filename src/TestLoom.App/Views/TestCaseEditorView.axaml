@@ -235,7 +235,7 @@
             </StackPanel>
         </DataTemplate>
                                     <DataTemplate x:Key="OperazioneCardCompleta" x:DataType="models:Condizione">
-                                    <Border Background="{DynamicResource SurfaceMutedBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,2,0,8">
+                                    <Border IsVisible="{Binding !DevalidazioneNascosta}" Background="{DynamicResource SurfaceMutedBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,2,0,8">
                                         <StackPanel Spacing="10">
                                             <Grid ColumnDefinitions="2*,*,Auto,Auto,Auto">
                                                 <StackPanel Grid.Column="0" Spacing="2">
@@ -317,6 +317,10 @@
                                                             <TextBlock Text="{Binding Guasto}" FontWeight="SemiBold" AutomationProperties.AutomationId="{Binding Uid, StringFormat='Editor_Condizione_{0}_DtcGestito_Text'}" />
                                                             <TextBlock Text="{Binding DtcPasso, Converter={x:Static local:PassoDtcLabelConverter.Instance}}" Classes="Muted" />
                                                         </StackPanel>
+                                                        <Button Classes="Secondary" Content="+ Devalidazione (facoltativa)" Padding="8,2" FontSize="12" HorizontalAlignment="Left"
+                                                                IsVisible="{Binding HaDevalidazioneInseribile}" Click="OnInserisciDevalidazioneFacoltativa"
+                                                                ToolTip.Tip="La validazione non è conforme: la devalidazione non è richiesta, ma puoi inserirla comunque."
+                                                                AutomationProperties.AutomationId="{Binding Uid, StringFormat='Editor_Condizione_{0}_Devalidazione_Aggiungi_Button'}" />
                                                         <TextBlock Text="{Binding DtcStatoTesto}" Classes="Muted" FontSize="12" IsVisible="{Binding RiguardaDtc}" TextWrapping="Wrap"
                                                                    AutomationProperties.AutomationId="{Binding Uid, StringFormat='Editor_Condizione_{0}_DtcStato_Text'}" />
                                                         <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding DtcLegacy}">
@@ -495,6 +499,7 @@
                 <MultiBinding Converter="{x:Static localview:RigaVisibileFiltroConverter.Instance}">
                     <Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).SoloDaEseguireRapido" />
                     <Binding Path="Esito" />
+                    <Binding Path="DevalidazioneNascosta" />
                 </MultiBinding>
             </Border.IsVisible>
             <StackPanel Spacing="6">
@@ -672,7 +677,7 @@
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                 <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=TornaAllaLista}" Classes="Secondary" Command="{Binding AnnullaCommand}" AutomationProperties.AutomationId="Editor_Cancel_Button" />
                 <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=Modifica}" Classes="Secondary" Command="{Binding IniziaModificaCommand}" IsVisible="{Binding MostraPulsanteModifica}" IsEnabled="{Binding PuoModificare}" AutomationProperties.AutomationId="Editor_EditMode_Button" />
-                <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=Salva}" Classes="Primary" Command="{Binding SalvaCommand}" IsVisible="{Binding MostraAzioniModifica}" AutomationProperties.AutomationId="Editor_Save_Button" />
+                <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=Salva}" Classes="Primary" Command="{Binding SalvaSicuroCommand}" IsVisible="{Binding MostraAzioniModifica}" AutomationProperties.AutomationId="Editor_Save_Button" />
             </StackPanel>
         </Grid>
     </Border>
@@ -923,7 +928,7 @@
                                 <TextBlock Text="{Binding EtichettaStatoLavoro}" FontSize="13" FontWeight="SemiBold" />
                                 <TextBlock Text="*" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding StatoLavoroObbligatorio}" />
                             </StackPanel>
-                            <ComboBox Classes="Field" ItemsSource="{Binding StatiLavoro}" SelectedItem="{Binding StatoLavoroSelezionato}"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+                            <ComboBox Classes="Field" ItemsSource="{Binding StatiLavoro}" SelectedItem="{Binding StatoLavoroSelezionato}" AutomationProperties.AutomationId="Editor_StatoLavoro_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox>
                         </StackPanel>
                         <StackPanel Grid.Row="{Binding RigaScadenza}" Grid.Column="{Binding ColonnaScadenza}" Grid.ColumnSpan="{Binding ColonneSpanEditor}" Margin="0,0,0,10" Spacing="4" IsEnabled="{Binding PuoAssegnare}" IsVisible="{Binding MostraCampoScadenza}" svc:Spotlight.TargetId="campo-Scadenza">
                             <StackPanel Orientation="Horizontal" Spacing="2">
@@ -1277,38 +1282,45 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Campi degli strumenti costanti per l'intero test (valori uguali in ogni reiterazione), configurabili
-                         da Impostazioni → Strumenti (Addendum redesign 2026-08, revisione feedback QA) -->
-                    <ItemsControl Grid.Row="2" Margin="0,0,0,12" IsVisible="{Binding MostraCampiStrumentoDettagli}" ItemsSource="{Binding CampiTestCostanti}" ItemTemplate="{StaticResource CampoValoreItemTemplateConDefaultEListaTesto}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-
-                    <!-- Campi costanti raggruppati (es. futuri strumenti con sotto-sezioni), dietro tendina collassata -->
-                    <ItemsControl Grid.Row="3" Margin="0,0,0,12" IsVisible="{Binding MostraCampiStrumentoDettagli}" ItemsSource="{Binding GruppiTestCostanti}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="models:GruppoCampiStrumento">
-                                <Expander x:Name="GruppoCampiExpanderTest" Header="{Binding Nome}" IsExpanded="False" Margin="0,0,0,8" ToolTip.Tip="{Binding Nome}">
-                                    <ItemsControl Margin="0,8,0,0" ItemTemplate="{StaticResource CampoValoreItemTemplateConDefault}">
-                                        <ItemsControl.ItemsSource>
-                                            <MultiBinding Converter="{x:Static localview:CampiSeEspansoConverter.Instance}">
-                                                <Binding Path="Campi" />
-                                                <Binding Path="#GruppoCampiExpanderTest.IsExpanded" />
-                                            </MultiBinding>
-                                        </ItemsControl.ItemsSource>
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                    </ItemsControl>
-                                </Expander>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <!-- Campi specifici per-test: chiusi per impostazione predefinita. L'operatore
+                         puo' aprirli quando necessari senza occupare spazio nella scheda Dettagli.
+                         I controlli restano bindati ai valori esistenti: collassare non modifica dati. -->
+                    <Expander x:Name="CampiStrumentiSpecificiExpander" Grid.Row="2" Grid.RowSpan="2"
+                              Margin="0,0,0,12" IsExpanded="False"
+                              IsVisible="{Binding MostraCampiStrumentoDettagli}"
+                              Header="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorCampiStrumentiSpecificiTitolo}"
+                              AutomationProperties.AutomationId="Editor_CampiStrumentiSpecifici_Expander">
+                        <StackPanel Spacing="8" Margin="0,8,0,0">
+                            <ItemsControl IsVisible="{Binding #CampiStrumentiSpecificiExpander.IsExpanded}"
+                                          ItemsSource="{Binding CampiTestCostanti}"
+                                          ItemTemplate="{StaticResource CampoValoreItemTemplateConDefaultEListaTesto}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <ItemsControl IsVisible="{Binding #CampiStrumentiSpecificiExpander.IsExpanded}"
+                                          ItemsSource="{Binding GruppiTestCostanti}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:GruppoCampiStrumento">
+                                        <Expander x:Name="GruppoCampiExpanderTest" Header="{Binding Nome}" IsExpanded="False"
+                                                  Margin="0,0,0,8" ToolTip.Tip="{Binding Nome}">
+                                            <ItemsControl Margin="0,8,0,0" ItemTemplate="{StaticResource CampoValoreItemTemplateConDefault}">
+                                                <ItemsControl.ItemsSource>
+                                                    <MultiBinding Converter="{x:Static localview:CampiSeEspansoConverter.Instance}">
+                                                        <Binding Path="Campi" />
+                                                        <Binding Path="#GruppoCampiExpanderTest.IsExpanded" />
+                                                    </MultiBinding>
+                                                </ItemsControl.ItemsSource>
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                            </ItemsControl>
+                                        </Expander>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Expander>
 
                     <StackPanel Grid.Row="{Binding RigaDescrizioneBreve}" Margin="0,0,0,12" Spacing="4" IsVisible="{Binding MostraCampoDescrizioneBreve}" svc:Spotlight.TargetId="campo-DescrizioneBreve">
                         <StackPanel Orientation="Horizontal" Spacing="2">
@@ -2229,7 +2241,7 @@
                 <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=SchedaAvantiBtn}" Classes="Secondary"
                         Command="{Binding SchedaAvantiCommand}" IsVisible="{Binding MostraSchedeCreazione}" IsEnabled="{Binding PuoSchedaAvanti}" />
                 <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=TornaAllaLista}" Classes="Secondary" Command="{Binding AnnullaCommand}" />
-                <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=Salva}" Classes="Primary" Command="{Binding SalvaCommand}" IsVisible="{Binding MostraAzioniModifica}" />
+                <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=Salva}" Classes="Primary" Command="{Binding SalvaSicuroCommand}" IsVisible="{Binding MostraAzioniModifica}" AutomationProperties.AutomationId="Editor_Save_Footer_Button" />
             </StackPanel>
 
             </StackPanel>

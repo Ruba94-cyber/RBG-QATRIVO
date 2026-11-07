@@ -21,6 +21,78 @@ namespace TestLoom.App.Tests;
 [Trait("Category", "LayoutHeadless")]
 public sealed class TableLayoutPersonalizationHeadlessTests
 {
+    private static TextBlock TestoTooltipScorrevole(TextBlock controllo)
+    {
+        // I tooltip lunghi ora hanno contenitore scrollabile: il contenuto rimane un TextBlock
+        // per wrapping, leggibilita' e binding ai dati NC/CR (fix tooltip troncati).
+        var scorrimento = Assert.IsType<ScrollViewer>(ToolTip.GetTip(controllo));
+        Assert.InRange(scorrimento.MaxHeight, 1, 400);
+        var testo = Assert.IsType<TextBlock>(scorrimento.Content);
+        Assert.Equal(TextWrapping.Wrap, testo.TextWrapping);
+        Assert.Equal(TextTrimming.None, testo.TextTrimming);
+        return testo;
+    }
+
+    [Fact]
+    public void Operatori_NuovoUtente_SelettoreRuoloMantieneIlBindingInModifica()
+    {
+        LayoutHeadlessSessione.Esegui(() =>
+        {
+            var cartella = Path.Combine(Path.GetTempPath(), "TestLoom_RuoloDropdown_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(cartella);
+            var stato = TestStateFactory.Create();
+            stato.InizializzaCartella(cartella);
+            var master = TestOperatori.Sigilla(new Operatore
+            {
+                Nome = "Master UI Ruolo", Ruolo = RuoloOperatore.Master,
+                PinHash = PinService.Hash("1234"), ModificatoDa = "Test"
+            });
+            stato.Master.Operatori.Save([master]);
+            Assert.True(stato.ImpostaOperatore(master.Nome, "1234"));
+            var vm = new OperatoriViewModel(stato);
+            LayoutHeadlessSessione.AttendiComando(vm.IniziaModificaCommand.ExecuteAsync(null), TimeSpan.FromSeconds(30));
+            Assert.True(vm.InModifica);
+            vm.NuovoCommand.Execute(null);
+            var nuovo = Assert.IsType<Operatore>(vm.ElementoSelezionato);
+            Assert.Contains(nuovo, vm.ItemsAttivi);
+
+            var main = new MainViewModel(stato) { MostraPrimoAvvio = false };
+            var finestra = LayoutHeadlessSessione.CreaFinestraPrincipale(main, 1280, 800);
+            var vista = new OperatoriView { DataContext = vm };
+            try
+            {
+                LayoutHeadlessSessione.Mostra(finestra);
+                finestra.FindControl<ContentControl>("PaginaCorrenteHost")!.Content = vista;
+                LayoutHeadlessSessione.Assesta(finestra);
+                LayoutHeadlessSessione.Assesta(finestra);
+
+                var griglia = vista.FindControl<DataGrid>("GridPrincipale")!;
+                var selettore = griglia.GetVisualDescendants().OfType<ComboBox>()
+                    .Single(c => ReferenceEquals(c.DataContext, nuovo));
+                Assert.Equal("Oper_Ruolo_Combo", AutomationProperties.GetAutomationId(selettore));
+                Assert.True(selettore.IsEnabled);
+                Assert.True(selettore.Bounds.Width >= 80, "il dropdown ruolo non deve venire compresso");
+                selettore.SelectedItem = RuoloOperatore.Viewer;
+                LayoutHeadlessSessione.Assesta(finestra);
+                Assert.Equal(RuoloOperatore.Viewer, nuovo.Ruolo);
+
+                // Il popup/selettore e' interattivo: nessuna cattura del mouse da parte del resize.
+                var riga = selettore.GetVisualAncestors().OfType<DataGridRow>().Single();
+                Assert.True(riga.Bounds.Height > 0);
+                Assert.False(TableLayoutPreferences.SulBordoRidimensionabileRiga(
+                    selettore.Bounds.Width / 2, riga.Bounds.Height - 1,
+                    riga.Bounds.Width, riga.Bounds.Height, origineInterattiva: true));
+            }
+            finally
+            {
+                finestra.Hide();
+                vm.Dispose();
+                main.Dispose();
+                try { Directory.Delete(cartella, recursive: true); } catch { }
+            }
+        });
+    }
+
     [Fact]
     public void AnomalieECr_MostranoDescrizioniTroncateESalvanoAltezzaRigaPerRecord()
     {
@@ -82,11 +154,11 @@ public sealed class TableLayoutPersonalizationHeadlessTests
                 Assert.Equal(104, rigaRidimensionata.Height);
                 Assert.True(rigaBreve.Bounds.Height <= 60, $"la descrizione a righe multiple ha allargato la riga a {rigaBreve.Bounds.Height:0}px");
                 Assert.Equal(1, testoLungo.MaxLines);
-                var tooltipBreve = Assert.IsType<TextBlock>(ToolTip.GetTip(testoBreve));
+                var tooltipBreve = TestoTooltipScorrevole(testoBreve);
                 Assert.Equal("Sintesi obbligatoria", tooltipBreve.Text);
                 Assert.Equal(TextWrapping.Wrap, tooltipBreve.TextWrapping);
                 Assert.Equal(TextTrimming.None, tooltipBreve.TextTrimming);
-                var tooltipLungo = Assert.IsType<TextBlock>(ToolTip.GetTip(testoLungo));
+                var tooltipLungo = TestoTooltipScorrevole(testoLungo);
                 Assert.Equal(testoDettagliato, tooltipLungo.Text);
                 Assert.Equal(TextWrapping.Wrap, tooltipLungo.TextWrapping);
                 Assert.Equal(TextTrimming.None, tooltipLungo.TextTrimming);
@@ -99,10 +171,10 @@ public sealed class TableLayoutPersonalizationHeadlessTests
                 var descrizioneCr = grigliaCr.GetVisualDescendants().OfType<TextBlock>()
                     .Single(t => AutomationProperties.GetAutomationId(t) == "Anomalie_Cr_RigaDescrizione_Text");
                 Assert.Equal("Sintesi breve CR", descrizioneBreveCr.Text);
-                Assert.Equal("Sintesi breve CR", ToolTip.GetTip(descrizioneBreveCr));
+                Assert.Equal("Sintesi breve CR", TestoTooltipScorrevole(descrizioneBreveCr).Text);
                 Assert.NotEqual(descrizioneBreveCr.Text, descrizioneCr.Text);
                 Assert.Equal(1, descrizioneCr.MaxLines);
-                Assert.Equal(testoDettagliato, ToolTip.GetTip(descrizioneCr));
+                Assert.Equal(testoDettagliato, TestoTooltipScorrevole(descrizioneCr).Text);
                 var intestazioneBreveCr = grigliaCr.GetVisualDescendants().OfType<TextBlock>()
                     .Single(t => AutomationProperties.GetAutomationId(t) == "Anomalie_Cr_ColonnaDescrizioneBreve_Text");
                 Assert.Equal(LocalizationService.Instance.Traduci("ColDescrizioneBreve"), intestazioneBreveCr.Text);

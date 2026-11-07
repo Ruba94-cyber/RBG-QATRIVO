@@ -15,6 +15,16 @@ public static class PolarionReportService
     public sealed record ObservedTransition(DateTimeOffset AtUtc, string Status,
         string Resolution, bool IsBaseline);
 
+    private static string CompactComment(string? richText)
+    {
+        if (string.IsNullOrWhiteSpace(richText)) return "";
+        // Ticketing supplies rich text: the tooltip must render plain text only, never markup.
+        var decoded = System.Net.WebUtility.HtmlDecode(
+            System.Text.RegularExpressions.Regex.Replace(richText, "<[^>]*>", " "));
+        var singleLine = string.Join(" ", decoded.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return singleLine.Length > 240 ? singleLine[..237] + "…" : singleLine;
+    }
+
     public sealed class Row
     {
         private static string L(string it, string en, string fr) => LocalizationService.Instance.Scegli(it, en, fr);
@@ -44,6 +54,9 @@ public static class PolarionReportService
         /// senza inventare transizioni assenti.</summary>
         public bool HistoryStatusMismatch { get; init; }
         public int CommentsCount { get; init; }
+        /// <summary>Short, safely rendered excerpt of the latest cached TICKET comment.</summary>
+        public string LatestCommentPreview { get; init; } = "";
+        public string LatestCommentAuthor { get; init; } = "";
         /// <summary>TestLoom-observed transitions after baseline; never official historical totals.</summary>
         public int TestingTransitionsObserved { get; init; }
         public int ClosureTransitionsObserved { get; init; }
@@ -222,7 +235,9 @@ public static class PolarionReportService
                     snapshot.RetrievedAtUtc >= events[^1].FirstSeenUtc &&
                     (!string.Equals(snapshot.Status?.Trim(), events[^1].Status?.Trim(), StringComparison.OrdinalIgnoreCase) ||
                      !string.Equals(snapshot.Resolution?.Trim(), events[^1].Resolution?.Trim(), StringComparison.OrdinalIgnoreCase)),
-                CommentsCount = snapshot?.Comments.Count ?? 0,
+                CommentsCount = snapshot?.Comments?.Count ?? 0,
+                LatestCommentPreview = CompactComment(snapshot?.Comments?.OrderByDescending(x => x.Created ?? DateTimeOffset.MinValue).FirstOrDefault()?.Text),
+                LatestCommentAuthor = snapshot?.Comments?.OrderByDescending(x => x.Created ?? DateTimeOffset.MinValue).FirstOrDefault()?.AuthorId ?? "",
                 TestingTransitionsObserved = testingCount,
                 ClosureTransitionsObserved = closureCount,
                 ReopenTransitionsObserved = reopenCount,

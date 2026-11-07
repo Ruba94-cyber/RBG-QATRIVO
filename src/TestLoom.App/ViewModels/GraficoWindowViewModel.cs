@@ -52,13 +52,24 @@ public sealed class GraficoWindowViewModel : ViewModelBase, IDisposable
     public double LarghezzaArea => _larghezza;
     public double AltezzaArea => _altezza;
 
+    private volatile bool _temaScuro;
+
+    public void ImpostaTemaScuro(bool scuro)
+    {
+        if (_temaScuro == scuro) return;
+        _temaScuro = scuro;
+        _render?.Dispose();
+        _render = null;
+        if (_larghezza > 0 && _altezza > 0 && _ultimaRichiesta is { } r) RichiediRender(r.Larghezza, r.Altezza, r.Scala);
+    }
+
     public void RichiediRender(double larghezza, double altezza, double scala)
     {
         if (_disposto || larghezza <= 0 || altezza <= 0) return;
         _larghezza = larghezza;
         _altezza = altezza;
         _render ??= new RenderGraficoAsincrono<Bitmap>(
-            dimensioni => GraficoRenderer.Render(_snapshot.Dati, _snapshot.Tipo, _snapshot.Titolo, dimensioni),
+            dimensioni => GraficoRenderer.Render(_snapshot.Dati, _snapshot.Tipo, _snapshot.Titolo, dimensioni, temaScuro: _temaScuro),
             GraficoBitmap.Decodifica,
             nuova =>
             {

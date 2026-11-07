@@ -206,10 +206,32 @@ public static class TableLayoutPreferences
         riga.Height = LimitaAltezza(altezza, riga.MinHeight);
     }
 
+    /// <summary>Il resize parte solo dal bordo INFERIORE interno alla riga, mai da un popup o
+    /// da un elemento interattivo. Controllare soltanto Y >= Height - margine lasciava passare
+    /// anche coordinate fuori dalla riga (popup di selezione Ruolo, finestre flottanti).</summary>
+    internal static bool SulBordoRidimensionabileRiga(double x, double y, double width, double height, bool origineInterattiva) =>
+        !origineInterattiva && double.IsFinite(x) && double.IsFinite(y) &&
+        double.IsFinite(width) && double.IsFinite(height) &&
+        width > 0 && height > 0 &&
+        x >= 0 && x < width && y >= 0 && y < height &&
+        y >= height - MargineRidimensionamentoRiga;
+
+    private static bool OrigineInterattivaRiga(DataGridRow riga, object? origine)
+    {
+        if (origine is not Visual visual) return false;
+        return visual.GetSelfAndVisualAncestors()
+            .TakeWhile(ancestor => !ReferenceEquals(ancestor, riga))
+            .Any(ancestor => ancestor is Button or ToggleButton or ComboBox or TextBox);
+    }
+
+    private static bool RidimensionamentoRigaConsentito(DataGridRow riga, object? origine, Point posizione) =>
+        SulBordoRidimensionabileRiga(posizione.X, posizione.Y, riga.Bounds.Width, riga.Bounds.Height,
+            OrigineInterattivaRiga(riga, origine));
+
     private static void OnRigaPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not DataGridRow riga || !e.GetCurrentPoint(riga).Properties.IsLeftButtonPressed
-            || e.GetPosition(riga).Y < riga.Bounds.Height - MargineRidimensionamentoRiga) return;
+            || !RidimensionamentoRigaConsentito(riga, e.Source, e.GetPosition(riga))) return;
         var griglia = riga.GetVisualAncestors().OfType<DataGrid>().FirstOrDefault();
         var topLevel = TopLevel.GetTopLevel(riga);
         if (griglia == null || topLevel == null) return;
@@ -234,7 +256,7 @@ public static class TableLayoutPreferences
             return;
         }
 
-        riga.Cursor = e.GetPosition(riga).Y >= riga.Bounds.Height - MargineRidimensionamentoRiga
+        riga.Cursor = RidimensionamentoRigaConsentito(riga, e.Source, e.GetPosition(riga))
             ? CursoreRidimensionamentoRiga.Value : null;
     }
 

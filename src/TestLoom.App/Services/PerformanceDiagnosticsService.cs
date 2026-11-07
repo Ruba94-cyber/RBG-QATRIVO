@@ -64,6 +64,25 @@ public static class PerformanceDiagnosticsService
         }
     }
 
+    /// <summary>
+    /// Variante non bloccante per gli eventi emessi sul dispatcher UI.
+    /// Record() usa FileOptions.WriteThrough: fare fsync sul percorso di
+    /// navigazione puo' rallentare il primo paint o il cambio pagina, anche
+    /// quando il ViewModel e' gia' pronto. L'evento conserva identici campi
+    /// e file locale; viene cambiato soltanto il thread di scrittura.
+    /// </summary>
+    public static void RecordDeferred(
+        string? workspaceDirectory, string operation, TimeSpan elapsed,
+        int itemCount = 0, string? detail = null, long fileCount = 0,
+        long byteCount = 0, string? trigger = null)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceDirectory) || string.IsNullOrWhiteSpace(operation)) return;
+        // Capture del trigger prima di lasciare il contesto del chiamante.
+        var capturedTrigger = trigger ?? RefreshTriggerContext.Current;
+        _ = Task.Run(() => Record(workspaceDirectory, operation, elapsed, itemCount,
+            detail, fileCount, byteCount, capturedTrigger));
+    }
+
     public static IReadOnlyList<PerformanceDiagnosticEvent> ReadRecent(string? workspaceDirectory, int max = 200)
     {
         if (string.IsNullOrWhiteSpace(workspaceDirectory) || max <= 0) return Array.Empty<PerformanceDiagnosticEvent>();

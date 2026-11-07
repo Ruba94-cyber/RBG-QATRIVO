@@ -48,6 +48,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly PropertyChangedEventHandler _linguaCambiata;
     private readonly Action _datiRicaricati;
     private bool _disposed;
+    internal bool Disposto => _disposed;
     private bool _controlloSessioneOperatore;
     private bool _mantieniPaginaDopoAccesso;
     private long _richiestaNavigazione;
@@ -174,7 +175,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public MainViewModel() : this(new AppState()) { }
 
-    public MainViewModel(AppState state)
+    public MainViewModel(AppState state, bool avviaServiziBackground = true)
     {
         _state = state;
         TableLayoutPreferences.Configure(_state);
@@ -279,11 +280,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         };
         _state.CambiamentiSuDiscoRilevati += _cambiamentiSuDiscoRilevati;
 
-        // Read-only TICKET polling is independent of TestLoom domain refresh and never blocks startup.
+        // Durante il normale avvio GUI gli scan iniziali TICKET/Browser non devono
+        // competere con il primo rendering (soprattutto su postazioni aziendali).
+        // I chiamanti/test storici mantengono l'avvio immediato di default.
         _polarionBackgroundSync = new PolarionBackgroundSyncService(_state);
-        _polarionBackgroundSync.Start();
-        // Browser handoff auto-linking requires only GET; no automatic Ticketing POST.
         _polarionBrowserLinkMonitor = new PolarionBrowserLinkMonitor(_state);
+        if (avviaServiziBackground) AvviaServiziBackground();
+    }
+
+    private bool _serviziBackgroundAvviati;
+    internal bool ServiziBackgroundAvviati => _serviziBackgroundAvviati;
+
+    /// <summary>Idempotente: avvia gli stessi servizi read-only previsti
+    /// dal costruttore originale. L'app grafica lo chiama dopo il primo frame,
+    /// evitando di concorrere con il caricamento della shell e gli indici.</summary>
+    public void AvviaServiziBackground()
+    {
+        if (_disposed || _serviziBackgroundAvviati) return;
+        _serviziBackgroundAvviati = true;
+        _polarionBackgroundSync.Start();
+        // Browser handoff auto-linking: solo GET; mai POST automatici.
         _polarionBrowserLinkMonitor.Start();
     }
 
@@ -453,50 +469,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Scaldamento all'avvio (piano 6.4.0, richiesta utente: "le pagine devono stare sotto 700ms anche alla
-    /// PRIMA visita"): costruisce e METTE IN CACHE la pagina indicata usando esattamente lo stesso percorso
-    /// della prima navigazione reale (OttieniPagina/NavItem.Crea, mai una copia della logica), chiamato da
-    /// App.axaml.cs dopo aver creato questo MainViewModel e PRIMA di mostrare la MainWindow. Nessuna cache/
-    /// invalidazione duplicata: la vera prima visita dell'utente troverà comunque una pagina già in
-    /// _pagineCache e passerà dal ramo "cache hit" di OttieniPagina, che chiama IPaginaAggiornabile.Aggiorna()
-    /// come farebbe oggi una qualunque rivisita — quindi una modifica ai dati arrivata fra lo scaldamento e la
-    /// visita (salvataggio locale, o da un'altra postazione tramite watcher/refresh) resta visibile esattamente
-    /// come oggi, perché la firma d'invalidazione di ciascuna pagina (vedi WuStatusViewModel.Ricarica,
-    /// ReportViewModel.Aggiorna) viene comunque riverificata a quel momento.
-    ///
-    /// Thread: NavItem.Crea() — il lavoro pesante vero e proprio, lo stesso che una prima navigazione farebbe
-    /// in modo sincrono sul thread UI (fino a ~3s su WU Status a 100k voci) — gira su un thread di pool
-    /// (Task.Run) e NON sul thread UI, così l'AvvioWindow resta reattiva mentre scalda le pagine. Questo è
-    /// sicuro perché: (1) il ViewModel appena costruito non è ancora agganciato a nessuna View/binding — nessun
-    /// listener osserva le sue ObservableCollection finché non viene assegnato a CurrentPage, quindi popolarle
-    /// da un thread diverso da quello UI non solleva alcuna race con un renderer; (2) i repository letti dentro
-    /// Crea() sono già usati da un thread di background durante il bootstrap stesso (App.axaml.cs incapsula la
-    /// costruzione di AppState in un Task.Run) e sono protetti da lock espliciti (TestCaseRepository.GetAll,
-    /// MasterDataRepository.Load: `lock (_gate)`); (3) MasterLetturaScope (usato da ReportViewModel.Aggiorna)
-    /// è [ThreadStatic] — la sua unica regola è che Apri()/Dispose() eseguano sullo STESSO thread OS senza
-    /// alcun await in mezzo, condizione già garantita perché Crea() gira per intero, in modo sincrono, dentro
-    /// il delegato di questo singolo Task.Run. ConfigureAwait(false): l'inserimento in _pagineCache può quindi
-    /// avvenire sul thread di pool stesso invece di dover rimbalzare sul thread UI — comunque sicuro perché
-    /// nessun altro thread legge/scrive _pagineCache in questa finestra (nessuna navigazione reale è ancora
-    /// possibile, la MainWindow non è stata creata).
-    ///
-    /// Se lo scaldamento di questa pagina fallisce per qualunque motivo, l'eccezione viene loggata e MAI
-    /// propagata: non deve poter impedire l'avvio (piano 6.4.0, punto 4).
-    ///
-    /// Timeout (revisione indipendente, piano 6.4.0): senza un budget, un Crea() bloccato (deadlock, I/O
-    /// bloccato su una share degradata) farebbe restare `await lavoroTask` in App.axaml.cs.RunStartupAsync in
-    /// attesa PER SEMPRE — la MainWindow non comparirebbe mai. <see cref="TimeoutScaldamentoPagina"/> limita
-    /// quanto questo metodo ASPETTA quella singola pagina: scaduto il budget, l'avvio prosegue e l'evento va nel
-    /// log diagnostico — il Task di background continua comunque a girare (non esiste un modo per "uccidere" un
-    /// thread di pool bloccato in .NET), quindi va gestito separatamente quando/se finirà davvero: vedi
-    /// <see cref="GestisciCompletamentoTardivo"/>. Il bootstrap di AppState (App.axaml.cs.PreparaAvvioAsync,
-    /// `Task.Run(() => new AppState(...))`) NON passa da questo metodo e non è quindi mai coperto da questo
-    /// timeout: solo lo scaldamento delle pagine lo è.
+    /// Prepara la pagina nella cache usando la stessa factory della navigazione reale.
+    /// Dal 2026-11-06 e' avviato DOPO la prima finestra, solo con Home inattiva:
+    /// questo lavoro non fa parte del percorso critico di startup.
+    /// NavItem.Crea gira sul thread di pool, ma l'inserimento e la scelta finale
+    /// dell'istanza avvengono sul dispatcher UI (quando Application.Current esiste),
+    /// perche' l'utente potrebbe navigare mentre la pagina viene preparata.
+    /// La visita reale usa la cache esistente e richiama ancora Aggiorna() per
+    /// applicare i normali controlli di invalidazione con dati arrivati nel frattempo.
+    /// Timeout e completamento tardivo sono best-effort e non modificano i dati.
     /// </summary>
     public async Task<ViewModelBase?> PreparaPaginaAsync(string navId)
     {
+        // Il precache post-Show puo' essere ancora in attesa quando l'utente
+        // esce: mai avviare nuove factory contro AppState gia' dismesso.
+        if (_disposed) return null;
         var item = NavItems.FirstOrDefault(n => n.Id == navId);
         if (item == null) return null;
+        // OttieniPagina ricrea Impostazioni a ogni visita, per mostrare sempre lo
+        // stato corrente dei master/editor. Un chiamante di precache non puo'
+        // inserirne per errore un'istanza stale nella cache.
+        if (item.Id == "impostazioni") return null;
         if (_pagineCache.TryGetValue(item.Id, out var esistente)) return esistente;
         var generazioneCache = Interlocked.Read(ref _generazioneCachePagine);
 
@@ -509,7 +502,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         Task<ViewModelBase> lavoro;
         try
         {
-            lavoro = Task.Run(creaFn);
+            // guasto apre subito una query asincrona nel costruttore. Il suo await
+            // deve catturare il SynchronizationContext del dispatcher UI per
+            // pubblicare Righe/filtri senza cross-thread quando la View viene
+            // successivamente agganciata. La query effettiva resta su Task.Run,
+            // come nel ViewModel esistente. Tutte le altre pagine usano ancora
+            // la factory fuori UI, per non bloccare il rendering durante precache.
+            lavoro = navId == "guasto" && Application.Current != null
+                ? Dispatcher.UIThread.InvokeAsync(creaFn, DispatcherPriority.Background).GetTask()
+                : Task.Run(creaFn);
         }
         catch (Exception ex)
         {
@@ -536,8 +537,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         try
         {
             var vm = await lavoro.ConfigureAwait(false);
-            await InserisciInCacheSeAssenteAsync(navId, vm, generazioneCache).ConfigureAwait(false);
-            return _pagineCache.TryGetValue(navId, out var finale) ? finale : null;
+            // Non rileggere Dictionary sul thread di pool dopo l'await: dopo la
+            // prima finestra l'utente puo' navigare contemporaneamente sul dispatcher.
+            // L'inserimento ritorna l'istanza scelta nella stessa azione UI atomica.
+            return await InserisciInCacheSeAssenteAsync(navId, vm, generazioneCache).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -586,21 +589,29 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// serializzazione invece di preservarla. La sicurezza in questo ramo si ottiene quindi con la sequenza
     /// temporale scelta dal test (vedi i test su un "risultato tardivo": il completamento del lavoro
     /// abbandonato viene rilasciato DOPO la navigazione reale, non in vera concorrenza).</summary>
-    private Task InserisciInCacheSeAssenteAsync(string navId, ViewModelBase vm, long generazioneCache)
+    private Task<ViewModelBase?> InserisciInCacheSeAssenteAsync(string navId, ViewModelBase vm, long generazioneCache)
     {
-        void Applica()
+        ViewModelBase? Applica()
         {
-            if (_disposed || generazioneCache != Interlocked.Read(ref _generazioneCachePagine) || _pagineCache.ContainsKey(navId))
+            if (_disposed || generazioneCache != Interlocked.Read(ref _generazioneCachePagine))
             {
                 if (vm is IDisposable disposabile) disposabile.Dispose();
-                return;
+                return null;
+            }
+            if (_pagineCache.TryGetValue(navId, out var esistente))
+            {
+                // Nel frattempo l'operatore ha aperto la pagina: la sua istanza
+                // resta autorevole, quella preparata viene dismessa.
+                if (!ReferenceEquals(vm, esistente) && vm is IDisposable disposabile)
+                    disposabile.Dispose();
+                return esistente;
             }
             _pagineCache[navId] = vm;
+            return vm;
         }
 
         if (Application.Current != null) return Dispatcher.UIThread.InvokeAsync(Applica).GetTask();
-        Applica();
-        return Task.CompletedTask;
+        return Task.FromResult(Applica());
     }
 
     partial void OnSelectedNavItemChanged(NavItem? value)
@@ -657,7 +668,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // separato); "navigazione.costruzione" isola la sola OttieniPagina/Aggiorna
             // sincrona (costruttore ViewModel o Aggiorna(), la parte che puo' davvero bloccare la UI), con
             // Detail che distingue prima-apertura (Crea()) da rivisita (Aggiorna() su pagina in cache).
-            PerformanceDiagnosticsService.Record(_state.TestCases?.LocalWorkspaceDirectory, "navigazione.costruzione",
+            PerformanceDiagnosticsService.RecordDeferred(_state.TestCases?.LocalWorkspaceDirectory, "navigazione.costruzione",
                 cronometro.Elapsed - primaCostruzione, 0, $"{pagina.Id}:{(primaApertura ? "prima-apertura" : "rivisita")}");
         }
         catch (Exception ex)
@@ -668,7 +679,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         finally
         {
             if (richiesta == _richiestaNavigazione) CaricamentoPagina = false;
-            PerformanceDiagnosticsService.Record(_state.TestCases?.LocalWorkspaceDirectory, "navigazione.pagina",
+            PerformanceDiagnosticsService.RecordDeferred(_state.TestCases?.LocalWorkspaceDirectory, "navigazione.pagina",
                 cronometro.Elapsed, 0, pagina.Id);
         }
     }

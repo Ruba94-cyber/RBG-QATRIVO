@@ -19,7 +19,7 @@
          il testo va a capo prima di diventare largo, e il posizionamento Popup predefinito può
          capovolgersi/scorrere/ridursi entro l'area di lavoro dello schermo. -->
     <Style Selector="ToolTip">
-        <Setter Property="MaxWidth" Value="480" />
+        <Setter Property="MaxWidth" Value="680" />
         <Setter Property="Padding" Value="10,8" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Background" Value="{DynamicResource InfoBackgroundBrush}" />
@@ -29,7 +29,7 @@
         <Setter Property="CornerRadius" Value="6" />
     </Style>
     <Style Selector="ToolTip /template/ ContentPresenter">
-        <Setter Property="MaxWidth" Value="480" />
+        <Setter Property="MaxWidth" Value="680" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <Style Selector="Button.SpotlightTarget">

@@ -34,11 +34,10 @@ public static class FailureArtifacts
                 using var bitmap = window.Capture();
                 bitmap.Save(screenshotPath, ImageFormat.Png);
             }
-            else
-            {
-                using var image = FlaUI.Core.Capturing.Capture.Screen();
-                image.ToFile(screenshotPath);
-            }
+            // Lo schermo intero viene salvato SEMPRE: la cattura della sola finestra puo' risultare ritagliata
+            // (DPI/finestra oltre il monitor) e nasconderebbe dialoghi e popup fuori dalla finestra principale.
+            using var image = FlaUI.Core.Capturing.Capture.Screen();
+            image.ToFile(window != null ? Path.Combine(dir, "screenshot_fullscreen.png") : screenshotPath);
         }
         catch (Exception captureEx)
         {

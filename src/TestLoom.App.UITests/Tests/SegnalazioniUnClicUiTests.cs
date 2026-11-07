@@ -85,6 +85,7 @@ public sealed class SegnalazioniUnClicUiTests : UiTestBase
 
             editor.GoToTab(CreateTestCaseFlow.TabRiferimenti);
             editor.Save();
+            TestLoom.App.UITests.Helpers.ShellHomeSettingsCoverageSupport.ConfermaSeCompare(App, TimeSpan.FromSeconds(6));   // avviso soft "Funzionalita' mancante"
 
             // Il seme contiene gia' NC-0001: la nuova NC deve esserci in aggiunta, collegata a questo Test.
             var anomalie = shell.GoToAnomalie();

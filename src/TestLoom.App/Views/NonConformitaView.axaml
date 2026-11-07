@@ -248,7 +248,7 @@
                             <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColVeicoliAssociati}" SortMemberPath="Veicolo" CanUserSort="True" Width="150" MinWidth="100" services:TableLayoutPreferences.BassaPriorita="True">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="vm:NcRiga">
-                                        <TextBlock Text="{Binding VeicoliTesto}" Margin="6,0" VerticalAlignment="Center" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding VeicoliElencoTooltip}" AutomationProperties.AutomationId="Anomalie_Nc_RigaVeicoli_Text" />
+                                        <TextBlock Text="{Binding VeicoliTesto}" Margin="6,0" VerticalAlignment="Center" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="Anomalie_Nc_RigaVeicoli_Text" ><ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock Text="{Binding VeicoliElencoTooltip}" TextWrapping="Wrap" MaxWidth="620" TextTrimming="None" /></ScrollViewer></ToolTip.Tip></TextBlock>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -261,9 +261,7 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="vm:NcRiga">
                                         <TextBlock x:Name="DescrizioneBreveNc" Text="{Binding DescrizioneBreveVisualizzata}" Margin="6,0" VerticalAlignment="Center" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis">
-                                            <ToolTip.Tip>
-                                                <TextBlock Text="{Binding #DescrizioneBreveNc.Text}" MaxWidth="480" TextWrapping="Wrap" TextTrimming="None" />
-                                            </ToolTip.Tip>
+                                            <ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock Text="{Binding #DescrizioneBreveNc.Text}" MaxWidth="620" TextWrapping="Wrap" TextTrimming="None" /></ScrollViewer></ToolTip.Tip>
                                         </TextBlock>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -272,9 +270,7 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="vm:NcRiga">
                                         <TextBlock x:Name="DescrizioneLungaNc" Text="{Binding Nc.Descrizione}" Margin="6,0" VerticalAlignment="Center" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis">
-                                            <ToolTip.Tip>
-                                                <TextBlock Text="{Binding #DescrizioneLungaNc.Text}" MaxWidth="480" TextWrapping="Wrap" TextTrimming="None" />
-                                            </ToolTip.Tip>
+                                            <ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock Text="{Binding #DescrizioneLungaNc.Text}" MaxWidth="620" TextWrapping="Wrap" TextTrimming="None" /></ScrollViewer></ToolTip.Tip>
                                         </TextBlock>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -298,26 +294,28 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Stato TICKET" CanUserSort="False" Width="170" MinWidth="110">
+                            <DataGridTemplateColumn Header="Stato TICKET" CanUserSort="False" Width="218" MinWidth="130">
                                 <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate x:DataType="vm:NcRiga">
-                                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" ToolTip.ShowDelay="500">
-                                            <TextBlock.Text>
-                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="status">
+                                    <DataTemplate x:DataType="vm:NcRiga"><StackPanel Orientation="Vertical" Spacing="1" ToolTip.ShowDelay="500">
+                                        <TextBlock VerticalAlignment="Center" FontWeight="Bold" TextTrimming="CharacterEllipsis" MaxLines="1"><TextBlock.Foreground><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="statusBrush"><Binding Path="." /><Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" /><Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" /></MultiBinding></TextBlock.Foreground><TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="status">
                                                     <Binding Path="." />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
                                                 </MultiBinding>
                                             </TextBlock.Text>
-                                            <ToolTip.Tip>
-                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                            
+                                        </TextBlock>
+                                    <TextBlock Classes="Muted" FontSize="11" TextTrimming="CharacterEllipsis" MaxLines="1" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Ticket_CommentPreview_Text">
+                <TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="commentCompact">
                                                     <Binding Path="." />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
-                                                </MultiBinding>
-                                            </ToolTip.Tip>
-                                        </TextBlock>
-                                    </DataTemplate>
+                                                </MultiBinding></TextBlock.Text>
+            </TextBlock><ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None"><TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding></TextBlock.Text></TextBlock></ScrollViewer></ToolTip.Tip></StackPanel></DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Aperto TICKET" CanUserSort="False" Width="160" MinWidth="110" services:TableLayoutPreferences.BassaPriorita="True">
@@ -331,13 +329,11 @@
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
                                                 </MultiBinding>
                                             </TextBlock.Text>
-                                            <ToolTip.Tip>
-                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                            <ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None"><TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
                                                     <Binding Path="." />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
-                                                </MultiBinding>
-                                            </ToolTip.Tip>
+                                                </MultiBinding></TextBlock.Text></TextBlock></ScrollViewer></ToolTip.Tip>
                                         </TextBlock>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -353,13 +349,11 @@
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
                                                 </MultiBinding>
                                             </TextBlock.Text>
-                                            <ToolTip.Tip>
-                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                            <ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None"><TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
                                                     <Binding Path="." />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
-                                                </MultiBinding>
-                                            </ToolTip.Tip>
+                                                </MultiBinding></TextBlock.Text></TextBlock></ScrollViewer></ToolTip.Tip>
                                         </TextBlock>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -375,13 +369,11 @@
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
                                                 </MultiBinding>
                                             </TextBlock.Text>
-                                            <ToolTip.Tip>
-                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                            <ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None"><TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
                                                     <Binding Path="." />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
-                                                </MultiBinding>
-                                            </ToolTip.Tip>
+                                                </MultiBinding></TextBlock.Text></TextBlock></ScrollViewer></ToolTip.Tip>
                                         </TextBlock>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -435,7 +427,7 @@
                         <ComboBox Grid.Row="0" Grid.Column="1" Classes="Field" ItemsSource="{Binding StatiChangeRequest}" SelectedItem="{Binding FiltroStatoCr}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcTuttiStatiCrPlaceholder}" AutomationProperties.AutomationId="Anomalie_Cr_FiltroStato_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox>
                         <Button Grid.Row="0" Grid.Column="2" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RimuoviFiltriLink}" Classes="Link" Command="{Binding ReimpostaFiltriCommand}" IsVisible="{Binding HaFiltriCrAttivi}" AutomationProperties.AutomationId="Anomalie_Cr_RimuoviFiltri_Button" />
                       <Expander Grid.Row="0" Grid.Column="3" IsExpanded="{Binding FiltriCrEspansi, Mode=TwoWay}" AutomationProperties.AutomationId="Anomalie_Cr_Filtri_Expander">
-                        <Expander.Header><TextBlock Text="{Binding RiepilogoFiltriCr}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="180" AutomationProperties.AutomationId="Anomalie_Cr_Filtri_Riepilogo_Text" /></Expander.Header>
+                        <Expander.Header><TextBlock Text="{Binding RiepilogoFiltriCr}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="180" ToolTip.Tip="{Binding RiepilogoFiltriCr}" AutomationProperties.AutomationId="Anomalie_Cr_Filtri_Riepilogo_Text" /></Expander.Header>
                       </Expander>
                       <ScrollViewer Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,6,0,0" MaxHeight="190" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding FiltriCrEspansi}" AutomationProperties.AutomationId="Anomalie_Cr_Filtri_Scroll">
                         <StackPanel Spacing="8" Margin="0,2,0,0">
@@ -483,15 +475,15 @@
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Titolo" SortMemberPath="Titolo" CanUserSort="True" Width="240" MinWidth="160">
                                 <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaTitolo_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
-                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding Titolo}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Titolo}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaTitolo_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding Titolo}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaTitolo_Text" ><ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None" Text="{Binding Titolo}" /></ScrollViewer></ToolTip.Tip></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Descrizione breve" SortMemberPath="DescrizioneBreve" CanUserSort="True" Width="200" MinWidth="140">
                                 <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDescrizioneBreve}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaDescrizioneBreve_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
-                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding DescrizioneBreve}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding DescrizioneBreve}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaDescrizioneBreve_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding DescrizioneBreve}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaDescrizioneBreve_Text" ><ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None" Text="{Binding DescrizioneBreve}" /></ScrollViewer></ToolTip.Tip></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Descrizione" SortMemberPath="Descrizione" CanUserSort="True" Width="240" MinWidth="160">
                                 <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDescrizioneLunga}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaDescrizione_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
-                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding Descrizione}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Descrizione}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaDescrizione_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding Descrizione}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaDescrizione_Text" ><ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None" Text="{Binding Descrizione}" /></ScrollViewer></ToolTip.Tip></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn services:TableLayoutPreferences.OrdineIniziale="2" Header="Ticket" SortMemberPath="Ticket" CanUserSort="True" Width="180" MinWidth="110">
                                 <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaTicket_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
@@ -517,7 +509,7 @@
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Veicoli" SortMemberPath="Veicolo" CanUserSort="True" Width="150" MinWidth="100" services:TableLayoutPreferences.BassaPriorita="True">
                                 <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaVeicoli_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
-                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding VeicoliImpattati, Converter={x:Static local:VeicoliSommarioConverter.Instance}}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding VeicoliImpattati, Converter={x:Static local:VeicoliElencoConverter.Instance}}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaVeicoli_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding VeicoliImpattati, Converter={x:Static local:VeicoliSommarioConverter.Instance}}" TextWrapping="NoWrap" MaxLines="1" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaVeicoli_Text" ><ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None" Text="{Binding VeicoliImpattati, Converter={x:Static local:VeicoliElencoConverter.Instance}}" /></ScrollViewer></ToolTip.Tip></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Apertura" SortMemberPath="Apertura" CanUserSort="True" Width="Auto" MinWidth="92" services:TableLayoutPreferences.BassaPriorita="True">
                                 <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaApertura_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
@@ -531,26 +523,28 @@
                                 <DataGridTemplateColumn.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" AutomationProperties.AutomationId="Anomalie_Cr_ColonnaChiusura_Text" /></DataTemplate></DataGridTemplateColumn.HeaderTemplate>
                                 <DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="models:ChangeRequest"><TextBlock Text="{Binding ChiusaIl, Converter={x:Static local:DataFiltroTestoConverter.Instance}}" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Cr_RigaChiusura_Text" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Stato TICKET" CanUserSort="False" Width="170" MinWidth="110">
+                            <DataGridTemplateColumn Header="Stato TICKET" CanUserSort="False" Width="218" MinWidth="130">
                                 <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate x:DataType="models:ChangeRequest">
-                                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" ToolTip.ShowDelay="500">
-                                            <TextBlock.Text>
-                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="status">
+                                    <DataTemplate x:DataType="models:ChangeRequest"><StackPanel Orientation="Vertical" Spacing="1" ToolTip.ShowDelay="500">
+                                        <TextBlock VerticalAlignment="Center" FontWeight="Bold" TextTrimming="CharacterEllipsis" MaxLines="1"><TextBlock.Foreground><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="statusBrush"><Binding Path="." /><Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" /><Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" /></MultiBinding></TextBlock.Foreground><TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="status">
                                                     <Binding Path="." />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
                                                 </MultiBinding>
                                             </TextBlock.Text>
-                                            <ToolTip.Tip>
-                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                            
+                                        </TextBlock>
+                                    <TextBlock Classes="Muted" FontSize="11" TextTrimming="CharacterEllipsis" MaxLines="1" VerticalAlignment="Center" AutomationProperties.AutomationId="Anomalie_Ticket_CommentPreview_Text">
+                <TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="commentCompact">
                                                     <Binding Path="." />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
-                                                </MultiBinding>
-                                            </ToolTip.Tip>
-                                        </TextBlock>
-                                    </DataTemplate>
+                                                </MultiBinding></TextBlock.Text>
+            </TextBlock><ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None"><TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                                    <Binding Path="." />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
+                                                    <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
+                                                </MultiBinding></TextBlock.Text></TextBlock></ScrollViewer></ToolTip.Tip></StackPanel></DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Aperto TICKET" CanUserSort="False" Width="160" MinWidth="110" services:TableLayoutPreferences.BassaPriorita="True">
@@ -564,13 +558,11 @@
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
                                                 </MultiBinding>
                                             </TextBlock.Text>
-                                            <ToolTip.Tip>
-                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                            <ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None"><TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
                                                     <Binding Path="." />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
-                                                </MultiBinding>
-                                            </ToolTip.Tip>
+                                                </MultiBinding></TextBlock.Text></TextBlock></ScrollViewer></ToolTip.Tip>
                                         </TextBlock>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -586,13 +578,11 @@
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
                                                 </MultiBinding>
                                             </TextBlock.Text>
-                                            <ToolTip.Tip>
-                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                            <ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None"><TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
                                                     <Binding Path="." />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
-                                                </MultiBinding>
-                                            </ToolTip.Tip>
+                                                </MultiBinding></TextBlock.Text></TextBlock></ScrollViewer></ToolTip.Tip>
                                         </TextBlock>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -608,13 +598,11 @@
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
                                                 </MultiBinding>
                                             </TextBlock.Text>
-                                            <ToolTip.Tip>
-                                                <MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
+                                            <ToolTip.Tip><ScrollViewer MaxWidth="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled"><TextBlock MaxWidth="620" TextWrapping="Wrap" TextTrimming="None"><TextBlock.Text><MultiBinding Converter="{x:Static local:PolarionGridLifecycleConverter.Instance}" ConverterParameter="tooltip">
                                                     <Binding Path="." />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionPaths" />
                                                     <Binding Path="#Root.((vm:NonConformitaViewModel)DataContext).PolarionGridVersion" />
-                                                </MultiBinding>
-                                            </ToolTip.Tip>
+                                                </MultiBinding></TextBlock.Text></TextBlock></ScrollViewer></ToolTip.Tip>
                                         </TextBlock>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>

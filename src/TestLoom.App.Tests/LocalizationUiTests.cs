@@ -9,6 +9,28 @@ namespace TestLoom.App.Tests;
 public class LocalizationUiTests
 {
     [Theory]
+    [InlineData("it", "NON COMPLETAMENTE COMPILATO", "reportistica")]
+    [InlineData("en", "INCOMPLETELY FILLED IN", "reports")]
+    [InlineData("fr", "PAS COMPLÈTEMENT RENSEIGNÉ", "rapports")]
+    public void FunzionalitaMancante_AvvisaDiTestIncompletoEImpattoSullaReportistica(
+        string lingua, string incompleto, string report)
+    {
+        var loc = LocalizationService.Instance;
+        var originale = loc.Lingua;
+        try
+        {
+            loc.Lingua = lingua;
+            var messaggio = loc.Traduci("FunzionalitaMancanteMsg");
+            Assert.Contains(incompleto, messaggio, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(report, messaggio, StringComparison.OrdinalIgnoreCase);
+            Assert.True(messaggio.Count(c => c == '\n') >= 2);
+            Assert.False(string.IsNullOrWhiteSpace(loc.Traduci("FunzionalitaMancanteProsegui")));
+            Assert.False(string.IsNullOrWhiteSpace(loc.Traduci("FunzionalitaMancanteIndietro")));
+        }
+        finally { loc.Lingua = originale; }
+    }
+
+    [Theory]
     [InlineData("it", "API", "modulo standard")]
     [InlineData("en", "API", "standard form")]
     [InlineData("fr", "API", "formulaire standard")]

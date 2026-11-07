@@ -36,6 +36,7 @@ public partial class GraficoCard : UserControl
         };
         // L'immagine occupa la cella disponibile nella card; il suo Bounds resta la misura autorevole per il render,
         // anche quando il grafico riceve una larghezza personalizzata.
+        ActualThemeVariantChanged += (_, _) => AggiornaDimensione(ImmagineCard.Bounds.Size);
         Contenitore.PropertyChanged += (_, e) =>
         {
             if (e.Property == Visual.BoundsProperty) AggiornaDaContenitore();
@@ -103,6 +104,7 @@ public partial class GraficoCard : UserControl
         var card = Card;
         if (card == null || dimensione.Width <= 0 || dimensione.Height <= 0) return;
         card.ImpostaLarghezza(dimensione.Width);
+        card.ImpostaTemaScuro(ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark);
         card.RichiediRender(dimensione.Width, dimensione.Height, TopLevel.GetTopLevel(this)?.RenderScaling ?? 1);
     }
 

@@ -13,12 +13,10 @@ public enum FaseBootstrap
     CaricamentoDatiCorrelati,
     Completato,
 
-    /// <summary>Fase successiva a Completato (piano 6.4.0, "scaldamento all'avvio"): AppState è già pronto ma
-    /// App.axaml.cs, prima di mostrare la MainWindow, costruisce già i ViewModel di WU Status/Report/Test
-    /// (stesso percorso della prima navigazione, vedi MainViewModel.PreparaPaginaAsync) così la prima visita
-    /// reale dell'utente trova la pagina già in cache invece di pagare 1-3s di calcolo a finestra visibile.
-    /// Senza un messaggio dedicato l'utente vedrebbe la finestra di avvio restare ferma su "Completato" per
-    /// diversi secondi in più, indistinguibile da un blocco (stesso motivo per cui esiste questa finestra).</summary>
+    /// <summary>Fase di precache facoltativo delle pagine, successiva al bootstrap
+    /// obbligatorio. Dal 2026-11-06 il precache viene eseguito in background DOPO
+    /// MainWindow.Show(), quindi non ritarda la schermata di avvio o la Home.
+    /// Mantenuta per compatibilita' con i canali di progresso e le vecchie misure.</summary>
     PreparazionePagine
 }
 

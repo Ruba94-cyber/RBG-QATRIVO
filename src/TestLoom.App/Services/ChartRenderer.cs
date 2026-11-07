@@ -19,8 +19,13 @@ public static partial class ChartRenderer
     private static readonly SKColor ColNonConforme = new(214, 69, 69);
     private static readonly SKColor ColNonTestato = new(148, 163, 184);
     private static readonly SKColor ColDaRivedere = new(37, 99, 235);
-    private static readonly SKColor ColAssi = new(71, 85, 105);
-    private static readonly SKColor ColTesto = new(30, 41, 59);
+    /// <summary>Tema scuro per il render a schermo (per thread: impostato da <see cref="GraficoRenderer.Render"/>).
+    /// Le esportazioni (PNG, report) non lo impostano e restano sempre inchiostro scuro su bianco.</summary>
+    [ThreadStatic] internal static bool TemaScuro;
+    private static SKColor ColAssi => TemaScuro ? new SKColor(148, 163, 184) : new SKColor(71, 85, 105);
+    private static SKColor ColTesto => TemaScuro ? new SKColor(226, 232, 240) : new SKColor(30, 41, 59);
+    /// <summary>Colore dello sfondo, usato anche per i separatori tra segmenti.</summary>
+    private static SKColor ColSfondo => TemaScuro ? new SKColor(20, 27, 35) : SKColors.White;
 
     /// <summary>Tavolozza per l'anello esterno (Sottoveicolo): il numero di sottoveicoli è dinamico e non ha
     /// un significato semantico fisso (a differenza dell'Esito), quindi basta un ciclo di colori distinti.</summary>

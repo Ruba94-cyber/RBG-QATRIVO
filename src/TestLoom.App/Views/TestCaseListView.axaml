@@ -27,8 +27,33 @@
                         <Button Grid.Column="1" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=RiprovaIndice}" Classes="Link" Command="{Binding RiprovaRilasciLockMassaCommand}" IsEnabled="{Binding PuoRiprovaRilascioLockMassa}" AutomationProperties.AutomationId="TestList_RiprovaRilascioLock_Button" />
                     </Grid>
                 </Border>
+                <Border Classes="Banner BannerInfo" Margin="0,8,0,0"
+                        IsVisible="{Binding EsportazioneCompletaInCorso}"
+                        AutomationProperties.AutomationId="TestList_ExportCompleto_Progress_Banner">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListExportCompletoAvvio}" />
+                        <ProgressBar IsIndeterminate="True" MinHeight="4" AutomationProperties.AutomationId="TestList_ExportCompleto_ProgressBar" />
+                    </StackPanel>
+                </Border>
+                <Border Classes="Banner BannerSuccesso" Margin="0,8,0,0"
+                        IsVisible="{Binding HaMessaggioExportCompleto}"
+                        AutomationProperties.AutomationId="TestList_ExportCompleto_Status_Banner">
+                    <TextBlock Text="{Binding MessaggioExportCompleto}" TextWrapping="Wrap"
+                               AutomationProperties.AutomationId="TestList_ExportCompleto_Status_Text" />
+                </Border>
             </StackPanel>
-            <Button Grid.Column="1" services:Spotlight.TargetId="test-new" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoTest}" Classes="Primary" Command="{Binding NuovoCommand}" IsEnabled="{Binding PuoCreare}" VerticalAlignment="Top" AutomationProperties.AutomationId="TestList_New_Button" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                <Button Classes="Secondary" Click="OnEsportaTuttiTest"
+                        IsEnabled="{Binding !IsBusy}"
+                        Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListExportCompletoBtn}"
+                        ToolTip.Tip="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListExportCompletoTip}"
+                        AutomationProperties.AutomationId="TestList_ExportCompleto_Button" />
+                <Button Classes="Link" Command="{Binding AnnullaEsportazioneCompletaCommand}"
+                        IsVisible="{Binding EsportazioneCompletaInCorso}"
+                        Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=TestListExportCompletoAnnullaBtn}"
+                        AutomationProperties.AutomationId="TestList_ExportCompleto_Annulla_Button" />
+            <Button services:Spotlight.TargetId="test-new" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NuovoTest}" Classes="Primary" Command="{Binding NuovoCommand}" IsEnabled="{Binding PuoCreare}" VerticalAlignment="Top" AutomationProperties.AutomationId="TestList_New_Button" />
+            </StackPanel>
         </Grid>
 
         <Border Grid.Row="1" Classes="Card" Margin="0,12,0,0">

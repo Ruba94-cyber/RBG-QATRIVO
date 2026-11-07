@@ -427,10 +427,12 @@ public class ColoreEvidenziazioneBrushConverter : IValueConverter
     public static readonly ColoreEvidenziazioneBrushConverter Instance = new();
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
     {
-        ColoreEvidenziazione.Giallo => new SolidColorBrush(Color.Parse("#FEF3C7")),
-        ColoreEvidenziazione.Rosso => new SolidColorBrush(Color.Parse("#FEE2E2")),
+        ColoreEvidenziazione.Giallo => new SolidColorBrush(Color.Parse(TemaScuro ? "#5C4A12" : "#FEF3C7")),
+        ColoreEvidenziazione.Rosso => new SolidColorBrush(Color.Parse(TemaScuro ? "#5E2222" : "#FEE2E2")),
         _ => Brushes.Transparent
     };
+    // Nel tema scuro il testo del campo e' chiaro: la tinta pastello lo renderebbe illeggibile, quindi si usa la stessa tinta scurita.
+    private static bool TemaScuro => Avalonia.Application.Current?.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 

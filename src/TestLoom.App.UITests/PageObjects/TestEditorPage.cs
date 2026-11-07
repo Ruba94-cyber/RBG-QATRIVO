@@ -68,6 +68,23 @@ public sealed class TestEditorPage
     public void SetDescrizioneBreve(string testo) =>
         ElementFinders.WaitTextBoxById(_window, "Editor_DescrizioneBreve_TextBox").SetText(testo);
 
+    /// <summary>matricola/riferimento banco della revisione corrente. E' obbligatorio
+    /// quando il tipo originale passa da Pianificato a In corso.</summary>
+    public void SetVinRevisione(string testo) =>
+        ElementFinders.WaitTextBoxById(_window, "Test_Matricola_Input").SetText(testo);
+
+    /// <summary>Stato del Test tramite il selettore reale della Pianificazione:
+    /// nessuna scorciatoia sul ViewModel, niente mutazioni dirette al JSON.</summary>
+    public void SetStatoLavoro(string etichetta) =>
+        ElementFinders.WaitComboBoxById(_window, "Editor_StatoLavoro_Combo")
+            .SelectByText(etichetta);
+
+    /// <summary>Seleziona un veicolo esistente dal catalogo sintetico.
+    /// Il normale filtro Veicolo->componente resta attivo: chiamare prima di ChooseEcu
+    /// per collaudare la stessa sequenza usata dagli operatori.</summary>
+    public void ChooseVeicoloInLista(string nome) =>
+        ElementFinders.WaitComboBoxById(_window, "Editor_Veicolo_ComboBox").SelectByText(nome);
+
     /// <summary>Apre il dialog "Scegli componente", seleziona la voce indicata e conferma — la selezione del componente
     /// passa sempre per questo dialog (nessuna ComboBox alternativa nel form, vedi TestCaseEditorView.axaml),
     /// indipendentemente da quante componente esistono a catalogo.</summary>
@@ -431,6 +448,29 @@ public sealed class TestEditorPage
     /// <summary>Compatibilita' con i test di creazione: il pulsante primario, quando non c'e' un'anomalia suggerita,
     /// e' "Crea NC" e apre il ConfirmDialog di conferma (Confirm_Yes_Button/Confirm_No_Button).</summary>
     public void CreaAnomaliaDaSegnalazione(int indice) => ClickPrimariaSegnalazione(indice);
+
+    /// <summary>
+    /// Richiede esplicitamente una NC NUOVA anche se l'algoritmo di correlazione
+    /// propone il collegamento a una NC esistente. Il pulsante Primaria cambia
+    /// funzione in quel caso; chiamarlo senza distinguere la proposta renderebbe
+    /// falsamente verdi i test che devono creare due NC distinte.
+    /// Il chiamante gestisce il successivo ConfirmDialog.
+    /// </summary>
+    public void CreaNuovaAnomaliaEsplicita(int indice)
+    {
+        var uid = UidSegnalazioneAllIndice(indice);
+        if (TestoPulsantePrimario(uid).Contains("Collega", StringComparison.OrdinalIgnoreCase))
+        {
+            AssicuraAltreAzioniAperte(uid);
+            ElementFinders.WaitButtonById(_window,
+                $"{SegnalazioneRigaPrefix}{uid}_NuovaAnomalia_Button").SafeInvoke();
+        }
+        else
+        {
+            ElementFinders.WaitButtonById(_window,
+                $"{SegnalazioneRigaPrefix}{uid}_Primaria_Button").SafeInvoke();
+        }
+    }
 
     /// <summary>"Gestisci tutte" del pannello segnalazioni: applica a ogni segnalazione la sua azione predefinita dopo
     /// un'unica conferma (ConfirmDialog, gestito dal chiamante).</summary>

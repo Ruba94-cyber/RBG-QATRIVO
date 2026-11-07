@@ -7,8 +7,8 @@ using Microsoft.Data.Sqlite;
 namespace TestLoom.App.Tests;
 
 /// <summary>
-/// Copertura di MainViewModel.PreparaPaginaAsync (piano 6.4.0, "scaldamento all'avvio"): App.axaml.cs lo chiama
-/// per WU Status/Report/Test dopo aver costruito MainViewModel e PRIMA di mostrare la MainWindow, così la prima
+/// Copertura di MainViewModel.PreparaPaginaAsync (piano 6.4.0, "scaldamento delle pagine"): App.axaml.cs lo chiama
+/// per WU Status/Report/Test DOPO aver mostrato MainWindow, mentre la Home e' inattiva, così la prima
 /// visita reale dell'operatore trova la pagina già in cache invece di pagare il ricalcolo completo a finestra
 /// visibile (misurato fino a ~3s su WU Status a 100k voci). Questi test verificano che lo scaldamento usi
 /// esattamente lo stesso percorso di una prima navigazione (nessuna cache duplicata) e che l'invalidazione dei
@@ -60,6 +60,63 @@ public sealed class MainViewModelPreparaPaginaTests : IDisposable
         await NavigaAsync(main, navId);
 
         Assert.Same(scaldata, main.CurrentPage);
+    }
+
+    [Fact]
+    public async Task PrecacheTutteLeSezioni_NonModificaLaPrimaPaginaERiusaLeIstanze()
+    {
+        using var state = CreateMasterState();
+        using var main = new MainViewModel(state);
+        var primaPagina = main.SelectedNavItem?.Id;
+        var coda = AvvioPrecachePolicy.CreaCodaPagine(
+            main.NavItems.Select(p => p.Id), primaPagina);
+
+        Assert.DoesNotContain(primaPagina, coda);
+        Assert.Contains("test", coda);
+        Assert.Contains("anomalie", coda);
+        Assert.Contains("wustatus", coda);
+        Assert.Contains("guasto", coda);
+        Assert.Contains("report", coda);
+        Assert.Contains("audit", coda);
+        Assert.Contains("impostazioni", coda);
+
+        // La View Impostazioni viene riscaldata senza creare un VM:
+        // OttieniPagina lo ricrea deliberatamente ad ogni ingresso.
+        foreach (var id in coda.Where(id => id != "impostazioni"))
+        {
+            var pagina = await main.PreparaPaginaAsync(id);
+            Assert.NotNull(pagina);
+            Assert.Same(pagina, await main.PreparaPaginaAsync(id));
+        }
+
+        Assert.Equal(primaPagina, main.SelectedNavItem?.Id);
+    }
+
+    [Fact]
+    public async Task PrecacheImpostazioni_NonMemorizzaUnViewModelAmministrativo()
+    {
+        using var state = CreateMasterState();
+        using var main = new MainViewModel(state);
+
+        Assert.Null(await main.PreparaPaginaAsync("impostazioni"));
+        await NavigaAsync(main, "impostazioni");
+
+        Assert.IsType<ImpostazioniViewModel>(main.CurrentPage);
+    }
+
+    [Fact]
+    public async Task PrecacheDopoLogoutDefinitivo_NonAvviaNuoveFactorySuStatoDisposto()
+    {
+        var state = CreateMasterState();
+        var main = new MainViewModel(state);
+        main.Dispose();
+
+        // La callback post-Show puo' riprendere dopo la chiusura della finestra:
+        // non deve usare file, lock o repository gia' dismessi.
+        Assert.True(main.Disposto);
+        Assert.Null(await main.PreparaPaginaAsync("test"));
+        Assert.Null(await main.PreparaPaginaAsync("report"));
+        Assert.Null(await main.PreparaPaginaAsync("guasto"));
     }
 
     [Fact]
@@ -191,6 +248,48 @@ public sealed class MainViewModelPreparaPaginaTests : IDisposable
             MainViewModel.SostituzioneCreaPaginaPerTest = null;
             MainViewModel.SostituzioneCreaPaginaPerTestNavId = null;
             gate.Set(); // non lasciare un thread di pool bloccato per sempre se qualcosa sopra è fallito
+        }
+    }
+
+    [Fact]
+    public async Task PrecacheDopoApertura_AppNavigataPrimaDelRisultato_RestituisceLIstanzaRealeSenzaSovrascriverla()
+    {
+        using var state = CreateMasterState();
+        using var main = new MainViewModel(state);
+        using var gate = new ManualResetEventSlim(false);
+        var vmPreparata = new TaskCompletionSource<ViewModelDiProva>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var timeoutPrima = MainViewModel.TimeoutScaldamentoPagina;
+        MainViewModel.TimeoutScaldamentoPagina = TimeSpan.FromSeconds(5);
+        MainViewModel.SostituzioneCreaPaginaPerTestNavId = "guasto";
+        MainViewModel.SostituzioneCreaPaginaPerTest = () =>
+        {
+            gate.Wait(TimeSpan.FromSeconds(5));
+            var vm = new ViewModelDiProva();
+            vmPreparata.TrySetResult(vm);
+            return vm;
+        };
+        try
+        {
+            // Il lavoro non ha ancora restituito il VM. A differenza del test di
+            // timeout, la navigazione arriva PRIMA ma il precache termina IN BUDGET.
+            var scaldamento = main.PreparaPaginaAsync("guasto");
+            await NavigaAsync(main, "guasto");
+            var reale = Assert.IsType<DtcRegistroViewModel>(main.CurrentPage);
+
+            gate.Set();
+            var finale = await scaldamento.WaitAsync(TimeSpan.FromSeconds(8));
+            var scartata = await vmPreparata.Task.WaitAsync(TimeSpan.FromSeconds(8));
+            await scartata.Disposto.WaitAsync(TimeSpan.FromSeconds(8));
+
+            Assert.Same(reale, finale);
+            Assert.Same(reale, main.CurrentPage);
+        }
+        finally
+        {
+            gate.Set();
+            MainViewModel.TimeoutScaldamentoPagina = timeoutPrima;
+            MainViewModel.SostituzioneCreaPaginaPerTestNavId = null;
+            MainViewModel.SostituzioneCreaPaginaPerTest = null;
         }
     }
 

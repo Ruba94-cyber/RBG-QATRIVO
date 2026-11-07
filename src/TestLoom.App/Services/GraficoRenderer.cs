@@ -13,7 +13,15 @@ public static class GraficoRenderer
     /// <summary>Scala minima dell'export: 2 pixel per DIP anche quando la larghezza di partenza supera 800 DIP.</summary>
     public const double ScalaMinimaEsportazione = 2;
 
-    public static byte[] Render(DatiGrafico dati, TipoGrafico tipo, string titolo, DimensioniGrafico dimensioni, IntestazioneGrafico? intestazione = null, bool sfondoTrasparente = false)
+    public static byte[] Render(DatiGrafico dati, TipoGrafico tipo, string titolo, DimensioniGrafico dimensioni, IntestazioneGrafico? intestazione = null, bool sfondoTrasparente = false, bool temaScuro = false)
+    {
+        var temaPrecedente = ChartRenderer.TemaScuro;
+        ChartRenderer.TemaScuro = temaScuro;
+        try { return RenderCore(dati, tipo, titolo, dimensioni, intestazione, sfondoTrasparente); }
+        finally { ChartRenderer.TemaScuro = temaPrecedente; }
+    }
+
+    private static byte[] RenderCore(DatiGrafico dati, TipoGrafico tipo, string titolo, DimensioniGrafico dimensioni, IntestazioneGrafico? intestazione, bool sfondoTrasparente)
     {
         var larghezza = dimensioni.Larghezza;
         var altezza = dimensioni.Altezza;

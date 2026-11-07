@@ -57,7 +57,7 @@ public static partial class ChartRenderer
         var altezza = (float)dimensioni.Altezza;
         using var surface = SKSurface.Create(new SKImageInfo(dimensioni.PixelLarghezza, dimensioni.PixelAltezza));
         var canvas = surface.Canvas;
-        canvas.Clear(sfondoTrasparente ? SKColors.Transparent : SKColors.White);
+        canvas.Clear(sfondoTrasparente ? SKColors.Transparent : ColSfondo);
         // Scala per asse: i pixel arrotondati restano coerenti con le coordinate logiche (differenza < 1 px).
         canvas.Scale(dimensioni.PixelLarghezza / larghezza, dimensioni.PixelAltezza / altezza);
         disegna(canvas, larghezza, altezza);

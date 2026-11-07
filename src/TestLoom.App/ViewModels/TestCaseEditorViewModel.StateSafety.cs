@@ -425,41 +425,93 @@ public partial class TestCaseEditorViewModel
             // intatti e l'utente vede l'errore invece di demandarlo al solo crash-log globale.
             ErroriValidazione = erroriPrecedenti.Concat(new[] { ex.Message })
                 .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
-            if (!IsNew) SalvaBozzaModificaEsistente();
-            else _state.BozzaAutosave.Salva(_state.Config.OperatoreAttivo, TestCase);
+            try
+            {
+                if (!IsNew) SalvaBozzaModificaEsistente();
+                else _state.BozzaAutosave.Salva(_state.Config.OperatoreAttivo, TestCase);
+            }
+            catch (Exception bozzaEx)
+            {
+                // Un disco locale pieno/non scrivibile non deve cancellare il
+                // messaggio del conflitto iniziale o trasformare il preflight
+                // in un'eccezione non gestita dal comando Avalonia.
+                CrashLogService.Registra("Salvataggio bozza locale dopo Begin workflow fallito", bozzaEx);
+                ErroriValidazione = ErroriValidazione.Concat(new[]
+                {
+                    LocalizationService.Instance.Scegli(
+                        "Non è stato possibile salvare anche la bozza locale di sicurezza.",
+                        "The local safety draft could not be saved either.",
+                        "Le brouillon local de sécurité n'a pas pu être enregistré.")
+                }).ToList();
+            }
             return;
         }
 
+        // Il risultato del SalvaCommand non e' ancora definitivo: il commit della
+        // transazione puo' fallire. Non navigare via dall'editor prima del commit.
+        bool navigaDopoCommit = false;
         using (tx)
         {
-            if (salvatoPrima)
-                WorkflowTransactionService.ProtectFile(_state.TestCases.PercorsoPer(TestCase));
-            foreach (var uid in _anomalieDaEliminare)
-            {
-                // Solo l'Id serve a costruire il percorso da proteggere: PeekAllReadOnly() evita di clonare
-                // l'intero archivio per un solo campo letto e mai mutato (stesso principio di TutteAnomalie()
-                // in CaricaPannelloAnomalie).
-                var nc = _state.NonConformita.PeekAllReadOnly().FirstOrDefault(n => n.Uid == uid);
-                if (nc != null) WorkflowTransactionService.ProtectFile(_state.Paths.NonConformitaFile(nc.Id));
-            }
-
             try
             {
-                await SalvaCommand.ExecuteAsync(null);
+                // Anche il preflight di protezione file puo' fallire (share non
+                // disponibile, ACL, marker concorrente): DEVE entrare nello stesso
+                // catch e rollback del save, non uscire dall'async command senza
+                // messaggio o lasciando il form senza recupero.
+                if (salvatoPrima)
+                    WorkflowTransactionService.ProtectFile(_state.TestCases.PercorsoPer(TestCase));
+                foreach (var uid in _anomalieDaEliminare)
+                {
+                    // Solo l'Id serve a costruire il percorso da proteggere: PeekAllReadOnly() evita di clonare
+                    // l'intero archivio per un solo campo letto e mai mutato (stesso principio di TutteAnomalie()
+                    // in CaricaPannelloAnomalie).
+                    var nc = _state.NonConformita.PeekAllReadOnly().FirstOrDefault(n => n.Uid == uid);
+                    if (nc != null) WorkflowTransactionService.ProtectFile(_state.Paths.NonConformitaFile(nc.Id));
+                }
+
+                var soppressionePrimaDelSalva = _sopprimiRitornoAllaLista;
+                _sopprimiRitornoAllaLista = true;
+                try { await SalvaCommand.ExecuteAsync(null); }
+                finally { _sopprimiRitornoAllaLista = soppressionePrimaDelSalva; }
 
                 if (!InModifica && !ModificheNonSalvate)
                 {
                     tx.Commit();
-                    if (!IsNew && !_existingDraftRecoveryTaskInCorso) _state.BozzaAutosave.EliminaModifica(_state.Config.OperatoreAttivo, formPrima.Uid);
-                    return;
+                    DiagnosticTraceService.Registra("Test.Workflow",
+                        $"save transaction committed: status={TestCase.StatoLavoro}");
+                    if (!IsNew && !_existingDraftRecoveryTaskInCorso)
+                    {
+                        try { _state.BozzaAutosave.EliminaModifica(_state.Config.OperatoreAttivo, formPrima.Uid); }
+                        catch (Exception cleanupEx)
+                        {
+                            // La pulizia della bozza non deve trasformare un commit riuscito in rollback.
+                            CrashLogService.Registra("Cleanup bozza post-commit Test", cleanupEx);
+                        }
+                    }
+                    if (!soppressionePrimaDelSalva)
+                    {
+                        // Se il lock non si e' rilasciato, il coordinatore fa tornare
+                        // alla lista SOLO dopo lo sblocco, come nel flusso preesistente.
+                        if (RilascioLockInAttesa) _tornaAllaListaDopoRilascio = true;
+                        else navigaDopoCommit = true;
+                    }
                 }
-
-                tx.Rollback();
-                RipristinaFormDopoRollback(formPrima, snapshotPrima, salvatoPrima, inModificaPrima, dirtyPrima, workflowPrima);
+                else
+                {
+                    tx.Rollback();
+                    DiagnosticTraceService.Registra("Test.Workflow",
+                        "save transaction rolled back: validation or save did not complete");
+                    RipristinaFormDopoRollback(formPrima, snapshotPrima, salvatoPrima, inModificaPrima, dirtyPrima, workflowPrima);
+                }
             }
             catch (Exception ex)
             {
-                try { tx.Rollback(); }
+                CrashLogService.Registra("Test.Workflow: transaction save failed", ex);
+                try
+                {
+                    tx.Rollback();
+                    DiagnosticTraceService.Registra("Test.Workflow", "save transaction rolled back: exception");
+                }
                 catch (Exception rollbackEx)
                 {
                     CrashLogService.Registra("Rollback Unit of Work salvataggio Test", rollbackEx);
@@ -475,6 +527,15 @@ public partial class TestCaseEditorViewModel
                 ErroriValidazione = erroriPrecedenti.Concat(new[] { ex.Message }).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
                 if (!IsNew) SalvaBozzaModificaEsistente();
             }
+        }
+
+        // La pagina viene chiusa solo dopo Dispose della transazione e dello
+        // scope di working-copy: la lista non deve leggere overlay temporanei
+        // invece dello stato autorevole appena pubblicato. Dispose e' idempotente.
+        if (navigaDopoCommit)
+        {
+            workingCopies.Dispose();
+            _tornaAllaLista();
         }
     }
 

@@ -16,13 +16,6 @@ public partial class App : Application
 {
     private TrayIcons? _trayIcons;
 
-    /// <summary>Soglia sotto la quale il bootstrap non mostra alcuna finestra di avvio. Con indice locale già
-    /// presente il bootstrap dura pochi secondi e la schermata non deve comparire né sfarfallare; sopra la
-    /// soglia il bootstrap può durare minuti su un workspace nuovo/grande (misurato fino a 5-7 minuti su
-    /// 100k+ Test/Non Conformità senza indice locale, feedback utente: "sembra ferma ed è un problema grosso")
-    /// e l'utente deve vedere SUBITO che l'app sta lavorando davvero.</summary>
-    private static readonly TimeSpan SogliaComparsaAvvio = TimeSpan.FromMilliseconds(500);
-
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -66,21 +59,11 @@ public partial class App : Application
         // titolo nativa della prima finestra nasceva chiara (tema Light di App.axaml) anche con preferenza Scuro.
         try { ThemeAppearanceService.Apply(new AppConfigService(configOverride).Load().TemaInterfaccia); }
         catch (Exception ex) { CrashLogService.Registra("Tema iniziale (lettura config locale)", ex); }
-        // Revisione indipendente (FAIL critico): sul percorso veloce (bootstrap sotto SogliaComparsaAvvio)
-        // l'AvvioWindow non viene MAI creata — la prima Window ad esistere e' quella (invisibile, fuori
-        // schermo) usata da ScaldaViewFuoriSchermoAsync per scaldare la View "Test"/Editor DENTRO
-        // PreparaAvvioAsync, prima che MainWindow esista. Con lo ShutdownMode di default di Avalonia
-        // (OnLastWindowClose, non impostato altrove nel repo) il suo host.Close() la renderebbe l'ULTIMA
-        // finestra a chiudersi e terminerebbe l'intero processo prima di mostrare MainWindow — stessa classe
-        // di bug che AvvioWindow.axaml.cs evita con la guardia Closing/ConsentiChiusura, ma qui senza alcuna
-        // guardia possibile perche' la finestra di scaldamento non deve MAI essere vista dall'utente (nessun
-        // ConsentiChiusura esplicito, si apre e si chiude sola). ShutdownModeTemporaneo forza quindi
-        // OnExplicitShutdown per tutta la finestra temporale in cui possono esistere SOLO finestre non
-        // definitive (scaldamento, poi eventualmente AvvioWindow) e ripristina il valore effettivo precedente
-        // (mai un valore assunto) SOLO dopo che MainWindow e' stata mostrata: vedi Dispose() sotto, dentro un
-        // finally dedicato a mainWindow.Show(). Da quel momento la corretta semantica di chiusura (chiusura
-        // utente, riduzione a tray via RiduciInTrayAllaChiusura/AvvioRidotto) torna a dipendere dallo
-        // ShutdownMode reale dell'app, invariato rispetto a prima di questa modifica.
+        // Durante il bootstrap l'unica finestra eventualmente visibile e' lo splash.
+        // Manteniamo OnExplicitShutdown finche' MainWindow non e' mostrata, cosi'
+        // la chiusura di una finestra transitoria non termina accidentalmente il processo.
+        // Il precaricamento di altre View avviene DOPO Show, senza host temporanei qui.
+        // Il valore precedente viene ripristinato dal finally attorno a MainWindow.Show().
         var shutdownModeTemporaneo = new ShutdownModeTemporaneo(
             () => desktop.ShutdownMode, v => desktop.ShutdownMode = v, ShutdownMode.OnExplicitShutdown);
         // Diventa true quando MainWindow e' visibile: da quel momento la sessione e' viva e un errore non deve chiuderla.
@@ -94,25 +77,21 @@ public partial class App : Application
             // Dispatcher.
             var progress = new Progress<BootstrapProgress>(avvioViewModel.Aggiorna);
 
-            // Bootstrap di AppState + costruzione di MainViewModel + scaldamento delle pagine più costose alla
-            // prima visita (piano 6.4.0 "scaldamento all'avvio"), tutto in UN SOLO Task raced contro la soglia
-            // qui sotto: la soglia deve valere per il tempo TOTALE, non solo per AppState. Un bootstrap già
-            // veloce (indice locale presente) seguito da uno scaldamento lento (banco enorme, nessun indice
-            // scalabile) deve comunque far comparire la finestra di avvio, non lasciare l'utente senza alcun
-            // segnale per i secondi che lo scaldamento impiega davvero.
+            // Mostrare il primo segnale VISIBILE prima di avviare l'indicizzazione:
+            // anche la soglia di 500ms precedentemente usata qui faceva percepire
+            // che il programma non fosse partito. Il bootstrap rimane identico, ma
+            // la finestra di progresso viene creata e mostrata PRIMA di AppState.
+            var startupClock = System.Diagnostics.Stopwatch.StartNew();
+            avvio = new AvvioWindow { DataContext = avvioViewModel };
+            avvio.Show();
+            var tempoPrimoSegnale = Program.MainStartTimestamp != 0
+                ? System.Diagnostics.Stopwatch.GetElapsedTime(Program.MainStartTimestamp)
+                : TimeSpan.Zero;
+            // Lascia al dispatcher la prima opportunita' di disegnare lo splash:
+            // non avviare qui altro lavoro sincrono sul thread UI.
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
             var lavoroTask = PreparaAvvioAsync(configOverride, progress);
-
-            var soglia = Task.Delay(SogliaComparsaAvvio);
-            var primoCompletato = await Task.WhenAny(lavoroTask, soglia);
-            if (primoCompletato == soglia && !lavoroTask.IsCompleted)
-            {
-                // Bootstrap+scaldamento ancora in corso oltre la soglia breve: SOLO ora mostriamo la finestra
-                // di avvio. Su un workspace piccolo/già indicizzato questo ramo non viene mai eseguito, per
-                // requisito esplicito: niente comparsa/sfarfallio quando non serve.
-                avvio = new AvvioWindow { DataContext = avvioViewModel };
-                avvio.Show();
-            }
-
             var (state, mainViewModel) = await lavoroTask;
 
             var mainWindow = new MainWindow { DataContext = mainViewModel, RiduciInTrayAllaChiusura = state.Config.AvvioRidotto };
@@ -173,11 +152,25 @@ public partial class App : Application
             try { mainWindow.Show(); avviata = true; }
             finally { shutdownModeTemporaneo.Dispose(); }
 
+            // Fotografia del tempo fino a Show: le scritture diagnostiche (WriteThrough)
+            // NON devono rallentare il primo frame o tenere aperto lo splash.
+            var tempoFinestra = startupClock.Elapsed;
+            var cartellaDiagnostica = state.TestCases?.LocalWorkspaceDirectory;
             if (avvio != null)
             {
                 avvio.ConsentiChiusura();
                 avvio.Close();
             }
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(300);
+                PerformanceDiagnosticsService.Record(cartellaDiagnostica,
+                    "avvio.primo_segnale", tempoPrimoSegnale,
+                    detail: "Program.Main -> AvvioWindow.Show (non include creazione processo OS o paint)");
+                PerformanceDiagnosticsService.Record(cartellaDiagnostica,
+                    "avvio.finestra_pronta", tempoFinestra, detail: "bootstrap+shell (prima del primo paint)");
+                DiagnosticTraceService.Registra("Avvio", "MainWindow visibile; precaricamento pagine differito");
+            });
 
             SingleInstanceService.ListenForActivation(mainViewModel.RichiediAttivazione);
 
@@ -187,11 +180,16 @@ public partial class App : Application
             if (state.CartellaValida && state.InizializzazioneWorkspaceCompletata)
                 _ = mainViewModel.AggiornaOraCommand.ExecuteAsync(null);
 
-            // Backup giornaliero (6.4.1): pianificato SOLO da qui, mai dentro InizializzaCartella/AppState —
-            // MainWindow è già mostrata e lo scaldamento (dentro PreparaAvvioAsync/lavoroTask sopra) è già
-            // concluso, quindi il thread dedicato (con il suo ritardo cancellabile) non può competere per I/O
-            // con le primissime navigazioni dell'utente (revisione indipendente su fc7e51b, punto 2).
+            // Backup come prima: il suo scheduler possiede gia' un ritardo autonomo.
             state.AvviaBackupGiornalieroDopoAvvio();
+
+            // TICKET read-only e browser handoff conservano il loro comportamento
+            // e intervallo, ma NON partono durante il bootstrap o il primo paint.
+            _ = AvviaServiziBackgroundDopoPrimaFinestraAsync(mainViewModel);
+
+            // Precache opzionale, senza rallentare il primo frame. Non parte durante
+            // aggiornamento iniziale, navigazione, onboarding o uso attivo dell'editor.
+            _ = ScaldaPagineDopoAvvioAsync(state, mainViewModel, mainViewModel.SelectedNavItem?.Id);
         }
         catch (Exception ex)
         {
@@ -233,11 +231,9 @@ public partial class App : Application
         desktop.Shutdown(1);
     }
 
-    /// <summary>Bootstrap di AppState (thread di pool, invariato) seguito dalla costruzione di MainViewModel e
-    /// dallo scaldamento delle pagine (entrambi sul thread UI, cioè quello da cui RunStartupAsync ha chiamato
-    /// questo metodo): nessuna delle due cose richiede un thread diverso — MainViewModel non tocca alcun
-    /// oggetto Avalonia nel costruttore, e ScaldaPagineAsync sposta SOLO il lavoro pesante vero (NavItem.Crea)
-    /// su Task.Run, vedi MainViewModel.PreparaPaginaAsync.</summary>
+    /// <summary>Parte critica dell'avvio: AppState sul thread di pool e MainViewModel sul dispatcher.
+    /// Le pagine non iniziali non devono aggiungere secondi al tempo per mostrare MainWindow:
+    /// vengono preparate separatamente, quando la Home e' disponibile e la sessione e' inattiva.</summary>
     private static async Task<(AppState State, MainViewModel MainViewModel)> PreparaAvvioAsync(
         string? configOverride, IProgress<BootstrapProgress> progress)
     {
@@ -247,59 +243,201 @@ public partial class App : Application
 
         LocalizationService.Instance.Lingua = state.Config.Lingua;
         ThemeAppearanceService.Apply(state.Config.TemaInterfaccia);
-        var mainViewModel = new MainViewModel(state);
-
-        await ScaldaPagineAsync(state, mainViewModel, progress);
-
+        // I due worker read-only TICKET/Browser vengono avviati soltanto dopo
+        // il primo frame. Le stesse logiche rimangono attive, cambia il timing.
+        var mainViewModel = new MainViewModel(state, avviaServiziBackground: false);
         return (state, mainViewModel);
     }
 
+    private static async Task AvviaServiziBackgroundDopoPrimaFinestraAsync(MainViewModel mainViewModel)
+    {
+        try
+        {
+            // Il normale loop Avalonia ha gia' mostrato la shell; il ritardo
+            // evita la contesa I/O con la prima navigazione/Home. Se la finestra
+            // e' stata chiusa nel frattempo il ViewModel non riavvia i worker.
+            await Task.Delay(1000);
+            mainViewModel.AvviaServiziBackground();
+        }
+        catch (Exception ex)
+        {
+            CrashLogService.Registra("Avvio differito monitor TICKET e browser", ex);
+        }
+    }
+
     /// <summary>
-    /// Scaldamento all'avvio (piano 6.4.0, richiesta utente: "le pagine devono stare sotto 700ms anche alla
-    /// PRIMA visita"). Le pagine scaldate sono quelle che l'audit prestazioni 2026-09-25 (banco 100k) ha
-    /// misurato come uniche a pagare un vero ricalcolo sull'intero archivio alla primissima apertura (WU Status
-    /// 2986ms, Report 1527ms, Test 846ms) — Home e le altre pagine non hanno lo stesso costo e non sono qui.
-    /// Ogni pagina passa da <see cref="MainViewModel.PreparaPaginaAsync"/>, quindi dallo stesso percorso
-    /// (NavItem.Crea) che una prima navigazione reale userebbe: nessuna cache o logica di invalidazione
-    /// duplicata qui.
-    ///
-    /// Reattività dell'AvvioWindow: fra una pagina e l'altra si cede il controllo al thread UI
-    /// (Dispatcher.UIThread.InvokeAsync in priorità Background) così, se la finestra è visibile, ha modo di
-    /// ridipingersi invece di restare congelata dall'inizio alla fine dello scaldamento. Il lavoro pesante di
-    /// ciascuna pagina gira comunque già fuori dal thread UI (vedi PreparaPaginaAsync), quindi questo cedere il
-    /// controllo qui serve solo a far arrivare a video il messaggio "Preparazione pagine… X" aggiornato prima
-    /// di attendere la pagina successiva, non a spezzare un blocco che altrimenti non ci sarebbe.
-    ///
-    /// Un fallimento di scaldamento (qualunque pagina, o la View dell'editor sotto) non deve MAI impedire
-    /// l'avvio (piano 6.4.0, punto 4): PreparaPaginaAsync già intercetta e registra le proprie eccezioni (con un
-    /// budget PER PAGINA, vedi MainViewModel.TimeoutScaldamentoPagina), e lo scaldamento della View dell'editor
-    /// è avvolto nello stesso modo qui sotto.
-    ///
-    /// Tetto totale (revisione indipendente, piano 6.4.0): <see cref="TimeoutTotaleScaldamento"/> limita quanto
-    /// TUTTO lo scaldamento (le tre pagine + la View dell'editor) può costare in totale, anche se ogni singola
-    /// pagina rispettasse il proprio budget individuale — con 3 pagine da 15s ciascuna il caso peggiore
-    /// (15s+15s+15s=45s) supererebbe altrimenti un tetto di 30s. Controllato PRIMA di iniziare ogni pagina (non
-    /// interrompe una pagina già in corso, che resta comunque limitata dal proprio budget individuale): una
-    /// volta superato, le pagine restanti vengono saltate e loggate, mai attese.
+    /// La schermata iniziale deve essere utilizzabile prima di investire CPU/I/O nello
+    /// scaldamento delle pagine secondarie. I dati condivisi e i controlli di sicurezza
+    /// rimangono nel bootstrap: questa e' soltanto una cache di navigazione.
     /// </summary>
-    private static async Task ScaldaPagineAsync(AppState state, MainViewModel mainViewModel, IProgress<BootstrapProgress> progress)
+    private static async Task ScaldaPagineDopoAvvioAsync(AppState state, MainViewModel mainViewModel, string? paginaIniziale)
+    {
+        try
+        {
+            bool PuoScaldare() => !mainViewModel.Disposto && AvvioPrecachePolicy.PuoScaldare(
+                state.CartellaValida, state.InizializzazioneWorkspaceCompletata,
+                mainViewModel.MostraPrimoAvvio, mainViewModel.MostraOnboarding,
+                mainViewModel.CaricamentoPagina,
+                mainViewModel.AggiornamentoInCorso,
+                mainViewModel.HaModificheNonSalvate(),
+                mainViewModel.CurrentPage != null);
+
+            // Attende la prima finestra e un momento adatto (refresh iniziale
+            // terminato). Se l'avvio richiede login, non abbandona definitivamente
+            // il precache dopo i primi 8 secondi: lo potra' fare dopo l'accesso.
+            // Tetto massimo: nessun polling illimitato durante la sessione.
+            for (var tentativo = 0; tentativo < 90; tentativo++)
+            {
+                await Task.Delay(tentativo == 0 ? 2000 : 1500);
+                if (mainViewModel.Disposto) return;
+                if (!state.CartellaValida || !state.InizializzazioneWorkspaceCompletata ||
+                    mainViewModel.MostraPrimoAvvio || mainViewModel.MostraOnboarding)
+                    continue;
+                paginaIniziale ??= mainViewModel.SelectedNavItem?.Id;
+                // Nessuna pagina iniziale certa: non precachare accidentalmente
+                // Home durante il login o un cambio di sessione.
+                if (paginaIniziale == null || !PuoScaldare()) continue;
+
+                var tempoScaldamento = System.Diagnostics.Stopwatch.StartNew();
+                await ScaldaPagineAsync(state, mainViewModel, progress: null,
+                    puoContinuare: PuoScaldare, scaldaView: false,
+                    paginaIniziale: paginaIniziale);
+                var durata = tempoScaldamento.Elapsed;
+                var cartellaLog = state.TestCases?.LocalWorkspaceDirectory;
+                _ = Task.Run(() => PerformanceDiagnosticsService.Record(cartellaLog,
+                    "avvio.precache_pagine", durata, detail: "post-main-window"));
+                return;
+            }
+            DiagnosticTraceService.Registra("Avvio", "Precache secondaria rinviata: sessione non pronta entro il budget");
+        }
+        catch (Exception ex)
+        {
+            // Come il vecchio warmup: il fallimento della cache non e' un fallimento
+            // dell'app, e non modifica lo stato dei Test/NC/CR.
+            CrashLogService.Registra("Precache pagine dopo avvio", ex);
+        }
+    }
+
+    /// <summary>
+    /// Precaricamento differito di tutte le pagine della sidebar eccetto quella
+    /// iniziale, DOPO MainWindow.Show(). L'elenco non e' hard-coded e segue
+    /// l'ordine di navigazione dell'utente. I VM pesanti vengono preparati fuori
+    /// dal dispatcher (guasto e' creato sul dispatcher per il suo await interno) e
+    /// le View in piccoli slot Background tramite ViewLocator, senza layout
+    /// fuori schermo o finestre temporanee. Impostazioni riscalda solo l'XAML.
+    ///
+    /// Il precache e' best-effort: non deve interferire con modifiche, refresh,
+    /// onboarding o caricamenti. Ogni pagina e' limitata dal proprio timeout e
+    /// il ciclo complessivo dal TimeoutTotaleScaldamento. Gli errori rimangono
+    /// nei log locali e non impediscono mai la navigazione reale.
+    /// </summary>
+    private static async Task ScaldaPagineAsync(AppState state, MainViewModel mainViewModel,
+        IProgress<BootstrapProgress>? progress, Func<bool>? puoContinuare = null,
+        bool scaldaView = true, string? paginaIniziale = null)
     {
         var cronometro = System.Diagnostics.Stopwatch.StartNew();
-        foreach (var (navId, titolo) in PagineDaScaldare)
+        // Tutte le destinazioni disponibili nella sidebar, non soltanto le tre
+        // storicamente lente. La pagina iniziale e' gia' montata: non duplicarla.
+        // L'ordine rispetta la disposizione configurata dall'utente.
+        foreach (var navId in AvvioPrecachePolicy.CreaCodaPagine(
+                     mainViewModel.NavItems.Select(item => item.Id),
+                     paginaIniziale ?? mainViewModel.SelectedNavItem?.Id))
         {
+            if (mainViewModel.Disposto) return;
+            var titolo = mainViewModel.NavItems.First(item => item.Id == navId).Titolo;
+            // Se l'operatore cambia pagina o modifica un editor, non competere
+            // con l'interazione: sospendere temporaneamente il passo successivo.
+            // Il precache riprende quando l'app torna inattiva, senza duplicare
+            // le pagine gia' preparate. L'attesa ha sempre un tetto finito.
+            if (puoContinuare != null && !puoContinuare())
+            {
+                var pronto = false;
+                for (var attesa = 0; attesa < 40; attesa++)
+                {
+                    await Task.Delay(1000);
+                    if (mainViewModel.Disposto) return;
+                    if (!puoContinuare()) continue;
+                    pronto = true;
+                    break;
+                }
+                if (!pronto) return;
+            }
             if (cronometro.Elapsed >= TimeoutTotaleScaldamento)
             {
                 CrashLogService.Registra("Scaldamento pagine (avvio)", new TimeoutException(
                     $"Tetto totale di {TimeoutTotaleScaldamento.TotalSeconds:F0}s superato dopo {cronometro.Elapsed.TotalSeconds:F1}s: pagina '{navId}' saltata, non attesa."));
                 break;
             }
-            progress.Report(new BootstrapProgress
+            progress?.Report(new BootstrapProgress
             {
                 Fase = FaseBootstrap.PreparazionePagine,
                 Messaggio = $"Preparazione pagine… {titolo}",
                 Trascorso = cronometro.Elapsed
             });
+            // Impostazioni e' volutamente una pagina NON cachata da OttieniPagina:
+            // istanziarne il ViewModel per precache cambierebbe la sua semantica
+            // (editor/master rinfrescati a ogni ingresso). Scaldare soltanto
+            // l'XAML senza DataContext, senza costruire editor o creare cache.
+            if (navId == "impostazioni")
+            {
+                if (puoContinuare == null || puoContinuare())
+                {
+                    try
+                    {
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            _ = new ImpostazioniView();
+                        }, DispatcherPriority.Background);
+                    }
+                    catch (Exception ex)
+                    {
+                        CrashLogService.Registra("Precache View Impostazioni", ex);
+                    }
+                }
+                continue;
+            }
+
+            var durataPagina = System.Diagnostics.Stopwatch.StartNew();
             var vm = await mainViewModel.PreparaPaginaAsync(navId);
+            var tempo = durataPagina.Elapsed;
+            var cartellaPrestazioni = state.TestCases?.LocalWorkspaceDirectory;
+            var esito = vm == null ? $"{navId}:skipped" : $"{navId}:ready";
+            _ = Task.Run(() => PerformanceDiagnosticsService.Record(cartellaPrestazioni,
+                "avvio.precache_pagina", tempo, detail: esito));
+
+            // Il lavoro di dati/VM e' stato fatto fuori dal thread UI. Avalonia
+            // impone invece che le View siano CREATE sul dispatcher: farlo in un
+            // piccolo slot a priorita' Background, DOPO il primo render, prepara
+            // la vera View riutilizzabile del ViewLocator senza mostrarla o
+            // costruire finestre temporanee. Nessun Measure/Arrange sul primo
+            // frame e nessun doppio VM quando l'utente apre quella pagina.
+            if (vm != null && (puoContinuare == null || puoContinuare()))
+            {
+                await Task.Delay(120);
+                if (puoContinuare == null || puoContinuare())
+                {
+                    try
+                    {
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            // Un utente puo' aprire la pagina fra la verifica
+                            // PuoScaldare() e questo slot di dispatcher. Non
+                            // sostituire una View gia' montata, ne' costruire
+                            // un duplicato se un'altra navigazione l'ha usata.
+                            if (ReferenceEquals(mainViewModel.CurrentPage, vm) ||
+                                mainViewModel.SelectedNavItem?.Id == navId ||
+                                mainViewModel.HaModificheNonSalvate())
+                                return;
+                            var locator = Application.Current?.DataTemplates.OfType<ViewLocator>().FirstOrDefault();
+                            locator?.PreparaInCacheSeAssente(vm);
+                        }, DispatcherPriority.Background);
+                    }
+                    catch (Exception ex)
+                    {
+                        CrashLogService.Registra($"Precache View '{navId}'", ex);
+                    }
+                }
+            }
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
             // Pre-costruzione della View "Test" (piano 6.4.0, punto 2): a VM già caldo, il costo residuo alla
@@ -310,7 +448,8 @@ public partial class App : Application
             // vedi ViewLocator._viewCache) — mai una copia scartata. Solo "test": le altre due pagine scaldate
             // (WU Status, Report) non sono nella lista di --profile-page misurata sotto i 700ms già solo con lo
             // scaldamento del ViewModel; l'audit 6.4.0 ha isolato il residuo View sulla sola pagina Test.
-            if (navId == "test" && vm != null && cronometro.Elapsed < TimeoutTotaleScaldamento)
+            if (scaldaView && (puoContinuare == null || puoContinuare()) &&
+                navId == "test" && vm != null && cronometro.Elapsed < TimeoutTotaleScaldamento)
             {
                 try
                 {
@@ -334,6 +473,11 @@ public partial class App : Application
             }
         }
 
+        // Con la finestra principale gia' visibile NON fare Measure/Arrange delle View
+        // secondarie sul dispatcher: lo styling/layout sincrono rallenterebbe i primi input.
+        // Le VM preparate restano riutilizzabili e aggiornate alla vera navigazione.
+        if (!scaldaView || (puoContinuare != null && !puoContinuare())) return;
+
         // Editor Test (piano 6.4.0, punto 3): un vero TestCaseEditorViewModel si sottoscrive a
         // AppState.DatiRicaricati e richiede una dismissione esplicita per non restare agganciato per tutta la
         // vita dell'app — costruirne uno "usa e getta" solo per scaldare JIT/template avrebbe bisogno di un
@@ -351,7 +495,7 @@ public partial class App : Application
                 $"Tetto totale di {TimeoutTotaleScaldamento.TotalSeconds:F0}s superato dopo {cronometro.Elapsed.TotalSeconds:F1}s: scaldamento View editor Test saltato."));
             return;
         }
-        progress.Report(new BootstrapProgress
+        progress?.Report(new BootstrapProgress
         {
             Fase = FaseBootstrap.PreparazionePagine,
             Messaggio = "Preparazione pagine… Editor Test",
@@ -388,7 +532,7 @@ public partial class App : Application
                 $"Tetto totale di {TimeoutTotaleScaldamento.TotalSeconds:F0}s superato dopo {cronometro.Elapsed.TotalSeconds:F1}s: scaldamento View Master.Archivio saltato."));
             return;
         }
-        progress.Report(new BootstrapProgress
+        progress?.Report(new BootstrapProgress
         {
             Fase = FaseBootstrap.PreparazionePagine,
             Messaggio = "Preparazione pagine… Master.Archivio",
@@ -419,7 +563,7 @@ public partial class App : Application
                 $"Tetto totale di {TimeoutTotaleScaldamento.TotalSeconds:F0}s superato dopo {cronometro.Elapsed.TotalSeconds:F1}s: scaldamento View Master/Master.TipiDiTest saltato."));
             return;
         }
-        progress.Report(new BootstrapProgress
+        progress?.Report(new BootstrapProgress
         {
             Fase = FaseBootstrap.PreparazionePagine,
             Messaggio = "Preparazione pagine… Master",
@@ -438,7 +582,7 @@ public partial class App : Application
                 $"Tetto totale di {TimeoutTotaleScaldamento.TotalSeconds:F0}s superato dopo {cronometro.Elapsed.TotalSeconds:F1}s: scaldamento View Master.TipiDiTest saltato."));
             return;
         }
-        progress.Report(new BootstrapProgress
+        progress?.Report(new BootstrapProgress
         {
             Fase = FaseBootstrap.PreparazionePagine,
             Messaggio = "Preparazione pagine… Master.TipiDiTest",
@@ -494,17 +638,12 @@ public partial class App : Application
         }
     }
 
-    private static readonly (string NavId, string Titolo)[] PagineDaScaldare =
-    {
-        ("wustatus", "WU Status"),
-        ("report", "Report"),
-        ("test", "Test"),
-    };
-
     /// <summary>Tetto totale per l'intero scaldamento (revisione indipendente, piano 6.4.0): vedi il commento
     /// su ScaldaPagineAsync per il perché non è semplicemente "3 × TimeoutScaldamentoPagina". Il bootstrap vero
     /// di AppState (PreparaAvvioAsync, PRIMA di ScaldaPagineAsync) non è mai coperto da questo tetto.</summary>
-    private static readonly TimeSpan TimeoutTotaleScaldamento = TimeSpan.FromSeconds(30);
+    // Dopo MainWindow.Show: non blocca piu' il lancio. Budget per tutte le
+    // destinazioni secondarie (ciascuna ha anche il proprio timeout).
+    private static readonly TimeSpan TimeoutTotaleScaldamento = TimeSpan.FromSeconds(105);
 
     private static string? TrovaArgomentoConfig(string[]? args)
     {

@@ -45,7 +45,9 @@ public sealed class PolarionGridLifecycleConverter : IMultiValueConverter
 
     public object Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (values.Count < 2 || values[1] is not DataPaths paths) return "—";
+        // Il parametro "statusBrush" alimenta una proprieta' IBrush: mai restituire stringhe (un valore di tipo errato rompe il binding della riga).
+        var perPennello = parameter?.ToString() == "statusBrush";
+        if (values.Count < 2 || values[1] is not DataPaths paths) return perPennello ? NeutralBrush : "—";
         var associations = new List<PolarionReportService.Association>();
         switch (values[0])
         {
@@ -70,16 +72,18 @@ public sealed class PolarionGridLifecycleConverter : IMultiValueConverter
                 }
                 break;
             default:
-                return "—";
+                return perPennello ? NeutralBrush : "—";
         }
 
-        if (associations.Count == 0) return "—";
+        if (associations.Count == 0) return perPennello ? NeutralBrush : "—";
         var ids = associations.Select(x => x.TicketId).Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
         var key = paths.Root + "|" + string.Join("|", ids);
         var now = DateTimeOffset.UtcNow;
         if (Cache.TryGetValue(key, out var ready) && ready.Until > now)
-            return FormatRows(ready.Rows, parameter?.ToString());
+            return parameter?.ToString() == "statusBrush"
+                ? StatusBrush(ready.Rows)
+                : FormatRows(ready.Rows, parameter?.ToString());
 
         // Never synchronously deserialize JSON from OneDrive during DataGrid rendering.
         // All columns for the same NC/CR share one coalesced background read.
@@ -120,19 +124,77 @@ public sealed class PolarionGridLifecycleConverter : IMultiValueConverter
                 }
             });
         }
-        return "Caricamento TICKET…";
+        return parameter?.ToString() == "statusBrush" ? NeutralBrush : "Caricamento TICKET…";
+    }
+
+    private static readonly Avalonia.Media.IBrush NeutralBrush = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#8A8F98"));
+    private static readonly Avalonia.Media.IBrush OkBrush = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2E9E5B"));
+    private static readonly Avalonia.Media.IBrush WorkBrush = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#3B82F6"));
+    private static readonly Avalonia.Media.IBrush OpenBrush = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#D97706"));
+    private static readonly Avalonia.Media.IBrush StaleBrush = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#DC2626"));
+
+    /// <summary>Colore di evidenza dello stato TICKET: verde = chiuso/risolto/verificato, blu = in lavorazione/test,
+    /// ambra = aperto/nuovo, grigio = non sincronizzato o sconosciuto, rosso = dati più vecchi di 24 h.
+    /// Con più ticket collegati prevale lo stato meno avanzato (un solo ticket aperto rende la riga ambra).</summary>
+    public static Avalonia.Media.IBrush StatusBrush(IReadOnlyList<PolarionReportService.Row> rows, DateTimeOffset? referenceUtc = null)
+    {
+        if (rows.Count == 0) return NeutralBrush;
+        var now = referenceUtc ?? DateTimeOffset.UtcNow;
+        if (rows.Any(r => r.HasCache && r.LastFetchedAt != default && now - r.LastFetchedAt > TimeSpan.FromHours(24)))
+            return StaleBrush;
+        static int Rank(PolarionReportService.Row r)
+        {
+            var t = (r.Status ?? "").Trim().ToLowerInvariant();
+            if (t.Length == 0) return 0;
+            if (t.Contains("clos") || t.Contains("chius") || t.Contains("resol") || t.Contains("verif") || t.Contains("done") || t.Contains("rejected") || t.Contains("rifiut")) return 3;
+            if (t.Contains("test") || t.Contains("progress") || t.Contains("lavoraz") || t.Contains("review") || t.Contains("analy") || t.Contains("implement")) return 2;
+            return 1;
+        }
+        return rows.Min(Rank) switch { 3 => OkBrush, 2 => WorkBrush, 1 => OpenBrush, _ => NeutralBrush };
     }
 
     /// <summary>
     /// Never invent a combined transition timestamp for several independently linked TICKET tickets.
     /// Concise cells show the first ticket and the number of additional links; tooltip lists ALL.
     /// </summary>
-    public static string FormatRows(IReadOnlyList<PolarionReportService.Row> rows, string? field)
+    public static string FormatRows(IReadOnlyList<PolarionReportService.Row> rows, string? field,
+        DateTimeOffset? referenceUtc = null)
     {
-        if (rows.Count == 0) return "—";
+        if (rows.Count == 0) return field == "commentCompact" ? "" : "—";
+        var now = referenceUtc ?? DateTimeOffset.UtcNow;
+        var stale = rows.Any(r => r.HasCache && r.LastFetchedAt != default
+            && now - r.LastFetchedAt > TimeSpan.FromHours(24));
+        if (field == "commentCompact")
+        {
+            var linked = rows.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.LatestCommentPreview));
+            if (linked is null) return rows.Sum(r => r.CommentsCount) > 0
+                ? LocalizationService.Instance.Scegli("💬 Commenti disponibili", "💬 Comments available", "💬 Commentaires disponibles")
+                : "";
+            var preview = linked.LatestCommentPreview;
+            if (preview.Length > 90) preview = preview[..87] + "…";
+            return (rows.Count > 1 ? linked.TicketId + " · " : "") + "💬 " + preview;
+        }
         if (field == "tooltip")
-            return string.Join("\n", rows.Select(r => $"{r.TicketId} | {r.Status} / {r.Resolution} | " +
-                $"Aperto: {r.CreatedText} | Testing: {r.TestingText} | Closed: {r.ClosedText} | {r.DataQuality}"));
+            return string.Join("\n\n", rows.Select(r =>
+            {
+                var status = !string.IsNullOrWhiteSpace(r.Status) ? r.Status :
+                    r.HasCache ? LocalizationService.Instance.Scegli("Stato sconosciuto", "Unknown status", "Statut inconnu") :
+                        LocalizationService.Instance.Scegli("Non sincronizzato", "Not synchronized", "Non synchronisé");
+                var resolution = string.IsNullOrWhiteSpace(r.Resolution)
+                    ? LocalizationService.Instance.Scegli("Non indicata", "Not specified", "Non précisée") : r.Resolution;
+                var commenti = LocalizationService.Instance.Scegli("Commenti", "Comments", "Commentaires");
+                var ultimaNota = LocalizationService.Instance.Scegli("Ultimo commento", "Latest comment", "Dernier commentaire");
+                var titolo = string.IsNullOrWhiteSpace(r.Title) ? "" : "\n" + r.Title;
+                var nota = string.IsNullOrWhiteSpace(r.LatestCommentPreview) ? ""
+                    : $"\n{ultimaNota}" +
+                        (string.IsNullOrWhiteSpace(r.LatestCommentAuthor) ? "" : $" ({r.LatestCommentAuthor})") +
+                        $": {r.LatestCommentPreview}";
+                return $"{r.TicketId} — {status}{titolo}\n" +
+                    $"{LocalizationService.Instance.Scegli("Risoluzione", "Resolution", "Résolution")}: {resolution}\n" +
+                    $"{commenti}: {r.CommentsCount}{nota}\n" +
+                    $"{LocalizationService.Instance.Scegli("Apertura", "Created", "Ouvert")}: {r.CreatedText}\n" +
+                    $"Testing: {r.TestingText}\nClosed: {r.ClosedText}\n{r.DataQuality}";
+            }));
         if (field == "status")
         {
             // Una cache presente con stato mancante NON equivale a un ticket
@@ -142,7 +204,16 @@ public sealed class PolarionGridLifecycleConverter : IMultiValueConverter
                     ? LocalizationService.Instance.Scegli("Stato sconosciuto", "Unknown status", "Statut inconnu")
                     : LocalizationService.Instance.Scegli("Non sincronizzato", "Not synchronized", "Non synchronisé"))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
-            return rows.Count == 1 ? statuses.First() : $"{rows.Count} TICKET · {string.Join(", ", statuses)}";
+            var statusLabel = (rows.Count == 1 ? statuses.First() : $"{rows.Count} TICKET · {string.Join(", ", statuses)}");
+            if (rows.Count == 1 && !string.IsNullOrWhiteSpace(rows[0].Resolution)
+                && !string.Equals(rows[0].Resolution, rows[0].Status, StringComparison.OrdinalIgnoreCase))
+                statusLabel += $" / {rows[0].Resolution}";
+            var commenti = rows.Sum(r => r.CommentsCount);
+            if (commenti > 0) statusLabel += $" · 💬 {commenti}";
+            // La colonna e' stretta e tronca i testi: il warning di freschezza deve precedere
+            // lo stato, non restare invisibile in fondo a un label con risoluzione/commenti.
+            if (stale) statusLabel = "⚠ >24h · " + statusLabel;
+            return statusLabel;
         }
         string Pick(PolarionReportService.Row row) => field switch
         {

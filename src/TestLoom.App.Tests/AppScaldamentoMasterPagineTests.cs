@@ -55,7 +55,7 @@ public sealed class AppScaldamentoMasterPagineTests : IDisposable
         var metodo = typeof(App).GetMethod("ScaldaPagineAsync", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(metodo);
         var progress = new Progress<BootstrapProgress>();
-        var task = (Task)metodo!.Invoke(null, new object?[] { state, main, progress })!;
+        var task = (Task)metodo!.Invoke(null, new object?[] { state, main, progress, null, true, null })!;
         await task;
     }
 
