@@ -121,6 +121,7 @@ public class LayoutEditorTestHeadlessTests
             {
                 LayoutHeadlessSessione.AttendiComando(vm.IniziaModificaCommand.ExecuteAsync(null), TimeSpan.FromSeconds(30));
                 vm.StrumentiOptions.Single(s => s.Valore == "CaptureTool").Selezionato = true;
+                vm.ApriParametriPerValidazione();   // i parametri tecnici delle operazioni sono compressi di default
                 LayoutHeadlessSessione.Assesta(finestra);
 
                 var operazione = vm.RevisioneCorrente!.Condizioni.Single(c => c.Uid == fixture.Prima);
@@ -313,6 +314,10 @@ public class LayoutEditorTestHeadlessTests
                 LayoutHeadlessSessione.Assesta(finestra);
                 Assert.False(quick.IsVisible);
                 Assert.True(vm.MostraCronologiaEditor);
+                // Regola attuale: i parametri tecnici delle operazioni restano compressi all'apertura (anche nella modalita'
+                // completa) e li apre solo l'utente o la validazione di un campo obbligatorio.
+                Assert.False(vm.EspandiParametriOperazione);
+                vm.ApriParametriPerValidazione();
                 Assert.True(vm.EspandiParametriOperazione);
             }
             finally { finestra.Hide(); }

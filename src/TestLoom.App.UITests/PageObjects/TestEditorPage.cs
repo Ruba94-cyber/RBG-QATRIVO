@@ -578,6 +578,7 @@ public sealed class TestEditorPage
     /// sono per riga: si prende l'occorrenza di pari posizione, nello stesso ordine delle operazioni. Null se assente.</summary>
     public string? ValoreCampoTestoOperazione(int indice, string nomeCampo)
     {
+        ElementFinders.EspandiParametriOperazioni(_window);
         var occorrenze = _window.FindAllDescendants(cf => cf.ByAutomationId($"Editor_Campo_{nomeCampo}"));
         if (indice < 0 || indice >= occorrenze.Length) return null;
         return occorrenze[indice].AsTextBox().Text;

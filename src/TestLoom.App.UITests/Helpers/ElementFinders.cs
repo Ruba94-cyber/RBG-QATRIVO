@@ -23,6 +23,24 @@ public static class ElementFinders
         scope.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) ?? TryFindInSettingsTabs(scope, automationId)
             ?? TryFindInCampiStrumentoExpander(scope, automationId);
 
+    /// <summary>Espande (idempotente, via pattern ExpandCollapse) i riquadri "Parametri tecnici dello strumento" di ogni operazione, cosi'
+    /// i campi dello strumento per operazione sono presenti nell'albero UIA. Come farebbe l'utente aprendoli.</summary>
+    public static void EspandiParametriOperazioni(AutomationElement scope)
+    {
+        try
+        {
+            foreach (var g in scope.FindAllDescendants(cf => cf.ByControlType(ControlType.Group)))
+            {
+                var id = g.Properties.AutomationId.ValueOrDefault ?? "";
+                if (!id.EndsWith("_Parametri_Expander", StringComparison.Ordinal)) continue;
+                var pattern = g.Patterns.ExpandCollapse.PatternOrDefault;
+                if (pattern != null && pattern.ExpandCollapseState.Value != ExpandCollapseState.Expanded) pattern.Expand();
+            }
+            System.Threading.Thread.Sleep(150);
+        }
+        catch (Exception) { /* UIA transitorio: la verifica successiva fallisce con il proprio messaggio */ }
+    }
+
     /// <summary>I campi degli strumenti ("Editor_Campo_*") stanno in riquadri compressi dell'editor Test (campi del Test e "Parametri tecnici
     /// dello strumento" di ogni operazione): se il campo non e' visibile i riquadri chiusi vengono espansi, uno alla volta e una sola
     /// volta ciascuno (come farebbe l'utente), cercando il campo dopo ogni espansione.</summary>
@@ -39,13 +57,20 @@ public static class ElementFinders
                 }).ToList();
             foreach (var riquadro in riquadri)
             {
-                var intestazione = riquadro.FindFirstDescendant(cf => cf.ByAutomationId("ExpanderHeader"));
-                if (intestazione == null) continue;
-                var toggle = intestazione.Patterns.Toggle.PatternOrDefault;
-                var aperto = toggle != null && toggle.ToggleState.Value == FlaUI.Core.Definitions.ToggleState.On;
-                if (aperto) continue;
-                var invoke = intestazione.Patterns.Invoke.PatternOrDefault;
-                if (invoke != null) invoke.Invoke(); else intestazione.Click();
+                // Stato letto dal pattern ExpandCollapse del riquadro (idempotente: mai un secondo clic che lo richiuda).
+                var pattern = riquadro.Patterns.ExpandCollapse.PatternOrDefault;
+                if (pattern != null)
+                {
+                    if (pattern.ExpandCollapseState.Value == ExpandCollapseState.Expanded) continue;
+                    pattern.Expand();
+                }
+                else
+                {
+                    var intestazione = riquadro.FindFirstDescendant(cf => cf.ByAutomationId("ExpanderHeader"));
+                    if (intestazione == null) continue;
+                    var invoke = intestazione.Patterns.Invoke.PatternOrDefault;
+                    if (invoke != null) invoke.Invoke(); else intestazione.Click();
+                }
                 for (var i = 0; i < 12; i++)
                 {
                     var trovato = scope.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
@@ -62,8 +87,8 @@ public static class ElementFinders
     /// selezionando in sequenza le schede (la scheda resta quella in cui l'elemento e' stato trovato). Solo per scope finestra.</summary>
     private static AutomationElement? TryFindInSettingsTabs(AutomationElement scope, string automationId)
     {
-        if (!automationId.StartsWith("Impostazioni_", StringComparison.Ordinal)
-            || automationId is "Impostazioni_Generale_Tab" or "Impostazioni_Sidebar_List" or "Impostazioni_Title_Text") return null;
+        // Qualsiasi controllo della pagina Impostazioni generali (anche con prefisso diverso, es. RecordFork_*, MasterConflict_*).
+        if (automationId is "Impostazioni_Generale_Tab" or "Impostazioni_Sidebar_List" or "Impostazioni_Title_Text") return null;
         try
         {
             var tab = scope.FindFirstDescendant(cf => cf.ByAutomationId("Impostazioni_Generale_Tab"));

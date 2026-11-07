@@ -92,12 +92,14 @@ public sealed class ThemeSurfaceCoverageTests
     }
 
     [Fact]
-    public void ChartCanvas_UsaSfondoBiancoPerLaGraficaRenderizzataConInchiostroScuro()
+    public void ChartCanvas_SegueIlTema_BiancoInChiaroEScuroNelTemaScuro()
     {
         var app = File.ReadAllText(Path.Combine(Root(), "App.axaml"));
         var card = File.ReadAllText(Path.Combine(Root(), "Views", "GraficoCard.axaml"));
         var window = File.ReadAllText(Path.Combine(Root(), "Views", "GraficoWindow.axaml"));
-        Assert.Equal(2, Regex.Matches(app, "x:Key=\"ChartCanvasBrush\">#FFFFFF").Count);
+        // Il grafico a schermo segue il tema (l'inchiostro del renderer cambia con ChartRenderer.TemaScuro); gli export restano su bianco.
+        Assert.Single(Regex.Matches(app, "x:Key=\"ChartCanvasBrush\">#FFFFFF"));
+        Assert.Single(Regex.Matches(app, "x:Key=\"ChartCanvasBrush\">#141B23"));
         Assert.Contains("Background=\"{DynamicResource ChartCanvasBrush}\"", card);
         Assert.Contains("Background=\"{DynamicResource ChartCanvasBrush}\"", window);
     }

@@ -23,10 +23,11 @@ public sealed class TableLayoutPersonalizationHeadlessTests
 {
     private static TextBlock TestoTooltipScorrevole(TextBlock controllo)
     {
-        // I tooltip lunghi ora hanno contenitore scrollabile: il contenuto rimane un TextBlock
-        // per wrapping, leggibilita' e binding ai dati NC/CR (fix tooltip troncati).
+        // Un tooltip non e' scorrevole: il testo lungo deve comparire PER INTERO. Nessun limite di altezza (e nessuna barra di
+        // scorrimento verticale); il contenuto resta un TextBlock a capo per leggibilita' e binding ai dati NC/CR.
         var scorrimento = Assert.IsType<ScrollViewer>(ToolTip.GetTip(controllo));
-        Assert.InRange(scorrimento.MaxHeight, 1, 400);
+        Assert.True(double.IsPositiveInfinity(scorrimento.MaxHeight), "il tooltip non deve troncare il testo per altezza");
+        Assert.Equal(Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, scorrimento.VerticalScrollBarVisibility);
         var testo = Assert.IsType<TextBlock>(scorrimento.Content);
         Assert.Equal(TextWrapping.Wrap, testo.TextWrapping);
         Assert.Equal(TextTrimming.None, testo.TextTrimming);
@@ -166,6 +167,13 @@ public sealed class TableLayoutPersonalizationHeadlessTests
                 Assert.Contains(grigliaNc.Columns, c => c.Header?.ToString() == LocalizationService.Instance.Traduci("ColDescrizioneLunga"));
 
                 var grigliaCr = vista.FindControl<DataGrid>("ListaCr")!;
+                // La griglia CR realizza le righe dopo il primo passaggio di layout: si attende il binding delle celle.
+                for (var tentativo = 0; tentativo < 20; tentativo++)
+                {
+                    LayoutHeadlessSessione.Assesta(finestra);
+                    if (grigliaCr.GetVisualDescendants().OfType<TextBlock>().Any(t =>
+                            AutomationProperties.GetAutomationId(t) == "Anomalie_Cr_RigaDescrizioneBreve_Text" && !string.IsNullOrEmpty(t.Text))) break;
+                }
                 var descrizioneBreveCr = grigliaCr.GetVisualDescendants().OfType<TextBlock>()
                     .Single(t => AutomationProperties.GetAutomationId(t) == "Anomalie_Cr_RigaDescrizioneBreve_Text");
                 var descrizioneCr = grigliaCr.GetVisualDescendants().OfType<TextBlock>()

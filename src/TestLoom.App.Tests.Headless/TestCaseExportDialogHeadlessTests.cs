@@ -52,7 +52,7 @@ public sealed class TestCaseExportDialogHeadlessTests
                     c => AutomationProperties.GetAutomationId(c) == "EsportaOpzioni_Filtro_attivo");
                 Assert.True(filtro.IsChecked == true);
                 ignora.IsChecked = true;
-                Assert.False(filtro.IsEnabled);
+                Assert.False(filtro.IsEffectivelyEnabled); // il contenitore dei filtri e' disabilitato: il controllo figlio lo e' di fatto
                 Bottone(dialogo.Finestra, "EsportaOpzioni_Esporta")
                     .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             });
