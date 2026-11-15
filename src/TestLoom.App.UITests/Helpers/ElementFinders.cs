@@ -29,6 +29,7 @@ public static class ElementFinders
     {
         try
         {
+            ApriParametriInSolaLettura(scope);
             foreach (var g in scope.FindAllDescendants(cf => cf.ByControlType(ControlType.Group)))
             {
                 var id = g.Properties.AutomationId.ValueOrDefault ?? "";
@@ -41,6 +42,18 @@ public static class ElementFinders
         catch (Exception) { /* UIA transitorio: la verifica successiva fallisce con il proprio messaggio */ }
     }
 
+    /// <summary>In sola lettura i riquadri dei campi strumento sono aperti solo se contengono campi compilati e mostrano solo quelli:
+    /// i test cercano per AutomationId anche campi vuoti, quindi attivano "Mostra anche campi vuoti" della barra superiore (compare solo in
+    /// sola lettura), che apre tutti i riquadri e mostra tutti i campi. Idempotente (pattern Toggle).</summary>
+    private static void ApriParametriInSolaLettura(AutomationElement scope)
+    {
+        var toggle = scope.FindFirstDescendant(cf => cf.ByAutomationId("Editor_ParametriStrumento_Lettura_Toggle"));
+        var pattern = toggle?.Patterns.Toggle.PatternOrDefault;
+        if (pattern == null || toggle!.Properties.IsOffscreen.ValueOrDefault) return;
+        if (pattern.ToggleState.Value != ToggleState.On) pattern.Toggle();
+        System.Threading.Thread.Sleep(150);
+    }
+
     /// <summary>I campi degli strumenti ("Editor_Campo_*") stanno in riquadri compressi dell'editor Test (campi del Test e "Parametri tecnici
     /// dello strumento" di ogni operazione): se il campo non e' visibile i riquadri chiusi vengono espansi, uno alla volta e una sola
     /// volta ciascuno (come farebbe l'utente), cercando il campo dopo ogni espansione.</summary>
@@ -49,6 +62,7 @@ public static class ElementFinders
         if (!automationId.StartsWith("Editor_Campo_", StringComparison.Ordinal)) return null;
         try
         {
+            ApriParametriInSolaLettura(scope);
             var riquadri = scope.FindAllDescendants(cf => cf.ByControlType(ControlType.Group))
                 .Where(g =>
                 {
@@ -83,12 +97,16 @@ public static class ElementFinders
         catch (Exception) { return null; }
     }
 
+    private static readonly string[] PrefissiImpostazioniGenerali = { "Impostazioni_", "RecordFork_", "MasterConflict_" };
+
     /// <summary>Le Impostazioni generali sono organizzate in schede: un controllo "Impostazioni_*" non visibile viene cercato
     /// selezionando in sequenza le schede (la scheda resta quella in cui l'elemento e' stato trovato). Solo per scope finestra.</summary>
     private static AutomationElement? TryFindInSettingsTabs(AutomationElement scope, string automationId)
     {
-        // Qualsiasi controllo della pagina Impostazioni generali (anche con prefisso diverso, es. RecordFork_*, MasterConflict_*).
+        // Solo i controlli della pagina Impostazioni generali (prefissi noti): per ogni altro id NON mancante si evita una ricerca
+        // UIA a vuoto sull'intero albero a ogni tentativo (+3-4 s nei test con attese su elenchi grandi).
         if (automationId is "Impostazioni_Generale_Tab" or "Impostazioni_Sidebar_List" or "Impostazioni_Title_Text") return null;
+        if (!PrefissiImpostazioniGenerali.Any(p => automationId.StartsWith(p, StringComparison.Ordinal))) return null;
         try
         {
             var tab = scope.FindFirstDescendant(cf => cf.ByAutomationId("Impostazioni_Generale_Tab"));

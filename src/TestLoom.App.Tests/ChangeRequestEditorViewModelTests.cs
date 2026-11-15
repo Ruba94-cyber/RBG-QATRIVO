@@ -451,6 +451,44 @@ public sealed class ChangeRequestEditorViewModelTests : IDisposable
         Assert.Empty(vm.TicketCollegatiVisual);
     }
 
+    [Theory]
+    [InlineData("TICKET-1234")]
+    [InlineData("  ticket-1234  ")]
+    [InlineData("TICKET 1234")]
+    [InlineData("TICKET1234")]
+    [InlineData("TICKET–1234")]
+    public void Salva_TicketDigitatoSenzaPremereAggiungi_VieneCollegatoAutomaticamente(string digitato)
+    {
+        var (state, templateCr) = CreaStato();
+        var vm = new ChangeRequestEditorViewModel(state, id: null, torna: () => { }, apriTest: _ => { }) { TemplateSelezionato = templateCr };
+        vm.Titolo = "CR ticket automatico";
+        vm.Descrizione = "Descrizione";
+        vm.AggiungiVeicoli(new[] { "Daily 24" });
+        vm.NuovoTicketRiferimento = digitato;
+
+        vm.SalvaCommand.Execute(null);
+
+        var salvata = state.ChangeRequests.GetById(vm.ChangeRequest.Id)!;
+        Assert.Contains(salvata.TicketCollegati, t => t.Riferimento == "TICKET-1234");
+        Assert.Equal("", vm.NuovoTicketRiferimento);
+    }
+
+    [Fact]
+    public void Salva_TicketDigitatoNonValido_BloccaSenzaPersistere()
+    {
+        var (state, templateCr) = CreaStato();
+        var vm = new ChangeRequestEditorViewModel(state, id: null, torna: () => { }, apriTest: _ => { }) { TemplateSelezionato = templateCr };
+        vm.Titolo = "CR ticket errato";
+        vm.Descrizione = "Descrizione";
+        vm.AggiungiVeicoli(new[] { "Daily 24" });
+        vm.NuovoTicketRiferimento = "XYZ-12";
+
+        vm.SalvaCommand.Execute(null);
+
+        Assert.NotEmpty(vm.Errore);
+        Assert.Empty(vm.ChangeRequest.TicketCollegati);
+    }
+
     [Fact]
     public void RimuoviTicket_LoRimuoveDallaListaVisualEDalModello()
     {

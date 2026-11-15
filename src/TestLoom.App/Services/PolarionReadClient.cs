@@ -19,6 +19,14 @@ public sealed class PolarionReadClient
     private static readonly Regex ProjectPattern = new("^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.CultureInvariant);
     private static readonly Regex TicketPattern = new("^[A-Za-z][A-Za-z0-9_]*-[0-9]+$", RegexOptions.CultureInvariant);
 
+    /// <summary>Stesso criterio usato dal client per gli ID di progetto (riusato da impostazioni e collegamenti requisito).</summary>
+    public static bool IsValidProjectId(string? projectId) =>
+        !string.IsNullOrWhiteSpace(projectId) && ProjectPattern.IsMatch(projectId);
+
+    /// <summary>Stesso criterio usato dal client per gli ID di work item (es. REQ-123).</summary>
+    public static bool IsValidWorkItemId(string? workItemId) =>
+        !string.IsNullOrWhiteSpace(workItemId) && TicketPattern.IsMatch(workItemId);
+
     private readonly HttpClient _http;
     private readonly Uri _apiRoot;
     private readonly string _token;
@@ -52,6 +60,17 @@ public sealed class PolarionReadClient
         GetTicketCoreAsync(projectId, workItemId, includeComments: true, cancellationToken);
 
     /// <summary>
+    /// Lettura in sola lettura di un work item NON TICKET (es. un requisito in un altro progetto) con stato, risoluzione,
+    /// titolo e commenti completi. A differenza di <see cref="GetTicketAsync"/> non pretende che le relazioni
+    /// (assegnatari, work item collegati) siano complete: un requisito puo avere centinaia di collegamenti di
+    /// tracciabilita e il suo stato non deve dipenderne. Resta rifiutata ogni risposta con errori parziali
+    /// segnalati da Ticketing o commenti incompleti.
+    /// </summary>
+    public Task<PolarionTicketSnapshot> GetRequirementAsync(string projectId, string workItemId,
+        CancellationToken cancellationToken = default) =>
+        GetTicketCoreAsync(projectId, workItemId, includeComments: true, cancellationToken, strictRelationships: false);
+
+    /// <summary>
     /// Minimal verified read for browser-created TICKET reconciliation. A new ticket
     /// may be readable before the comments endpoint is ready or authorized. The
     /// correlation marker, subtype, created date and assignees require only GET
@@ -83,14 +102,15 @@ public sealed class PolarionReadClient
     }
 
     private async Task<PolarionTicketSnapshot> GetTicketCoreAsync(
-        string projectId, string workItemId, bool includeComments, CancellationToken cancellationToken)
+        string projectId, string workItemId, bool includeComments, CancellationToken cancellationToken,
+        bool strictRelationships = true)
     {
         ValidateIds(projectId, workItemId);
         var path = "projects/" + Uri.EscapeDataString(projectId) + "/workitems/" + Uri.EscapeDataString(workItemId);
         using var document = await GetJsonAsync(path + "?fields%5Bworkitems%5D=%40all", cancellationToken).ConfigureAwait(false);
         var item = DataObject(document.RootElement);
         var attrs = Child(item, "attributes");
-        EnsureCompleteWorkItem(document.RootElement, item);
+        EnsureCompleteWorkItem(document.RootElement, item, strictRelationships);
         if (item.ValueKind != JsonValueKind.Object)
             throw new InvalidDataException("Ticketing work item response is missing the data object.");
         // JSON:API resource IDs are normally composite: "TICKET_Tickets/TICKET-123".
@@ -133,7 +153,8 @@ public sealed class PolarionReadClient
             // TestLoom's own assigned operator.
             CustomAssignees = UserIds(AttributeIds(attrs, "TICKET_tkc_assign_to")
                 .Concat(RelationIds(item, "TICKET_tkc_assign_to"))),
-            LinkedWorkItems = LinkedTicketIds(item),
+            // Con relazioni non verificate (requisiti) l'elenco sarebbe parziale: meglio vuoto che ingannevole.
+            LinkedWorkItems = strictRelationships ? LinkedTicketIds(item) : new List<string>(),
             Comments = comments
         };
     }
@@ -319,11 +340,12 @@ public sealed class PolarionReadClient
     /// is hidden due to permission errors. Never cache an apparently complete
     /// read-only TICKET when an important field may be missing.
     /// </summary>
-    private static void EnsureCompleteWorkItem(JsonElement root, JsonElement item)
+    private static void EnsureCompleteWorkItem(JsonElement root, JsonElement item, bool strictRelationships = true)
     {
         var errors = Child(Child(root, "meta"), "errors");
         if (errors.ValueKind == JsonValueKind.Array && errors.GetArrayLength() != 0)
             throw new InvalidDataException("Ticketing reported partial work-item data.");
+        if (!strictRelationships) return;
         foreach (var name in new[] { "assignee", "TICKET_tkc_assign_to", "linkedWorkItems" })
         {
             var relation = Child(Child(item, "relationships"), name);

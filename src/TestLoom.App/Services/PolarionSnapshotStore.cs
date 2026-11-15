@@ -103,11 +103,14 @@ public sealed class PolarionTicketRefreshService(PolarionReadClient client, Pola
     public PolarionTicketSnapshot? ReadCached(string projectId, string ticketId) => store.Load(projectId, ticketId);
 
     /// <summary>Refresh for explicit or scheduled sync: report failure unless cache and history are usable.</summary>
-    internal async Task<StoredRefresh> RefreshAndStoreAsync(string projectId, string ticketId, CancellationToken cancellationToken = default)
+    internal async Task<StoredRefresh> RefreshAndStoreAsync(string projectId, string ticketId, CancellationToken cancellationToken = default,
+        bool requisito = false)
     {
         if (!store.SharedWriteAllowed)
             throw new IOException("Shared TICKET cache is read-only.");
-        var fetched = await client.GetTicketAsync(projectId, ticketId, cancellationToken).ConfigureAwait(false);
+        var fetched = requisito
+            ? await client.GetRequirementAsync(projectId, ticketId, cancellationToken).ConfigureAwait(false)
+            : await client.GetTicketAsync(projectId, ticketId, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var written = store.SaveIfNewer(fetched);
         // A newer cache can win a concurrent or stale-server comparison. Use the
@@ -118,11 +121,14 @@ public sealed class PolarionTicketRefreshService(PolarionReadClient client, Pola
         return new StoredRefresh(current, written);
     }
 
-    public async Task<PolarionTicketSnapshot> RefreshAsync(string projectId, string ticketId, CancellationToken cancellationToken = default)
+    public async Task<PolarionTicketSnapshot> RefreshAsync(string projectId, string ticketId, CancellationToken cancellationToken = default,
+        bool requisito = false)
     {
         // Only commit complete successful work item + comment responses. In particular no partial
         // comment cache after HTTP 401/403/429, proxy failure, cancellation or pagination failure.
-        var snapshot = await client.GetTicketAsync(projectId, ticketId, cancellationToken).ConfigureAwait(false);
+        var snapshot = requisito
+            ? await client.GetRequirementAsync(projectId, ticketId, cancellationToken).ConfigureAwait(false)
+            : await client.GetTicketAsync(projectId, ticketId, cancellationToken).ConfigureAwait(false);
         try
         {
             store.SaveIfNewer(snapshot);

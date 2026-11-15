@@ -101,9 +101,13 @@ public class AppState : IDisposable
     /// stato operativo in sola lettura subito, senza attendere il giro periodico: vedi SharedWriteLossMonitor.</summary>
     public EsitoStatoCondivisione StatoCondivisione
     {
-        get => _statoCondivisione.Stato == Models.StatoCondivisione.Operativa
-            ? SharedWriteLossMonitor.EsitoPerdita(Paths?.Root) ?? _statoCondivisione
-            : _statoCondivisione;
+        get => _statoCondivisione.Stato switch
+        {
+            Models.StatoCondivisione.Operativa => SharedWriteLossMonitor.EsitoPerdita(Paths?.Root) ?? OneDriveSyncGate.Esito(Paths?.Root) ?? _statoCondivisione,
+            // Con il blocco OneDrive attivo il banner mostra sempre il motivo aggiornato dell'ultimo tentativo ("Riprova").
+            Models.StatoCondivisione.SolaLettura => OneDriveSyncGate.Esito(Paths?.Root) ?? _statoCondivisione,
+            _ => _statoCondivisione,
+        };
         private set => _statoCondivisione = value;
     }
 
@@ -291,6 +295,11 @@ public class AppState : IDisposable
         StatoCondivisione = CompatibilitaVersioneService.VerificaSenzaScrivere(Paths, disponibilita);
         if (StatoCondivisione.Stato == Models.StatoCondivisione.NonDisponibile)
             return;
+
+        // 1b) OneDrive non allineato all'avvio (verifica in App.axaml.cs, OneDriveSyncGate): il workspace si apre in sola lettura
+        // PRIMA di qualsiasi scrittura (recovery, probe, manifest, seed, migrazioni), per non scrivere su dati non aggiornati.
+        if (StatoCondivisione.Stato == Models.StatoCondivisione.Operativa && OneDriveSyncGate.Esito(cartella) is { } bloccoOneDrive)
+            StatoCondivisione = bloccoOneDrive;
 
         // 2) Se questo PC ha lasciato una Unit of Work locale interrotta, recuperala PRIMA di qualsiasi altra
         // scrittura condivisa. RecoverPending ignora il marker della propria transazione ma rifiuta qualunque
@@ -1157,6 +1166,10 @@ public class AppState : IDisposable
             {
                 StatoCondivisione = preflight;
             }
+            else if (OneDriveSyncGate.Attivo(Paths.Root))
+            {
+                // OneDrive non allineato: nessuna prova di scrittura né aggiornamento del manifest finché "Riprova" non riesce.
+            }
             else
             {
                 // Recovery da SolaLettura/NonDisponibile: prima di riabilitare i writer pretendiamo di nuovo
@@ -1219,6 +1232,7 @@ public class AppState : IDisposable
             templatesVisualizzati.ToDictionary(t => t.Uid, t => t.Nome));
         TestTemplateDisplay.Aggiorna(templatesVisualizzati);
         EseguiManutenzioneStorage(force: false);
+        RitiraCopieDiConflitto();
     }
 
     /// <summary>Nome template dalla fotografia di QUESTA istanza: Load() deserializza a ogni chiamata,
@@ -1305,6 +1319,41 @@ public class AppState : IDisposable
         catch { return path; }
     }
 
+    /// <summary>Una notifica per Master e per copia di conflitto OneDrive ritirata in quarantena (stesso schema dei fork).</summary>
+    private void NotificaCopieDiConflittoAiMaster()
+    {
+        try
+        {
+            if (!CartellaValida) return;
+            var aperte = ConflictCopyQuarantineService.List(Paths.Root);
+            if (aperte.Count == 0) return;
+            var masters = Master.Operatori.Load().Where(o => !o.Disattivo && o.Ruolo == RuoloOperatore.Master).ToList();
+            foreach (var master in masters)
+            {
+                var existing = Notifiche.GetAll(master.Nome).Select(n => n.Uid).ToHashSet();
+                foreach (var voce in aperte)
+                {
+                    var uid = DeterministicGuid($"TestLoom|ConflictCopy|{master.Nome}|{voce.Id}");
+                    if (existing.Contains(uid) || !_forkNotificationsAttempted.Add(uid)) continue;
+                    var titolo = ConflictResolutionService.TitoloDi(voce.Envelope.Category, voce.Payload, voce.Envelope.EntityUid);
+                    Notifiche.AddDeterministic(new NotificaApp
+                    {
+                        Uid = uid,
+                        Data = DateTime.Now,
+                        Destinatario = master.Nome,
+                        Tipo = "ConflittoSincronizzazione",
+                        Titolo = $"Conflitto OneDrive: {titolo}",
+                        Messaggio = "La sincronizzazione ha lasciato una seconda versione dello stesso record. Nulla è andato perso: apri Impostazioni → Conflitti per confrontarle e risolverle.",
+                        ElementoId = titolo,
+                        Letta = false
+                    });
+                    existing.Add(uid);
+                }
+            }
+        }
+        catch (Exception ex) { CrashLogService.Registra("Notifica copie di conflitto ai Master", ex); }
+    }
+
     private void NotificaForkApertiAiMaster()
     {
         var recordForks = RecordJournal?.OpenForks ?? Array.Empty<RecordFork>();
@@ -1327,7 +1376,7 @@ public class AppState : IDisposable
                         Tipo = "ConflittoSincronizzazione",
                         Titolo = $"Conflitto fra postazioni: {fork.EntityId}",
                         Messaggio = "Due postazioni hanno modificato lo stesso record partendo dalla stessa versione. " +
-                            "Le versioni disponibili sono conservate e il record è bloccato: apri Impostazioni → Conflitti fra postazioni.",
+                            "Le versioni disponibili sono conservate e il record è bloccato: apri Impostazioni → Conflitti.",
                         ElementoId = fork.EntityId,
                         Letta = false
                     });
@@ -1345,7 +1394,7 @@ public class AppState : IDisposable
                         Destinatario = master.Nome,
                         Tipo = "ConflittoSincronizzazione",
                         Titolo = $"Conflitto OneDrive: {fork.EntityId}",
-                        Messaggio = "Sono disponibili versioni divergenti dello stesso Test. Apri Impostazioni → Generale → Conflitti di sincronizzazione Test per risolverle.",
+                        Messaggio = "Sono disponibili versioni divergenti dello stesso Test. Apri Impostazioni → Conflitti per confrontarle e risolverle.",
                         ElementoId = fork.EntityId,
                         Letta = false
                     });
@@ -1506,6 +1555,7 @@ public class AppState : IDisposable
         }
         catch (Exception ex) { CrashLogService.Registra("Cleanup recovery fork risolti", ex); }
         NotificaForkApertiAiMaster();
+        NotificaCopieDiConflittoAiMaster();
         NotificaConflittiMasterAiMaster();
         NotificaWuDaDecidereAiMaster();
         watch.Stop();
@@ -1640,6 +1690,37 @@ public class AppState : IDisposable
             .Where(c => c.RichiedeAttenzione && File.Exists(c.Percorso) &&
                         adesso - File.GetLastWriteTimeUtc(c.Percorso) >= FileProblemToleranceTracker.MinElapsed)
             .ToList();
+    }
+
+    private DateTime _ultimoRitiroCopieConflittoUtc = DateTime.MinValue;
+    private static readonly TimeSpan IntervalloRitiroCopieConflitto = TimeSpan.FromSeconds(45);
+
+    /// <summary>Ritira dalle cartelle dei record le copie di conflitto OneDrive/SharePoint che i repository hanno gia' riconosciuto
+    /// (nessuna scansione dell'albero), spostandole nella quarantena della sezione Conflitti (vedi
+    /// <see cref="ConflictCopyQuarantineService"/>). Solo con workspace scrivibile, al piu' una volta ogni 45 secondi, e solo per
+    /// copie piu' vecchie della tolleranza di sincronizzazione. Mai lancia: un errore resta nel log e la copia resta dov'e'.</summary>
+    public ConflictQuarantineReport? RitiraCopieDiConflitto(bool forza = false)
+    {
+        try
+        {
+            if (!CartellaValida || !PuoScrivere || StatoCondivisione.Stato != Models.StatoCondivisione.Operativa) return null;
+            var adesso = DateTime.UtcNow;
+            if (!forza && adesso - _ultimoRitiroCopieConflittoUtc < IntervalloRitiroCopieConflitto) return null;
+            _ultimoRitiroCopieConflittoUtc = adesso;
+            var candidati = new List<FileConProblemi>();
+            if (TestCases != null) candidati.AddRange(TestCases.CopieDiConflitto);
+            if (NonConformita != null) candidati.AddRange(NonConformita.CopieDiConflitto);
+            if (ChangeRequests != null) candidati.AddRange(ChangeRequests.CopieDiConflitto);
+            if (Segnalazioni != null) candidati.AddRange(Segnalazioni.CopieDiConflitto);
+            if (candidati.Count == 0) return null;
+            return ConflictCopyQuarantineService.Run(Paths, Config.OperatoreAttivo,
+                candidati.Select(c => c.Percorso), FileProblemToleranceTracker.MinElapsed);
+        }
+        catch (Exception ex)
+        {
+            CrashLogService.Registra("Ritiro copie di conflitto", ex);
+            return null;
+        }
     }
 
     public bool TestCaseVisibilePerOperatore(TestCase tc)

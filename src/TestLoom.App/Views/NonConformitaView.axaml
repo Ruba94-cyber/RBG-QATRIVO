@@ -280,12 +280,11 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="vm:NcRiga">
                                         <StackPanel Spacing="2" VerticalAlignment="Center">
-                                            <ItemsControl ItemsSource="{Binding Nc.CollegamentiPolarion}" IsVisible="{Binding HaTicketPolarionNc}">
+                                            <ItemsControl ItemsSource="{Binding LinkEstaEffettivi}" IsVisible="{Binding HaTicketPolarionNc}">
                                                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel ItemSpacing="2" LineSpacing="2" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                                 <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="models:CollegamentoPolarion">
-                                                        <Button Classes="Link" Content="{Binding Codice}" Tag="{Binding}" Click="OnApriTicketPolarion"
-                                                                IsEnabled="{Binding Url, Converter={x:Static local:UrlWebValidoConverter.Instance}}" />
+                                                    <DataTemplate x:DataType="services:EstaLinkEffettivo">
+                                                        <Button Classes="Link" Content="{Binding Codice}" Tag="{Binding}" Click="OnApriTicketPolarion" IsEnabled="{Binding Apribile}" ToolTip.Tip="{Binding Tooltip}" AutomationProperties.AutomationId="Anomalie_Nc_EstaLink_Button" />
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>

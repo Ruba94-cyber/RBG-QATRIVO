@@ -596,8 +596,7 @@ public partial class SegnalazioneReteEditorViewModel : ViewModelBase
     private void AggiungiTicket()
     {
         if (string.IsNullOrWhiteSpace(NuovoTicketRiferimento)) return;
-        var codice = NuovoTicketRiferimento.Trim().ToUpperInvariant();
-        if (!System.Text.RegularExpressions.Regex.IsMatch(codice, "^TICKET-[A-Z0-9_-]+$"))
+        if (!PolarionTicketLinkService.TryNormalizzaCodice(NuovoTicketRiferimento, out var codice))
         {
             MessaggioErrore = LocalizationService.Instance.Traduci("FormatoPolarionNonValido");
             return;

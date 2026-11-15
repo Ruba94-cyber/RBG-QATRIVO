@@ -73,6 +73,21 @@ public static class PhaseDMasterJournalSourceReader
 
     public static PhaseDMasterJournalSourceRead Read(PhaseDMasterJournalSource source)
     {
+        var bytes = LoadBytes(source, out var sha);
+        return Parse(source, bytes, sha);
+    }
+
+    /// <summary>Legge e hasha sempre il file; se SHA-256 e lunghezza coincidono con quelli dell'ultima acquisizione restituisce
+    /// null senza eseguire il parsing (stessi byte => stesso esito), altrimenti il risultato di <see cref="Read"/>.</summary>
+    public static PhaseDMasterJournalSourceRead? ReadSeCambiato(PhaseDMasterJournalSource source, string previousSha256, long previousLength)
+    {
+        var bytes = LoadBytes(source, out var sha);
+        if (bytes.LongLength == previousLength && sha.Equals(previousSha256, StringComparison.OrdinalIgnoreCase)) return null;
+        return Parse(source, bytes, sha);
+    }
+
+    private static byte[] LoadBytes(PhaseDMasterJournalSource source, out string sha)
+    {
         ArgumentNullException.ThrowIfNull(source);
         byte[] bytes;
         try
@@ -92,11 +107,15 @@ public static class PhaseDMasterJournalSourceReader
             throw new InvalidDataException($"Sorgente Phase D non leggibile: {Path.GetFileName(source.Path)}", ex);
         }
 
-        var sha = Convert.ToHexString(SHA256.HashData(bytes));
+        sha = Convert.ToHexString(SHA256.HashData(bytes));
         if (!string.IsNullOrWhiteSpace(source.ExpectedSha256) &&
             !sha.Equals(source.ExpectedSha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException($"SHA-256 shard Phase D diverso dal manifest: {Path.GetFileName(source.Path)}");
+        return bytes;
+    }
 
+    private static PhaseDMasterJournalSourceRead Parse(PhaseDMasterJournalSource source, byte[] bytes, string sha)
+    {
         return source.Kind switch
         {
             PhaseDMasterJournalSourceKind.CheckpointShard => ReadCheckpoint(source, bytes, sha),

@@ -99,6 +99,15 @@ public static class AnomaliaWorkflowService
             var condizione = esecuzione.Condizioni.FirstOrDefault(c => c.Uid == prova.CondizioneUid);
             if (condizione != null) return (esecuzione, condizione);
         }
+        // Il numero di REV e' solo un suggerimento: l'identita' stabile e' CondizioneUid. Se la REV indicata non contiene
+        // la condizione (tipico dopo l'unione di un conflitto Test, che rinumera le REV nuove) si risale all'ultima REV che
+        // la contiene davvero. Una condizione che non esiste in nessuna REV resta non risolvibile.
+        if (prova.EsecuzioneIterazione > 0)
+            foreach (var esecuzione in test.Esecuzioni.AsEnumerable().Reverse())
+            {
+                var condizione = esecuzione.Condizioni.FirstOrDefault(c => c.Uid == prova.CondizioneUid);
+                if (condizione != null) return (esecuzione, condizione);
+            }
         return null;
     }
 

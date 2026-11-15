@@ -24,6 +24,31 @@ public static class TestRevisionSafety
     /// rimozione o l'aggiunta di REV: cambia solo il contenuto dei riferimenti, mai il numero di revisioni.
     /// Da usare SOLO dal motore dei cataloghi (<see cref="MasterUnioneService"/>), mai da un percorso utente.
     /// </summary>
+    private static readonly AsyncLocal<int> _risoluzioneConflitto = new();
+
+    /// <summary>
+    /// Finestra del salvataggio di una risoluzione ESPLICITA di conflitto fra versioni dello stesso Test (unione delle REV
+    /// o scelta della lista REV di una parte). Le REV della versione corrente possono essere rinumerate o sostituite dalla
+    /// scelta del Master: il chiamante deve avere GIA' archiviato nel recovery-bin la versione corrente e quelle scartate
+    /// (nulla va perso). Da usare solo da <see cref="TestCaseManualForkResolution"/>, mai da un percorso di editing normale.
+    /// </summary>
+    internal static IDisposable AmmettiRisoluzioneConflitto()
+    {
+        _risoluzioneConflitto.Value++;
+        return new ScopeRisoluzione();
+    }
+
+    private sealed class ScopeRisoluzione : IDisposable
+    {
+        private bool _disposed;
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _risoluzioneConflitto.Value--;
+        }
+    }
+
     internal static IDisposable AmmettiRiscritturaRiferimentiCatalogo()
     {
         _riscritturaRiferimentiCatalogo.Value++;
@@ -44,6 +69,7 @@ public static class TestRevisionSafety
     public static bool PreserveImmutableHistory(TestCase persisted, TestCase candidate, DateTime now, string operatore)
     {
         if (persisted.Esecuzioni.Count == 0) return false;
+        if (_risoluzioneConflitto.Value > 0) return false;
         if (candidate.Esecuzioni.Count < persisted.Esecuzioni.Count)
             throw new InvalidDataException($"Il Test {candidate.Id} tenta di rimuovere revisioni già persistite. Salvataggio bloccato.");
 

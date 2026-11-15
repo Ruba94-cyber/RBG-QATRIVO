@@ -48,8 +48,9 @@ public sealed class PerfInProcessPagineTests
     /// riparte da 1 mentre il checkpoint del device copre già le sequenze precedenti: vedi il ramo
     /// fix/6.4.0-phased-sequenza-dispositivo). L'harness misura solo letture/navigazione: nessuna scrittura.</summary>
     private const string Operatore = "Operatore Prova A";
-    private const int NumeroGiriCaldo = 3;
-    private const int NumeroGiri = 1 + NumeroGiriCaldo;
+    // TestLoom_PERF_INPROCESS_CALDI (default 3): piu' giri caldi => P95 significativo (audit 700 ms).
+    private static readonly int NumeroGiriCaldo = int.TryParse(Environment.GetEnvironmentVariable("TestLoom_PERF_INPROCESS_CALDI"), out var c) && c > 0 ? c : 3;
+    private static readonly int NumeroGiri = 1 + NumeroGiriCaldo;
 
     /// <summary>Stessa rotta principale di PerfNavigazioneTests (Home è già visitata durante la costruzione di
     /// MainViewModel, misurata a parte come riga "Home (costruzione MainViewModel)").</summary>
@@ -97,12 +98,24 @@ public sealed class PerfInProcessPagineTests
         var outputPath = Environment.GetEnvironmentVariable("TestLoom_PERF_INPROCESS_OUTPUT");
 
         var workRoot = Path.Combine(Path.GetTempPath(), "TestLoom_PerfInProcess_" + Guid.NewGuid().ToString("N"));
-        var workDir = Path.Combine(workRoot, "data");
-        var configPath = Path.Combine(workRoot, "local", "config.json");
+        // TestLoom_PERF_INPROCESS_NOCOPY=1: misura il banco sul posto (riusa il read-model locale gia' costruito dal
+        // generatore => avvio "a caldo" realistico; l'harness e' sola lettura). Default: copia a freddo.
+        var noCopy = Environment.GetEnvironmentVariable("TestLoom_PERF_INPROCESS_NOCOPY") == "1";
+        var workDir = noCopy ? datasetDir : Path.Combine(workRoot, "data");
+        // TestLoom_PERF_INPROCESS_CONFIG: percorso stabile del config => stessa identita' dispositivo fra esecuzioni =>
+        // il read-model locale e' riutilizzato (avvio caldo vero). Default: config temporaneo (avvio a freddo).
+        var configPath = Environment.GetEnvironmentVariable("TestLoom_PERF_INPROCESS_CONFIG") is { Length: > 0 } cfgEnv
+            ? cfgEnv : Path.Combine(workRoot, "local", "config.json");
+        var soloAvvio = Environment.GetEnvironmentVariable("TestLoom_PERF_INPROCESS_SOLO_AVVIO") == "1";
+        // TestLoom_PERF_INPROCESS_PAGINE (opzionale): elenco di id di navigazione separati da virgola (es. "anomalie"):
+        // misura solo quelle pagine (niente sotto-pagine Master ne' editor Test).
+        var soloPagine = Environment.GetEnvironmentVariable("TestLoom_PERF_INPROCESS_PAGINE") is { Length: > 0 } pg
+            ? new HashSet<string>(pg.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), StringComparer.OrdinalIgnoreCase)
+            : null;
         try
         {
             var swCopia = Stopwatch.StartNew();
-            CopiaCartella(datasetDir, workDir);
+            if (!noCopy) CopiaCartella(datasetDir, workDir);
             swCopia.Stop();
             _output.WriteLine($"FASE|nome=copia_banco|durata_ms={swCopia.ElapsedMilliseconds}|da={datasetDir}|a={workDir}");
 
@@ -122,7 +135,7 @@ public sealed class PerfInProcessPagineTests
                 var gc2Delta = GC.CollectionCount(2) - gc2Prima;
                 _output.WriteLine($"BENCHMARK|giro={giro}|pagina={pagina}|ms={ms:F1}|masterLoad={contatori.MasterLoad}" +
                     $"|phaseDRefreshEseguiti={contatori.PhaseDRefreshEseguiti}|phaseDRefreshAccorpati={contatori.PhaseDRefreshAccorpati}" +
-                    $"|phaseDRefreshMs={contatori.PhaseDRefreshMs:F1}|loadCatalog={contatori.LoadCatalog}" +
+                    $"|phaseDRefreshMs={contatori.PhaseDRefreshMs:F1}|loadCatalog={contatori.LoadCatalog}|snapshotRiusati={contatori.CatalogSnapshotRiusati}|cloneMs={contatori.CatalogCloneMs:F1}" +
                     $"|testCaseGetAll={contatori.TestCaseGetAll}|gc2={gc2Delta}");
 
                 var esistente = righe.FirstOrDefault(r => r.Pagina == pagina);
@@ -144,12 +157,13 @@ public sealed class PerfInProcessPagineTests
             state = new AppState(configService, runBackgroundMaintenance: false);
             swBootstrap.Stop();
             _output.WriteLine($"FASE|nome=bootstrap|durata_ms={swBootstrap.ElapsedMilliseconds}" +
-                $"|test={state.TestCases.Count()}|nc={state.NonConformita.CountAll}");
+                $"|test={state.TestCases.Count()}|nc={state.NonConformita.CountAll}" +
+                $"|workingSetMB={Environment.WorkingSet / 1024 / 1024}|gcHeapMB={GC.GetTotalMemory(false) / 1024 / 1024}");
 
             try
             {
                 MainViewModel? main = null;
-                for (var giro = 1; giro <= NumeroGiri; giro++)
+                for (var giro = 1; giro <= (soloAvvio ? 0 : NumeroGiri); giro++)
                 {
                     if (giro == 1)
                     {
@@ -168,6 +182,7 @@ public sealed class PerfInProcessPagineTests
 
                     foreach (var (navId, etichetta) in Rotta)
                     {
+                        if (soloPagine != null && !soloPagine.Contains(navId)) continue;
                         Misura(etichetta, giro, () =>
                         {
                             main!.SelectedNavItem = main.NavItems.First(n => n.Id == navId);
@@ -189,6 +204,7 @@ public sealed class PerfInProcessPagineTests
                     // Apertura di un Test esistente in TestCaseEditorViewModel: stesso costruttore usato da
                     // MainViewModel.NavigaATestCaseCore, chiamato direttamente perché quel metodo è privato
                     // (stesso pattern già usato da ScalePerformanceTests/FullScaleNavigationTests).
+                    if (soloPagine != null) continue;
                     var primoTestId = state.TestCases.GetAll().First().Id;
                     Misura("Apertura Test (editor)", giro, () =>
                     {
@@ -199,6 +215,19 @@ public sealed class PerfInProcessPagineTests
             finally
             {
                 state?.Dispose();
+            }
+
+            // Riavvio "a caldo" vero: stessa configurazione (identita' dispositivo/read-model locale invariati) =>
+            // il bootstrap riusa la fotografia SQLite locale invece di rifare la scansione completa dei JSON.
+            // Misura il costo reale di un secondo avvio dell'app sullo stesso PC.
+            {
+                SqliteConnection.ClearAllPools();
+                var swRiavvio = Stopwatch.StartNew();
+                using var stateCaldo = new AppState(configService, runBackgroundMaintenance: false);
+                swRiavvio.Stop();
+                _output.WriteLine($"FASE|nome=bootstrap_riavvio_caldo|durata_ms={swRiavvio.ElapsedMilliseconds}" +
+                    $"|test={stateCaldo.TestCases.Count()}|nc={stateCaldo.NonConformita.CountAll}" +
+                    $"|workingSetMB={Environment.WorkingSet / 1024 / 1024}|gcHeapMB={GC.GetTotalMemory(false) / 1024 / 1024}");
             }
 
             var markdown = ComponiMarkdown(label, righe);
@@ -222,20 +251,27 @@ public sealed class PerfInProcessPagineTests
         var sb = new StringBuilder();
         sb.AppendLine($"# Baseline prestazioni in-process — {label} — {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
         sb.AppendLine();
-        sb.AppendLine("| Pagina | Freddo (ms) | Caldo mediana (ms) | Campioni caldo | MasterLoad (caldo) | PhaseDRefresh eseguiti/accorpati (caldo) | LoadCatalog (caldo) | TestCase.GetAll (caldo) | GC gen2 (caldo) |");
-        sb.AppendLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|");
+        sb.AppendLine("| Pagina | Freddo (ms) | Caldo P50 (ms) | Caldo P95 (ms) | Caldo max (ms) | Campioni caldo | MasterLoad (caldo) | PhaseDRefresh eseguiti/accorpati (caldo) | LoadCatalog (caldo) | TestCase.GetAll (caldo) | GC gen2 (caldo) |");
+        sb.AppendLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
         foreach (var riga in righe)
         {
             var mediana = Mediana(riga.Caldi.Select(c => c.Ms).ToList());
             // Contatori del giro caldo rappresentativo = ultimo giro caldo (più stabile: le cache/i read-model
             // locali si sono già assestati dopo il primo giro caldo).
             var ultimo = riga.Caldi.LastOrDefault();
-            sb.AppendLine($"| {riga.Pagina} | {riga.FreddoMs:F1} | {mediana:F1} | {riga.Caldi.Count} | " +
+            sb.AppendLine($"| {riga.Pagina} | {riga.FreddoMs:F1} | {mediana:F1} | {Percentile(riga.Caldi.Select(c => c.Ms).ToList(), 0.95):F1} | {riga.Caldi.Select(c => c.Ms).DefaultIfEmpty(0).Max():F1} | {riga.Caldi.Count} | " +
                 $"{ultimo?.ContatoriDelta.MasterLoad ?? 0} | " +
                 $"{ultimo?.ContatoriDelta.PhaseDRefreshEseguiti ?? 0}/{ultimo?.ContatoriDelta.PhaseDRefreshAccorpati ?? 0} | " +
                 $"{ultimo?.ContatoriDelta.LoadCatalog ?? 0} | {ultimo?.ContatoriDelta.TestCaseGetAll ?? 0} | {ultimo?.Gc2Delta ?? 0} |");
         }
         return sb.ToString();
+    }
+
+    private static double Percentile(List<double> v, double p)
+    {
+        if (v.Count == 0) return 0;
+        var o = v.OrderBy(x => x).ToList();
+        return o[Math.Min(o.Count - 1, (int)Math.Ceiling(p * o.Count) - 1 < 0 ? 0 : (int)Math.Ceiling(p * o.Count) - 1)];
     }
 
     private static double Mediana(List<double> valori)

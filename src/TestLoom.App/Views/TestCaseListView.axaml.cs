@@ -65,12 +65,22 @@ public partial class TestCaseListView : UserControl
     private void CollegaViewModel(TestCaseListViewModel vm)
     {
         _vmSottoscritto = vm;
+        vm.CollegaCachePolarion();
         _handlerAzzeramentoSelezione = () => TabellaTest.SelectedItems.Clear();
         vm.RichiestaAzzeramentoSelezioneGriglia += _handlerAzzeramentoSelezione;
     }
 
+    /// <summary>Clic su un badge Ticketing di requisito: dettaglio con stato, risoluzione e commenti (sola lettura).</summary>
+    private void OnApriRequisitoPolarion(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not TestCaseListViewModel vm || sender is not Control { Tag: string id }) return;
+        e.Handled = true;
+        RequisitoPolarionDialogHelper.Apri(this, vm.StatoPerExport, id);
+    }
+
     private void ScollegaViewModel()
     {
+        _vmSottoscritto?.ScollegaCachePolarion();
         if (_vmSottoscritto != null && _handlerAzzeramentoSelezione != null)
             _vmSottoscritto.RichiestaAzzeramentoSelezioneGriglia -= _handlerAzzeramentoSelezione;
         _vmSottoscritto = null;

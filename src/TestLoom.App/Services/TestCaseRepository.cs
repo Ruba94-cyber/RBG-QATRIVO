@@ -906,6 +906,7 @@ public class TestCaseRepository
                 }
             }
 
+            OperationalSemantics.RiconosciEsecuzioni(tc);
             var revisionePrecedente = tc.RevisioneDati;
             var stampPrecedente = TestCaseFingerprint.GetStored(tc);
             tc.SchemaVersion = TestCase.CurrentSchemaVersion;
@@ -1431,7 +1432,7 @@ public class TestCaseRepository
     /// vecchia del canonico, senza fork aperto: vedi <see cref="CopiaAssorbita"/>) non blocca piu' i salvataggi successivi
     /// alla risoluzione, anche se OneDrive l'ha consegnata dopo. Ogni altra copia divergente blocca come prima.</summary>
     private void EnsureNoVisibleForkTc(string path, Guid uid, IReadOnlySet<string>? ramiGiaRisolti = null) =>
-        VisibleConflictWriteGuard.EnsureNoVisibleFork(path, uid, ramiGiaRisolti, CopiaChiusaTc);
+        VisibleConflictWriteGuard.EnsureNoVisibleFork(path, uid, ramiGiaRisolti, CopiaChiusaTc, _paths.Root);
 
     private bool CopiaChiusaTc(JsonElement copia, JsonElement canonica)
     {

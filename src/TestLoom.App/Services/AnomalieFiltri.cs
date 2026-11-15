@@ -40,10 +40,8 @@ public static class AnomalieOrdinamentoConTestComparer
         AnomalieOrdinamentoChiave.TestCollegato => r.TestId ?? "",
         AnomalieOrdinamentoChiave.DescrizioneBreve => !string.IsNullOrWhiteSpace(r.Nc.DescrizioneBreveSegnalata)
             ? r.Nc.DescrizioneBreveSegnalata : r.Test?.DescrizioneBreve ?? "",
-        AnomalieOrdinamentoChiave.Ticket => (r.Nc.CollegamentiPolarion.Count > 0
-                ? r.Nc.CollegamentiPolarion.Select(t => t.Codice ?? "")
-                : r.Test?.TicketCollegati.Select(t => t.Riferimento ?? "") ?? Enumerable.Empty<string>())
-            .Where(t => t.Length > 0).OrderBy(t => t, StringComparer.CurrentCultureIgnoreCase).FirstOrDefault() ?? "",
+        AnomalieOrdinamentoChiave.Ticket => NcEstaLinks.Effettivi(r.Nc, r.Test).Select(l => l.Codice)
+            .OrderBy(t => t, StringComparer.CurrentCultureIgnoreCase).FirstOrDefault() ?? "",
         AnomalieOrdinamentoChiave.Veicolo => VeicoliAssociati(r.Nc, r.Test)
             .Where(v => !string.IsNullOrWhiteSpace(v)).OrderBy(v => v, StringComparer.CurrentCultureIgnoreCase).FirstOrDefault() ?? "",
         _ => "",

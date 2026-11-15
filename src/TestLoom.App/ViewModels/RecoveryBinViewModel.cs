@@ -324,14 +324,17 @@ public partial class RecoveryBinEntryViewModel : ViewModelBase
     public string EliminatoIl => Record.ArchivedUtc == default ? "—" : Record.ArchivedUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss");
     public string EliminatoDa => string.IsNullOrWhiteSpace(Record.ArchivedBy) ? "—" : Record.ArchivedBy;
     public string Dispositivo => string.IsNullOrWhiteSpace(Record.Device) ? "—" : Record.Device;
-    public string Categoria => Record.Category switch
+    public string Categoria => (Record.Category switch
     {
         DomainRecoveryCategory.TestCase => "Test",
         DomainRecoveryCategory.NonConformita => LocalizationService.Instance.Scegli("Non Conformità", "Non-conformity", "Non-conformité"),
         DomainRecoveryCategory.ChangeRequest => "Change Request",
         DomainRecoveryCategory.Segnalazione => LocalizationService.Instance.Scegli("Segnalazione", "Report to classify", "Signalement à classer"),
+        DomainRecoveryCategory.CatalogoMaster => LocalizationService.Instance.Scegli("Catalogo master", "Master catalog", "Catalogue maître"),
         _ => Record.Category.ToString()
-    };
+    }) + (Record.VersioneScartata
+        ? LocalizationService.Instance.Scegli(" · versione scartata in un conflitto", " · version discarded in a conflict", " · version écartée dans un conflit")
+        : "");
     public string Stato => Ripristinato
         ? LocalizationService.Instance.Scegli(
             $"Ripristinato {Record.RestoredUtc!.Value.ToLocalTime():dd/MM/yyyy HH:mm} da {(string.IsNullOrWhiteSpace(Record.RestoredBy) ? "—" : Record.RestoredBy)}",
@@ -339,7 +342,7 @@ public partial class RecoveryBinEntryViewModel : ViewModelBase
             $"Restauré le {Record.RestoredUtc!.Value.ToLocalTime():dd/MM/yyyy HH:mm} par {(string.IsNullOrWhiteSpace(Record.RestoredBy) ? "—" : Record.RestoredBy)}")
         : LocalizationService.Instance.Scegli("Disponibile", "Available", "Disponible");
     public string RipristinaTesto => LocalizationService.Instance.Scegli("Ripristina", "Restore", "Restaurer");
-    public bool PuoRipristinare => !Ripristinato && _workspaceWritable;
+    public bool PuoRipristinare => !Ripristinato && _workspaceWritable && Record.Category != DomainRecoveryCategory.CatalogoMaster;
 
     /// <summary>Consentita anche su una copia già ripristinata (a differenza di PuoRipristinare): a quel
     /// punto la copia di recovery è solo un backup ormai ridondante col record già tornato al suo posto, e

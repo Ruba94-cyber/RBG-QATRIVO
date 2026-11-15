@@ -34,6 +34,32 @@ public sealed class PolarionReportServiceTests
     }
 
     [Fact]
+    public void CommentiEsta_RigaEsponeTuttiICommentiCompletiNonTroncatiESenzaMarkup()
+    {
+        var now = new DateTimeOffset(2026, 11, 6, 15, 0, 0, TimeSpan.Zero);
+        var lungo = new string('x', 400);
+        var snapshot = new PolarionTicketSnapshot
+        {
+            Id = "TICKET-78", ProjectId = "TICKET_Tickets", Status = "open", RetrievedAtUtc = now,
+            Comments = new List<PolarionCommentSnapshot>
+            {
+                new() { Id = "old", AuthorId = "tester", Created = now.AddDays(-1), Text = "<p>Prima &amp; dopo</p>" },
+                new() { Id = "new", AuthorId = "developer", Created = now, Text = "<p>" + lungo + "</p>" },
+                new() { Id = "vuoto", AuthorId = "x", Created = now, Text = "<p> </p>" }
+            }
+        };
+        var row = Assert.Single(PolarionReportService.Build(
+            [new PolarionReportService.Association("TICKET-78", "CR", "CR-78", [])],
+            _ => snapshot, _ => null, new Dictionary<string, string>()));
+        Assert.Equal(2, row.Comments.Count);
+        Assert.Equal("developer", row.Comments[0].Author);
+        Assert.Equal(lungo, row.Comments[0].Text); // completo, a differenza dell'anteprima compatta
+        Assert.True(row.LatestCommentPreview.Length < lungo.Length);
+        Assert.Equal("Prima & dopo", row.Comments[1].Text);
+        Assert.DoesNotContain("<", row.Comments[1].Text);
+    }
+
+    [Fact]
     public void ReportEsta_FiltriVeicoliEGammeRichiedonoCorrispondenzaEsatta()
     {
         var rows = new[]

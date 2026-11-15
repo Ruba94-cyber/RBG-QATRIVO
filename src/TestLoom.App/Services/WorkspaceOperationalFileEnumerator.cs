@@ -20,7 +20,17 @@ public static class WorkspaceOperationalFileEnumerator
         "allegati", "attachments", "backup", "_ditm"
     };
 
-    public static IEnumerable<string> EnumerateManagedJson(string root, CancellationToken ct = default)
+    /// <summary>Inventario operativo: ESCLUDE le copie di conflitto OneDrive (vedi <see cref="ConflictCopyClassifier"/>).
+    /// I conflitti vivono solo nella sezione dedicata; il backup le include tramite <see cref="EnumerateConflictCopies"/>,
+    /// quindi nessun file esce dal perimetro dei dati salvati.</summary>
+    public static IEnumerable<string> EnumerateManagedJson(string root, CancellationToken ct = default) =>
+        EnumerateAllManagedJson(root, ct).Where(f => !ConflictCopyClassifier.IsConflictCopy(f));
+
+    /// <summary>Solo le copie di conflitto esplicite (canonico presente accanto) ancora sul disco condiviso.</summary>
+    public static IEnumerable<string> EnumerateConflictCopies(string root, CancellationToken ct = default) =>
+        EnumerateAllManagedJson(root, ct).Where(f => ConflictCopyClassifier.IsConflictCopy(f));
+
+    private static IEnumerable<string> EnumerateAllManagedJson(string root, CancellationToken ct)
     {
         if (!Directory.Exists(root)) yield break;
         var fullRoot = Path.GetFullPath(root);

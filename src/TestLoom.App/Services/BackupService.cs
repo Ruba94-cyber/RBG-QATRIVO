@@ -274,6 +274,10 @@ public static class BackupService
         foreach (var file in WorkspaceOperationalFileEnumerator.EnumerateManagedJson(root, ct))
             AddVerifiedSource(file);
 
+        // Le copie di conflitto non sono nell'inventario operativo, ma restano dati dell'utente: sempre nel backup.
+        foreach (var file in WorkspaceOperationalFileEnumerator.EnumerateConflictCopies(root, ct))
+            AddVerifiedSource(file);
+
         // Dopo il cutover i master autorevoli vivono sotto _ditm/master-v2 e non sono soltanto JSON: current e
         // segmenti sono NDJSON, gli shard sono gzip. Non includiamo altri namespace tecnici _ditm.
         var phaseDRoot = PhaseDMasterJournalService.PhaseDRoot(root);

@@ -140,7 +140,7 @@
         <!-- 4 combinazioni realmente distinte di intestazione+corpo (5 degli 8 punti di utilizzo nel file
              condividono "intestazione semplice + corpo senza ListaTesto" e riusano CampoValoreItemTemplateSemplice). -->
         <DataTemplate x:Key="CampoValoreItemTemplateSemplice" x:DataType="models:CampoStrumentoValore">
-            <StackPanel Spacing="4" Margin="0,0,16,12" MinWidth="240" MaxWidth="340">
+            <StackPanel Spacing="4" Margin="0,0,16,12" MinWidth="240" MaxWidth="340" IsEnabled="{Binding Modificabile}">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0" Text="{Binding Nome}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" ToolTip.Tip="{Binding Nome}" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
@@ -164,7 +164,7 @@
         </DataTemplate>
 
         <DataTemplate x:Key="CampoValoreItemTemplateConDefault" x:DataType="models:CampoStrumentoValore">
-            <StackPanel Spacing="4" Margin="0,0,16,12" MinWidth="240" MaxWidth="340">
+            <StackPanel Spacing="4" Margin="0,0,16,12" MinWidth="240" MaxWidth="340" IsEnabled="{Binding Modificabile}">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0" Text="{Binding Nome}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" ToolTip.Tip="{Binding Nome}" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
@@ -188,7 +188,7 @@
         </DataTemplate>
 
         <DataTemplate x:Key="CampoValoreItemTemplateConDefaultEListaTesto" x:DataType="models:CampoStrumentoValore">
-            <StackPanel Spacing="4" Margin="0,0,16,12" MinWidth="240" MaxWidth="340">
+            <StackPanel Spacing="4" Margin="0,0,16,12" MinWidth="240" MaxWidth="340" IsEnabled="{Binding Modificabile}">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0" Text="{Binding Nome}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" ToolTip.Tip="{Binding Nome}" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
@@ -212,7 +212,7 @@
         </DataTemplate>
 
         <DataTemplate x:Key="CampoValoreItemTemplateCondizione" x:DataType="models:CampoStrumentoValore">
-            <StackPanel Spacing="4" Margin="0,0,16,12" MinWidth="240" MaxWidth="340">
+            <StackPanel Spacing="4" Margin="0,0,16,12" MinWidth="240" MaxWidth="340" IsEnabled="{Binding Modificabile}">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0" Text="{Binding Nome}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" ToolTip.Tip="{Binding Nome}" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
@@ -237,6 +237,7 @@
                                     <DataTemplate x:Key="OperazioneCardCompleta" x:DataType="models:Condizione">
                                     <Border IsVisible="{Binding !DevalidazioneNascosta}" Background="{DynamicResource SurfaceMutedBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,2,0,8">
                                         <StackPanel Spacing="10">
+<StackPanel Spacing="10" IsEnabled="{Binding #Root.((vm:TestCaseEditorViewModel)DataContext).PuoModificareContenuto}">
                                             <Grid ColumnDefinitions="2*,*,Auto,Auto,Auto">
                                                 <StackPanel Grid.Column="0" Spacing="2">
                                                     <!-- Strumento proprietario dell'operazione (6.5.1): assente = operazione legacy/manuale. -->
@@ -381,11 +382,21 @@
                                                 <Button Grid.Column="4" Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=RimuoviXBtn}" Classes="Link" Margin="8,0,0,0" Command="{Binding #Root.((vm:TestCaseEditorViewModel)DataContext).RimuoviCondizioneCommand}" CommandParameter="{Binding}" IsVisible="{Binding #Root.((vm:TestCaseEditorViewModel)DataContext).HaPiuDiUnaCondizione}" AutomationProperties.AutomationId="{Binding Uid, StringFormat='Editor_Condizione_{0}_Rimuovi_Button'}" />
                                             </Grid>
 
-                                            <!-- Optional technical details; expanded automatically in Full and read-only. -->
-                                            <Expander x:Name="ParametriOperazioneExpander" Header="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorQuickToolFields}"
-                                                      IsExpanded="{Binding #Root.((vm:TestCaseEditorViewModel)DataContext).EspandiParametriOperazione, Mode=OneWay}"
+                                            <!-- Optional technical details; collapsed by default; opened by the user or by validation. -->
+                                            </StackPanel>
+<Expander x:Name="ParametriOperazioneExpander" Header="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorQuickToolFields}"
+                                                      IsExpanded="{Binding ParametriAperti, Mode=TwoWay}"
                                                       AutomationProperties.AutomationId="{Binding Uid, StringFormat='Editor_Condizione_{0}_Parametri_Expander'}">
                                                 <StackPanel Spacing="8" Margin="0,6,0,4">
+                                            <TextBlock Classes="Muted" TextWrapping="Wrap" Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorCampiStrumentiNessunCompilato}"
+                                                       AutomationProperties.AutomationId="{Binding Uid, StringFormat='Editor_Condizione_{0}_Parametri_NessunCompilato_Text'}">
+                                                <TextBlock.IsVisible>
+                                                    <MultiBinding Converter="{x:Static local:TuttiVeriConverter.Instance}">
+                                                        <Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).NascondiCampiVuoti" />
+                                                        <Binding Path="HaCampiStrumentoCompilati" Converter="{x:Static conv:BoolConverters.Not}" />
+                                                    </MultiBinding>
+                                                </TextBlock.IsVisible>
+                                            </TextBlock>
                                             <!-- Campi degli strumenti selezionati (ValidationTool/CaptureTool/altri), configurabili da Impostazioni →
                                                  Strumenti: compaiono/spariscono con lo strumento, layout a griglia che si adatta alla
                                                  larghezza invece di 3 colonne fisse strette (Addendum redesign 2026-08, revisione feedback QA). -->
@@ -395,6 +406,7 @@
                                                     <MultiBinding Converter="{x:Static localview:CampiSeEspansoConverter.Instance}">
                                                         <Binding Path="CampiVisual" />
                                                         <Binding Path="#ParametriOperazioneExpander.IsExpanded" />
+                                                        <Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).NascondiCampiVuoti" />
                                                     </MultiBinding>
                                                 </ItemsControl.ItemsSource>
                                                 <ItemsControl.ItemsPanel>
@@ -412,16 +424,18 @@
                                                     <MultiBinding Converter="{x:Static localview:CampiSeEspansoConverter.Instance}">
                                                         <Binding Path="GruppiVisual" />
                                                         <Binding Path="#ParametriOperazioneExpander.IsExpanded" />
+                                                        <Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).NascondiCampiVuoti" />
                                                     </MultiBinding>
                                                 </ItemsControl.ItemsSource>
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="models:GruppoCampiStrumento">
-                                                        <Expander x:Name="GruppoCampiExpanderCondizione" Header="{Binding Nome}" IsExpanded="False" Margin="0,0,0,8" ToolTip.Tip="{Binding Nome}">
+                                                        <Expander x:Name="GruppoCampiExpanderCondizione" Header="{Binding Nome}" IsExpanded="{Binding Aperto, Mode=TwoWay}" Margin="0,0,0,8" ToolTip.Tip="{Binding Nome}">
                                                             <ItemsControl Margin="0,8,0,0" ItemTemplate="{StaticResource CampoValoreItemTemplateSemplice}">
                                                                 <ItemsControl.ItemsSource>
                                                                     <MultiBinding Converter="{x:Static localview:CampiSeEspansoConverter.Instance}">
                                                                         <Binding Path="Campi" />
                                                                         <Binding Path="#GruppoCampiExpanderCondizione.IsExpanded" />
+                                                                        <Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).NascondiCampiVuoti" />
                                                                     </MultiBinding>
                                                                 </ItemsControl.ItemsSource>
                                                                 <ItemsControl.ItemsPanel>
@@ -436,6 +450,7 @@
                                             </ItemsControl>
                                                 </StackPanel>
                                             </Expander>
+<StackPanel Spacing="10" IsEnabled="{Binding #Root.((vm:TestCaseEditorViewModel)DataContext).PuoModificareContenuto}">
 
                                             <!-- Evidenziazione (feedback utente 2026-08-24, punto 8): tasto destro sul campo per marcarlo
                                                  giallo/rosso, solo qui dentro un'operazione — nessun pulsante dedicato in più, il colore si
@@ -490,6 +505,7 @@
                                                 </TextBox>
                                             </StackPanel>
                                         </StackPanel>
+</StackPanel>
                                     </Border>
                                 </DataTemplate>
     <DataTemplate x:Key="OperazioneRigaRapida" x:DataType="models:Condizione">
@@ -533,7 +549,7 @@
                                 Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorQuickOutcomeNa}" ToolTip.Tip="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorQuickOutcomeNaHelp}"
                                 AutomationProperties.AutomationId="{Binding Uid, StringFormat='Editor_Condizione_{0}_QuickNa_Button'}" />
                     </StackPanel>
-                    <TextBox Grid.Column="3" Classes="Field" Width="72" VerticalAlignment="Center" Margin="0,0,10,0" Text="{Binding DurataTesto.Testo, Mode=TwoWay}" PlaceholderText="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=DurataPlaceholder}"
+                    <TextBox Grid.Column="3" Classes="Field" Width="72" VerticalAlignment="Center" Margin="0,0,10,0" Text="{Binding DurataTesto.Testo, Mode=TwoWay}" IsEnabled="{Binding #Root.((vm:TestCaseEditorViewModel)DataContext).PuoModificareContenuto}" PlaceholderText="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=DurataPlaceholder}"
                              AutomationProperties.AutomationId="{Binding Uid, StringFormat='Editor_Condizione_{0}_QuickDurata_TextBox'}" />
                     <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                         <TextBlock Classes="Muted" VerticalAlignment="Center" IsVisible="{Binding HaEvidenze}" Text="{Binding NumeroEvidenze, StringFormat='[{0}]'}"
@@ -562,7 +578,7 @@
                     </StackPanel>
                 </Grid>
                 <!-- Collassata: solo nota e, quando l'esito la richiede, la motivazione nel punto giusto. Espansa: la scheda completa. -->
-                <StackPanel Spacing="6" IsVisible="{Binding !#Espandi.IsChecked}">
+                <StackPanel Spacing="6" IsEnabled="{Binding #Root.((vm:TestCaseEditorViewModel)DataContext).PuoModificareContenuto}" IsVisible="{Binding !#Espandi.IsChecked}">
                     <TextBox Classes="Field" Text="{Binding Nota}" PlaceholderText="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=NotaReiterazioneLabel}"
                              AutomationProperties.AutomationId="{Binding Uid, StringFormat='Editor_Condizione_{0}_QuickNota_TextBox'}">
                         <TextBox.InnerLeftContent><TextBlock Margin="8,0,4,0" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorQuickNoteShort}" /></TextBox.InnerLeftContent>
@@ -676,6 +692,9 @@
                        ToolTip.Tip="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=ModificheNonSalvateTitolo}" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                 <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=TornaAllaLista}" Classes="Secondary" Command="{Binding AnnullaCommand}" AutomationProperties.AutomationId="Editor_Cancel_Button" />
+                <ToggleButton Classes="Link" IsChecked="{Binding ParametriApertiInLettura, Mode=TwoWay}" IsVisible="{Binding !InModifica}"
+                              Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorParametriStrumentoLetturaToggle}"
+                              AutomationProperties.AutomationId="Editor_ParametriStrumento_Lettura_Toggle" />
                 <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=Modifica}" Classes="Secondary" Command="{Binding IniziaModificaCommand}" IsVisible="{Binding MostraPulsanteModifica}" IsEnabled="{Binding PuoModificare}" AutomationProperties.AutomationId="Editor_EditMode_Button" />
                 <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=Salva}" Classes="Primary" Command="{Binding SalvaSicuroCommand}" IsVisible="{Binding MostraAzioniModifica}" AutomationProperties.AutomationId="Editor_Save_Button" />
             </StackPanel>
@@ -1131,8 +1150,8 @@
                          visivamente adiacente a Funzionalità/Descrizioni prima d'ora, quindi la posizione di
                          default può derivare direttamente da Ordine, come per gli altri due blocchi).
                     -->
-                    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding !VisualizzaStorico}" IsEnabled="{Binding InModifica}">
-                    <StackPanel Grid.Row="{Binding RigaFunzionalita}" Margin="0,0,0,12" Spacing="4" IsVisible="{Binding MostraCampoFunzionalita}" svc:Spotlight.TargetId="campo-Funzionalita">
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding !VisualizzaStorico}">
+                    <StackPanel Grid.Row="{Binding RigaFunzionalita}" Margin="0,0,0,12" Spacing="4" IsEnabled="{Binding InModifica}" IsVisible="{Binding MostraCampoFunzionalita}" svc:Spotlight.TargetId="campo-Funzionalita">
                         <StackPanel Orientation="Horizontal" Spacing="2">
                             <TextBlock Text="{Binding EtichettaFunzionalita}" FontSize="13" FontWeight="SemiBold" />
                             <TextBlock Text="*" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding FunzionalitaObbligatoria}" />
@@ -1175,7 +1194,7 @@
                          Ambito=PerRevisione" resta comunque SEMPRE dopo l'intera card Dettagli (un Border
                          separato più sotto nel file): riordinare questa riga dentro Dettagli non inverte
                          quell'ordine causa-effetto, solo la posizione interna alla card. -->
-                    <StackPanel Grid.Row="{Binding RigaStrumentiUsati}" Margin="0,0,0,12" Spacing="6">
+                    <StackPanel Grid.Row="{Binding RigaStrumentiUsati}" Margin="0,0,0,12" Spacing="6" IsEnabled="{Binding InModifica}">
                         <TextBlock Text="{Binding EtichettaStrumentiUsati}" Classes="SectionTitle" />
                         <TextBox Classes="Field" MaxWidth="300" HorizontalAlignment="Left" Text="{Binding FiltroStrumenti}"
                                  PlaceholderText="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=CercaPlaceholder}"
@@ -1248,7 +1267,7 @@
 
                     <!-- Campi classici su tre colonne; sotto 1100 DIP di larghezza utile il VM li porta su una riga ciascuno (ColonneSpanEditor = 3),
                          quindi niente RowSpacing: lo spazio verticale e' il Margin inferiore di ogni figlio. -->
-                    <Grid Grid.Row="1" Margin="0,0,0,12" ColumnDefinitions="*,*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="0">
+                    <Grid Grid.Row="1" Margin="0,0,0,12" ColumnDefinitions="*,*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="0" IsEnabled="{Binding InModifica}">
                         <!-- Veicolo prima di componente (feedback utente 2026-08-26): EcuDisponibili filtra già i componenti
                              proposte in base a TestCase.VeicoliEffettivi (vedi TestCaseEditorViewModel), quindi
                              ha senso che l'utente scelga prima il/i veicolo/i e solo dopo il componente filtrata di
@@ -1286,29 +1305,54 @@
                          puo' aprirli quando necessari senza occupare spazio nella scheda Dettagli.
                          I controlli restano bindati ai valori esistenti: collassare non modifica dati. -->
                     <Expander x:Name="CampiStrumentiSpecificiExpander" Grid.Row="2" Grid.RowSpan="2"
-                              Margin="0,0,0,12" IsExpanded="False"
+                              Margin="0,0,0,12" IsExpanded="{Binding CampiStrumentiSpecificiAperto, Mode=TwoWay}"
                               IsVisible="{Binding MostraCampiStrumentoDettagli}"
-                              Header="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorCampiStrumentiSpecificiTitolo}"
                               AutomationProperties.AutomationId="Editor_CampiStrumentiSpecifici_Expander">
+                        <Expander.Header>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorCampiStrumentiSpecificiTitolo}" IsVisible="{Binding InModifica}" />
+                                <TextBlock Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorCampiStrumentiSpecificiTitoloSolaLettura}" IsVisible="{Binding !InModifica}"
+                                           AutomationProperties.AutomationId="Editor_CampiStrumentiSpecifici_Titolo_SolaLettura" />
+                            </StackPanel>
+                        </Expander.Header>
                         <StackPanel Spacing="8" Margin="0,8,0,0">
+                            <TextBlock Classes="Muted" TextWrapping="Wrap" Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorCampiStrumentiSpecificiVuoto}"
+                                       IsVisible="{Binding NessunCampoStrumentoTest}"
+                                       AutomationProperties.AutomationId="Editor_CampiStrumentiSpecifici_Vuoto_Text" />
+                            <TextBlock Classes="Muted" TextWrapping="Wrap" Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=EditorCampiStrumentiNessunCompilato}"
+                                       IsVisible="{Binding MostraNessunCampoCompilatoTest}"
+                                       AutomationProperties.AutomationId="Editor_CampiStrumentiSpecifici_NessunCompilato_Text" />
                             <ItemsControl IsVisible="{Binding #CampiStrumentiSpecificiExpander.IsExpanded}"
-                                          ItemsSource="{Binding CampiTestCostanti}"
                                           ItemTemplate="{StaticResource CampoValoreItemTemplateConDefaultEListaTesto}">
+                                <ItemsControl.ItemsSource>
+                                    <MultiBinding Converter="{x:Static localview:CampiSeEspansoConverter.Instance}">
+                                        <Binding Path="CampiTestCostanti" />
+                                        <Binding Path="#CampiStrumentiSpecificiExpander.IsExpanded" />
+                                        <Binding Path="NascondiCampiVuoti" />
+                                    </MultiBinding>
+                                </ItemsControl.ItemsSource>
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
-                            <ItemsControl IsVisible="{Binding #CampiStrumentiSpecificiExpander.IsExpanded}"
-                                          ItemsSource="{Binding GruppiTestCostanti}">
+                            <ItemsControl IsVisible="{Binding #CampiStrumentiSpecificiExpander.IsExpanded}">
+                                <ItemsControl.ItemsSource>
+                                    <MultiBinding Converter="{x:Static localview:CampiSeEspansoConverter.Instance}">
+                                        <Binding Path="GruppiTestCostanti" />
+                                        <Binding Path="#CampiStrumentiSpecificiExpander.IsExpanded" />
+                                        <Binding Path="NascondiCampiVuoti" />
+                                    </MultiBinding>
+                                </ItemsControl.ItemsSource>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="models:GruppoCampiStrumento">
-                                        <Expander x:Name="GruppoCampiExpanderTest" Header="{Binding Nome}" IsExpanded="False"
+                                        <Expander x:Name="GruppoCampiExpanderTest" Header="{Binding Nome}" IsExpanded="{Binding Aperto, Mode=TwoWay}"
                                                   Margin="0,0,0,8" ToolTip.Tip="{Binding Nome}">
                                             <ItemsControl Margin="0,8,0,0" ItemTemplate="{StaticResource CampoValoreItemTemplateConDefault}">
                                                 <ItemsControl.ItemsSource>
                                                     <MultiBinding Converter="{x:Static localview:CampiSeEspansoConverter.Instance}">
                                                         <Binding Path="Campi" />
                                                         <Binding Path="#GruppoCampiExpanderTest.IsExpanded" />
+                                                        <Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).NascondiCampiVuoti" />
                                                     </MultiBinding>
                                                 </ItemsControl.ItemsSource>
                                                 <ItemsControl.ItemsPanel>
@@ -1322,7 +1366,7 @@
                         </StackPanel>
                     </Expander>
 
-                    <StackPanel Grid.Row="{Binding RigaDescrizioneBreve}" Margin="0,0,0,12" Spacing="4" IsVisible="{Binding MostraCampoDescrizioneBreve}" svc:Spotlight.TargetId="campo-DescrizioneBreve">
+                    <StackPanel Grid.Row="{Binding RigaDescrizioneBreve}" Margin="0,0,0,12" Spacing="4" IsEnabled="{Binding InModifica}" IsVisible="{Binding MostraCampoDescrizioneBreve}" svc:Spotlight.TargetId="campo-DescrizioneBreve">
                         <StackPanel Orientation="Horizontal" Spacing="2">
                             <TextBlock Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=DescrizioneBreveLabel}" FontSize="13" FontWeight="SemiBold" />
                             <TextBlock Text="*" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding DescrizioneBreveObbligatoria}" />
@@ -1330,7 +1374,7 @@
                         <TextBox Classes="Field" Text="{Binding TestCase.DescrizioneBreve}" PlaceholderText="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=DescrizioneBrevePlaceholder}" MaxLength="120" AutomationProperties.AutomationId="Editor_DescrizioneBreve_TextBox" />
                     </StackPanel>
 
-                    <StackPanel Grid.Row="{Binding RigaDescrizione}" Margin="0,0,0,12" Spacing="4" IsVisible="{Binding MostraCampoDescrizione}" svc:Spotlight.TargetId="campo-Descrizione">
+                    <StackPanel Grid.Row="{Binding RigaDescrizione}" Margin="0,0,0,12" Spacing="4" IsEnabled="{Binding InModifica}" IsVisible="{Binding MostraCampoDescrizione}" svc:Spotlight.TargetId="campo-Descrizione">
                         <Grid ColumnDefinitions="Auto,Auto,*,Auto">
                             <TextBlock Grid.Column="0" Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=DescrizioneObbl}" FontSize="13" FontWeight="SemiBold" />
                             <TextBlock Grid.Column="1" Text="*" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DangerBrush}" Margin="2,0,0,0" IsVisible="{Binding DescrizioneObbligatoria}" />
@@ -1342,7 +1386,7 @@
                     <!-- Campi personalizzati di Dettagli (Addendum: grill-me 2026-08-18, follow-up): campi
                          CampoLibero o del catalogo campi di sistema (Ruolo=Nessuno) assegnati dal template a
                          questa sezione — stesso motore generico di CampiRevisioneCostanti. -->
-                    <StackPanel Grid.Row="7" Spacing="8" IsVisible="{Binding CampiCustomDettagliVisual.Count}">
+                    <StackPanel Grid.Row="7" Spacing="8" IsEnabled="{Binding InModifica}" IsVisible="{Binding CampiCustomDettagliVisual.Count}">
                         <TextBlock Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=CampiPersonalizzatiTitolo}" Classes="SectionTitle" />
                         <ItemsControl ItemsSource="{Binding CampiCustomDettagliVisual}" ItemTemplate="{StaticResource CampoValoreItemTemplateSemplice}">
                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -1363,21 +1407,29 @@
                         <Binding Path="MostraCampiStrumentoDettagli" />
                     </MultiBinding>
                 </Border.IsVisible>
-                <StackPanel Spacing="8" IsEnabled="{Binding PuoModificareContenuto}">
+                <StackPanel Spacing="8">
                     <TextBlock Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=CampiRevisioneTitolo}" Classes="SectionTitle" />
                     <TextBlock Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=CampiRevisioneSottotitolo}" Classes="Muted" TextWrapping="Wrap" />
                     <ItemsControl ItemsSource="{Binding CampiRevisioneCostanti}" ItemTemplate="{StaticResource CampoValoreItemTemplateSemplice}">
                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                     </ItemsControl>
-                    <ItemsControl ItemsSource="{Binding GruppiRevisioneCostanti}">
+                    <ItemsControl>
+                        <ItemsControl.ItemsSource>
+                            <MultiBinding Converter="{x:Static localview:CampiSeEspansoConverter.Instance}">
+                                <Binding Path="GruppiRevisioneCostanti" />
+                                <Binding Source="{x:True}" />
+                                <Binding Path="NascondiCampiVuoti" />
+                            </MultiBinding>
+                        </ItemsControl.ItemsSource>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="models:GruppoCampiStrumento">
-                                <Expander x:Name="GruppoCampiExpanderRevisione" Header="{Binding Nome}" IsExpanded="False" Margin="0,0,0,8" ToolTip.Tip="{Binding Nome}">
+                                <Expander x:Name="GruppoCampiExpanderRevisione" Header="{Binding Nome}" IsExpanded="{Binding Aperto, Mode=TwoWay}" Margin="0,0,0,8" ToolTip.Tip="{Binding Nome}">
                                     <ItemsControl Margin="0,8,0,0" ItemTemplate="{StaticResource CampoValoreItemTemplateSemplice}">
                                         <ItemsControl.ItemsSource>
                                             <MultiBinding Converter="{x:Static localview:CampiSeEspansoConverter.Instance}">
                                                 <Binding Path="Campi" />
                                                 <Binding Path="#GruppoCampiExpanderRevisione.IsExpanded" />
+                                                <Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).NascondiCampiVuoti" />
                                             </MultiBinding>
                                         </ItemsControl.ItemsSource>
                                         <ItemsControl.ItemsPanel>
@@ -1397,8 +1449,8 @@
                  — Addendum redesign 2026-08: un test è fatto di reiterazioni, ognuna con i propri campi tecnici,
                  il proprio esito e la propria nota. La prima "Avvia" crea anche la prima revisione. -->
             <Border x:Name="Prove" Classes="Card" IsVisible="{Binding MostraSchedaProve}">
-                <StackPanel Spacing="10" IsEnabled="{Binding InModifica}">
-                    <StackPanel Spacing="10" IsVisible="{Binding !HaRevisioneCorrente}">
+                <StackPanel Spacing="10">
+                    <StackPanel Spacing="10" IsEnabled="{Binding InModifica}" IsVisible="{Binding !HaRevisioneCorrente}">
                         <TextBlock Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=CondizioniProvateTitolo}" Classes="SectionTitle" />
                         <TextBlock Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=NessunaEsecuzioneAncora}" Classes="Muted" TextWrapping="Wrap" />
                         <Button Content="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=AvviaPrimaEsecuzioneBtn}" Classes="Primary" HorizontalAlignment="Left" Command="{Binding AggiungiIterazioneCommand}" AutomationProperties.AutomationId="Editor_AvviaPrimaEsecuzione_Button" />
@@ -1407,7 +1459,8 @@
                     <!-- Niente più tasto manuale "+ Nuova iterazione" (Addendum §6, feedback QA): una nuova
                          revisione si crea da sola al salvataggio se Dettagli/Operazioni sono cambiati rispetto
                          all'ultimo salvataggio; naviga le revisioni già create dal menu REV in alto. -->
-                    <StackPanel Spacing="12" IsVisible="{Binding HaRevisioneCorrente}" IsEnabled="{Binding PuoModificareContenuto}">
+                    <StackPanel Spacing="12" IsVisible="{Binding HaRevisioneCorrente}">
+<StackPanel Spacing="12" IsEnabled="{Binding PuoModificareContenuto}">
                         <StackPanel>
                             <TextBlock Text="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=CondizioniProvateTitolo}" Classes="SectionTitle" Margin="0" />
                             <TextBlock Classes="Muted">
@@ -1633,7 +1686,8 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Completa: scheda intera per operazione. Rapida: riga compatta (esito evidenziato, nota, durata, evidenze) con la scheda completa su richiesta. -->
+                        </StackPanel>
+<!-- Completa: scheda intera per operazione. Rapida: riga compatta (esito evidenziato, nota, durata, evidenze) con la scheda completa su richiesta. -->
                         <ItemsControl ItemTemplate="{StaticResource OperazioneCardCompleta}">
                             <ItemsControl.ItemsSource>
                                 <MultiBinding Converter="{x:Static localview:CollezioneSeModoRapidoConverter.Instance}" ConverterParameter="false">
@@ -1650,6 +1704,7 @@
                                 </MultiBinding>
                             </ItemsControl.ItemsSource>
                         </ItemsControl>
+<StackPanel Spacing="12" IsEnabled="{Binding PuoModificareContenuto}">
 
                         <!-- Riepilogo revisione corrente -->
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="12" Margin="0,6,0,0">
@@ -1793,6 +1848,7 @@
                             </ItemsControl>
                         </StackPanel>
                     </StackPanel>
+</StackPanel>
                 </StackPanel>
             </Border>
 
@@ -1887,6 +1943,13 @@
                                     <Border Classes="Badge" Background="{DynamicResource SuccessBackgroundBrush}" Margin="0,0,6,6">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <TextBlock Text="{Binding}" />
+                                            <Button Tag="{Binding}" Click="OnApriRequisitoPolarion" Padding="6,0" FontSize="11" Foreground="White"
+                                                    AutomationProperties.AutomationId="{Binding, StringFormat='Editor_Requisito_{0}_Ticketing_Button'}">
+                                                <Button.IsVisible><MultiBinding Converter="{x:Static local:RequisitoPolarionBadgeConverter.Instance}" ConverterParameter="visibile"><Binding Path="." /><Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).PolarionPaths" /><Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).PolarionRequisitiVersione" /></MultiBinding></Button.IsVisible>
+                                                <Button.Background><MultiBinding Converter="{x:Static local:RequisitoPolarionBadgeConverter.Instance}" ConverterParameter="pennello"><Binding Path="." /><Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).PolarionPaths" /><Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).PolarionRequisitiVersione" /></MultiBinding></Button.Background>
+                                                <ToolTip.Tip><MultiBinding Converter="{x:Static local:RequisitoPolarionBadgeConverter.Instance}" ConverterParameter="tooltip"><Binding Path="." /><Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).PolarionPaths" /><Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).PolarionRequisitiVersione" /></MultiBinding></ToolTip.Tip>
+                                                <Button.Content><MultiBinding Converter="{x:Static local:RequisitoPolarionBadgeConverter.Instance}" ConverterParameter="testo"><Binding Path="." /><Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).PolarionPaths" /><Binding Path="#Root.((vm:TestCaseEditorViewModel)DataContext).PolarionRequisitiVersione" /></MultiBinding></Button.Content>
+                                            </Button>
                                             <Button Content="✕" Classes="Link" Padding="0" FontSize="11"
                                                     Command="{Binding #Root.((vm:TestCaseEditorViewModel)DataContext).RimuoviRequisitoCommand}" CommandParameter="{Binding}" AutomationProperties.AutomationId="{Binding, StringFormat='Editor_Requisito_{0}_Rimuovi_Button'}" />
                                         </StackPanel>

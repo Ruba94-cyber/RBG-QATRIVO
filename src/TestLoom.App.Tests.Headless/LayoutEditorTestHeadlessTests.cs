@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
@@ -314,8 +315,19 @@ public class LayoutEditorTestHeadlessTests
                 LayoutHeadlessSessione.Assesta(finestra);
                 Assert.False(quick.IsVisible);
                 Assert.True(vm.MostraCronologiaEditor);
-                // Regola attuale: i parametri tecnici delle operazioni restano compressi all'apertura (anche nella modalita'
-                // completa) e li apre solo l'utente o la validazione di un campo obbligatorio.
+                // Regola attuale: i parametri tecnici partono chiusi anche in sola visualizzazione; si aprono col
+                // pulsante di lettura (le card sono disabilitate) o per validazione.
+                Assert.False(vm.InModifica);
+                Assert.False(vm.EspandiParametriOperazione);
+                var toggle = Trova<ToggleButton>(editor, "Editor_ParametriStrumento_Lettura_Toggle");
+                Assert.True(toggle.IsEffectivelyVisible);
+                Assert.True(toggle.IsEffectivelyEnabled);
+                toggle.IsChecked = true;
+                LayoutHeadlessSessione.Assesta(finestra);
+                Assert.True(vm.ParametriApertiInLettura);
+                Assert.True(vm.EspandiParametriOperazione);
+                toggle.IsChecked = false;
+                LayoutHeadlessSessione.Assesta(finestra);
                 Assert.False(vm.EspandiParametriOperazione);
                 vm.ApriParametriPerValidazione();
                 Assert.True(vm.EspandiParametriOperazione);

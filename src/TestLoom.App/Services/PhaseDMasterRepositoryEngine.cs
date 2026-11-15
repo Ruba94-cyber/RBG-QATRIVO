@@ -92,9 +92,28 @@ public sealed class PhaseDMasterRepositoryEngine<T> where T : MasterEntity
         _preserveWhenOmitted = preserveWhenOmitted;
     }
 
+    /// <summary>Lettura per i chiamanti che poi MODIFICANO le righe e salvano con Save(List): ogni chiamata restituisce una lista di
+    /// copie private (mai le istanze dello snapshot condiviso), costruite dai payload dello snapshot in cache. Lo stato causale
+    /// (baseline per UID) e' quello dello snapshot, immutabile e condiviso.</summary>
     public (List<T> Items, PhaseDLoadedListState State) Load()
     {
-        var snapshot = _materializer.LoadCatalog<T>(_paths.Root, _catalog);
+        var snapshot = LoadCondiviso();
+        return (snapshot.CreaCopiaModificabile(), snapshot.State);
+    }
+
+    /// <summary>Snapshot condiviso e immutabile del catalogo alla revisione corrente (vedi <see cref="MasterCatalogSnapshotCache"/>):
+    /// se la revisione non e' cambiata dall'ultima lettura non legge teste e non deserializza. Le righe sono condivise: sola lettura.</summary>
+    internal string DatabasePath => _materializer.DatabasePath;
+
+    public MasterCatalogSnapshot<T> LoadCondiviso()
+    {
+        var probe = _materializer.SondaCatalogo(_paths.Root, _catalog);
+        return MasterCatalogSnapshotCache.Ottieni<T>(_materializer.DatabasePath, _catalog, probe, CostruisciSnapshot);
+    }
+
+    private MasterCatalogSnapshot<T> CostruisciSnapshot()
+    {
+        var snapshot = _materializer.LeggiCatalogo<T>(_catalog);
         // tollerante:true — vedi commento su ValidateBusinessKeys: questo valida lo stato GIA' PERSISTITO del
         // catalogo (letto dal journal condiviso), non una lista che il chiamante sta per scrivere. Per il
         // catalogo tollerato una collisione preesistente non ancora riparata non deve mai bloccare la lettura.
@@ -112,11 +131,19 @@ public sealed class PhaseDMasterRepositoryEngine<T> where T : MasterEntity
                     VersionVector = new Dictionary<string, long>(x.Value.VersionVector, StringComparer.Ordinal)
                 });
         // Proiezione in lettura: l'ordine delle teste (ORDER BY entity_uid) non e' un ordine per l'utente. Nessun dato cambia.
-        return (MasterCatalogOrdering.Ordina(snapshot.Items), new PhaseDLoadedListState
-        {
-            SourceFingerprint = snapshot.SourceFingerprint,
-            Entities = states
-        });
+        var coppie = MasterCatalogOrdering.OrdinaCoppie(snapshot.Items.Select((item, i) => (item, snapshot.ItemPayloads[i])));
+        return new MasterCatalogSnapshot<T>(
+            snapshot.Revision,
+            snapshot.DatabaseIdentity,
+            snapshot.SourceFingerprint,
+            coppie.Select(x => x.Item).ToList(),
+            coppie.Select(x => x.Extra).ToArray(),
+            snapshot.ConflictedUids,
+            new PhaseDLoadedListState
+            {
+                SourceFingerprint = snapshot.SourceFingerprint,
+                Entities = states
+            });
     }
 
     /// <summary>

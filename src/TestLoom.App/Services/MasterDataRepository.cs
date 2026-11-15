@@ -60,6 +60,38 @@ public class MasterDataRepository<T> where T : MasterEntity
         _fileExistedAtConstruction = File.Exists(path);
     }
 
+    /// <summary>
+    /// Lettura in SOLA LETTURA dello snapshot condiviso e immutabile del catalogo (Phase D): se la revisione del catalogo non e'
+    /// cambiata dall'ultima lettura non rilegge teste ne' deserializza (vedi <see cref="MasterCatalogSnapshotCache"/>); modifiche
+    /// locali, consegne da altri PC/OneDrive, risoluzioni di conflitto, import e ripristini cambiano la revisione e lo snapshot
+    /// viene ricostruito al primo accesso successivo.
+    ///
+    /// Le righe restituite sono ISTANZE CONDIVISE fra tutti i chiamanti e NON vanno mai modificate ne' passate a Save(): chi deve
+    /// modificare usa <see cref="Load"/>, che restituisce sempre copie private con la baseline causale per il salvataggio.
+    /// Nei workspace non ancora su Phase D equivale a <see cref="Load"/> (lista nuova a ogni chiamata).
+    /// </summary>
+    public IReadOnlyList<T> LoadSnapshot() => CaricaSnapshot()?.Items ?? Load();
+
+    /// <summary>Snapshot condiviso completo (revisione, stato causale, verifica di integrita'); null se il workspace non e' su Phase D.</summary>
+    internal MasterCatalogSnapshot<T>? CaricaSnapshot()
+    {
+        if (!TryGetPhaseDEngine(out var phaseD)) return null;
+        PerfContatori.IncrementaMasterLoad();
+        return phaseD.LoadCondiviso();
+    }
+
+    /// <summary>Percorso del read-model locale usato da questo repository (null se non su Phase D): chiave della cache e dei test.</summary>
+    internal string? PercorsoReadModelLocale() =>
+        TryGetPhaseDEngine(out var phaseD) ? phaseD.DatabasePath : null;
+
+    /// <summary>Costruisce (o conferma valido) lo snapshot condiviso del catalogo e ne restituisce il numero di righe; -1 se il
+    /// workspace non e' su Phase D (nessuna cache da scaldare). Usato da <see cref="MasterDataStore.PrecaricaAsync"/>.</summary>
+    internal int PrecaricaSnapshot() =>
+        TryGetPhaseDEngine(out var phaseD) ? phaseD.LoadCondiviso().Items.Count : -1;
+
+    /// <summary>Lettura per chi MODIFICA le righe e poi salva: restituisce sempre una lista di copie private (in Phase D ricostruite
+    /// dallo snapshot condiviso, senza rileggere il disco se la revisione non e' cambiata) con la baseline causale per Save(List).
+    /// Per la sola consultazione preferire <see cref="LoadSnapshot"/>.</summary>
     public List<T> Load()
     {
         PerfContatori.IncrementaMasterLoad();
@@ -777,6 +809,12 @@ public sealed class MasterDataUnreadableHistoricalPayloadException : MasterDataC
     }
 }
 
+/// <summary>Avanzamento reale del precaricamento dei cataloghi master: <see cref="Completati"/> di <see cref="Totale"/> passi
+/// (Totale noto in anticipo). <see cref="Elementi"/> = righe dello snapshot, -1 se il workspace non e' su Phase D o se il
+/// passo e' fallito (<see cref="Riuscito"/> = false: l'errore e' registrato nel crash log e il precaricamento prosegue; il catalogo
+/// verra' letto normalmente al primo accesso).</summary>
+public readonly record struct MasterPrecaricamentoProgress(string Catalogo, int Completati, int Totale, int Elementi, double Millisecondi, bool Riuscito = true);
+
 public class MasterDataStore
 {
     public MasterDataRepository<Requisito> Requisiti { get; }
@@ -796,6 +834,63 @@ public class MasterDataStore
     public MasterDataRepository<StatoFunzionalitaEcuVeicolo> StatiFunzionalitaEcuVeicolo { get; }
     /// <summary>Archivio separato dei guasti dei requisiti Extra (un documento per requisito nel journal Phase D).</summary>
     public RequisitoDtcArchivio RequisitiDtc { get; }
+
+    /// <summary>
+    /// Precarica in memoria gli snapshot condivisi dei cataloghi master (chiamabile dal bootstrap durante lo splash, anche da un
+    /// thread di background: nessun lock lungo, i thread concorrenti che chiedono lo stesso catalogo attendono lo stesso risultato).
+    /// Dopo il completamento <see cref="MasterDataRepository{T}.Load"/> e <see cref="MasterDataRepository{T}.LoadSnapshot"/> dei
+    /// cataloghi precaricati non rileggono il disco finche' la revisione del catalogo non cambia. I cataloghi voluminosi
+    /// (Valutazioni Audit, Stati funzionalita') sono inclusi solo con <paramref name="includiCataloghiVoluminosi"/>: se superano il
+    /// budget RAM (<see cref="MasterCatalogSnapshotCache.LimiteBytes"/>) non vengono comunque trattenuti.
+    /// Il progresso e' reale: un passo per catalogo, con conteggio dei passi dichiarato in anticipo (Totale).
+    /// </summary>
+    public Task PrecaricaAsync(
+        IProgress<MasterPrecaricamentoProgress>? progress = null,
+        bool includiCataloghiVoluminosi = false,
+        CancellationToken cancellationToken = default)
+    {
+        var passi = new List<(string Nome, Func<int> Esegui)>
+        {
+            ("Componente", Componente.PrecaricaSnapshot),
+            ("Veicoli", Veicoli.PrecaricaSnapshot),
+            ("Gamma", Gamma.PrecaricaSnapshot),
+            ("Categorie", Categorie.PrecaricaSnapshot),
+            ("Requisiti", Requisiti.PrecaricaSnapshot),
+            ("Funzionalita", Funzionalita.PrecaricaSnapshot),
+            ("TestTemplate", TestTemplate.PrecaricaSnapshot),
+            ("Operatori", Operatori.PrecaricaSnapshot),
+            ("Strumenti", Strumenti.PrecaricaSnapshot),
+            ("CampiSistemaPianificazione", CampiSistemaPianificazione.PrecaricaSnapshot),
+            ("CampiSistemaDettagli", CampiSistemaDettagli.PrecaricaSnapshot),
+            ("RisoluzioniConflittoAudit", RisoluzioniConflittoAudit.PrecaricaSnapshot),
+            ("RevisioniUdt", RevisioniUdt.PrecaricaSnapshot),
+        };
+        if (includiCataloghiVoluminosi)
+        {
+            passi.Add(("ValutazioniRequisitoEcuVeicolo", ValutazioniRequisitoEcuVeicolo.PrecaricaSnapshot));
+            passi.Add(("StatiFunzionalitaEcuVeicolo", StatiFunzionalitaEcuVeicolo.PrecaricaSnapshot));
+        }
+
+        return Task.Run(() =>
+        {
+            for (var i = 0; i < passi.Count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var elementi = -1;
+                var riuscito = true;
+                try { elementi = passi[i].Esegui(); }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Un catalogo illeggibile non deve bloccare lo splash: la stessa eccezione si ripresentera' (e sara' gestita
+                    // come sempre) alla prima lettura reale di quel catalogo.
+                    riuscito = false;
+                    CrashLogService.Registra($"Precaricamento catalogo master {passi[i].Nome}", ex);
+                }
+                progress?.Report(new MasterPrecaricamentoProgress(passi[i].Nome, i + 1, passi.Count, elementi, sw.Elapsed.TotalMilliseconds, riuscito));
+            }
+        }, cancellationToken);
+    }
 
     public MasterDataStore(DataPaths paths)
     {

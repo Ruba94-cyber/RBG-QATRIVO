@@ -383,6 +383,14 @@ public class TipoCampoStrumentoLabelConverter : IValueConverter
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
+public class RuoloOperatoreLabelConverter : IValueConverter
+{
+    public static readonly RuoloOperatoreLabelConverter Instance = new();
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value switch { RuoloOperatore r => r.Label(), _ => null };
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
 public class PunteggioConformitaLabelConverter : IValueConverter
 {
     public static readonly PunteggioConformitaLabelConverter Instance = new();

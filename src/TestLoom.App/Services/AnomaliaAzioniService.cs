@@ -21,7 +21,6 @@ public static class AnomaliaAzioniService
                 ValorePrecedente = precedente.DataChiusura?.ToString("O") ?? "", ValoreNuovo = candidato.DataChiusura.Value.ToString("O") });
         return true;
     }
-    private static readonly Regex FormatoTicket = new("^TICKET-[A-Z0-9_-]+$", RegexOptions.Compiled);
 
     /// <summary>Aggiunge a <paramref name="nc"/> un ticket TICKET digitato ma non ancora collegato. Campo vuoto =
     /// niente da fare (true, nessun errore). Ritorna false con la chiave di localizzazione dell'errore se il
@@ -32,8 +31,7 @@ public static class AnomaliaAzioniService
         chiaveErrore = null;
         aggiunto = false;
         if (string.IsNullOrWhiteSpace(riferimento)) return true;
-        var codice = riferimento.Trim().ToUpperInvariant();
-        if (!FormatoTicket.IsMatch(codice)) { chiaveErrore = "FormatoPolarionNonValido"; return false; }
+        if (!PolarionTicketLinkService.TryNormalizzaCodice(riferimento, out var codice)) { chiaveErrore = "FormatoPolarionNonValido"; return false; }
         if (!string.IsNullOrWhiteSpace(url) && !Uri.TryCreate(url, UriKind.Absolute, out _)) { chiaveErrore = "LinkPolarionNonValido"; return false; }
         nc.CollegamentiPolarion.Add(new CollegamentoPolarion { Codice = codice, Url = string.IsNullOrWhiteSpace(url) ? PolarionTicketLinkService.DerivaUrl(paths, codice) : url.Trim(), CollegatoDa = operatore });
         aggiunto = true;

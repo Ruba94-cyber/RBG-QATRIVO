@@ -137,7 +137,7 @@ public static class FailedSaveDraftRecoveryPreparationService
         var canonical = new DataPaths(sharedRoot).ChangeRequestFile(expectedId);
         if (!File.Exists(canonical))
             throw new IOException("La Change Request canonica non è presente localmente.");
-        VisibleConflictWriteGuard.EnsureNoVisibleFork(canonical, expectedUid);
+        VisibleConflictWriteGuard.EnsureNoVisibleFork(canonical, expectedUid, null, null, sharedRoot);
         var canonicalInfo = new FileInfo(canonical);
         if (canonicalInfo.LinkTarget != null || canonicalInfo.Length > 8 * 1024 * 1024)
             throw new InvalidDataException("Il documento canonico è un collegamento o supera il limite consentito.");
@@ -215,7 +215,7 @@ public static class FailedSaveDraftRecoveryPreparationService
         var paths = new DataPaths(sharedRoot);
         var canonical = paths.NonConformitaFile(expectedSnapshot.Id);
         if (!File.Exists(canonical)) throw new IOException("La Non Conformità canonica non è presente localmente.");
-        VisibleConflictWriteGuard.EnsureNoVisibleFork(canonical, expectedSnapshot.Uid);
+        VisibleConflictWriteGuard.EnsureNoVisibleFork(canonical, expectedSnapshot.Uid, null, null, sharedRoot);
         var canonicalInfo = new FileInfo(canonical);
         if (canonicalInfo.LinkTarget != null || canonicalInfo.Length > 8 * 1024 * 1024)
             throw new InvalidDataException("Il documento canonico è un collegamento o supera il limite consentito.");
@@ -447,7 +447,7 @@ public static class FailedSaveDraftRecoveryPreparationService
             throw new IOException("Il documento canonico non è più presente.");
         // A visible fork is enough to block this candidate; remote unsynced
         // changes remain unverifiable without the physical OneDrive pilot.
-        VisibleConflictWriteGuard.EnsureNoVisibleFork(canonical, row.EntityUid);
+        VisibleConflictWriteGuard.EnsureNoVisibleFork(canonical, row.EntityUid, null, null, sharedRoot);
 
         var original = JsonIo.ReadAllBytesShared(canonical);
         using var latest = JsonDocument.Parse(original);

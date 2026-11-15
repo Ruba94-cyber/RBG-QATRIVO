@@ -14,16 +14,18 @@ public sealed class AvvioPrecachePolicyTests
             onboarding, caricamento, aggiornamento, editorConModifiche, paginaVisibile);
 
     [Fact]
-    public void CodaPrecache_IncludeTutteLePagineDellaSidebarEccettoLaPrima()
+    public void CodaPrecache_ContieneSoloLePagineCaldeEccettoLaPrima()
     {
         var voci = new[] { "home", "test", "anomalie", "wustatus", "guasto", "report", "audit", "impostazioni" };
-        Assert.Equal(new[] { "test", "anomalie", "wustatus", "guasto", "report", "audit", "impostazioni" },
+        Assert.Equal(new[] { "test", "wustatus", "report" },
             AvvioPrecachePolicy.CreaCodaPagine(voci, "home"));
 
         // Un operatore puo' aver riordinato la barra: la prima destinazione
         // resta esclusa indipendentemente dal suo ID.
-        Assert.Equal(new[] { "home", "test", "wustatus", "guasto", "report", "audit", "impostazioni" },
+        Assert.Equal(new[] { "test", "wustatus", "report" },
             AvvioPrecachePolicy.CreaCodaPagine(voci, "anomalie"));
+        // Se la prima pagina e' una di quelle calde, resta esclusa.
+        Assert.Equal(new[] { "wustatus", "report" }, AvvioPrecachePolicy.CreaCodaPagine(voci, "test"));
     }
 
     [Fact]

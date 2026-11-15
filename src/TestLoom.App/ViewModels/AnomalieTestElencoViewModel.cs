@@ -32,7 +32,9 @@ public sealed class AnomalieTestElencoViewModel : ViewModelBase
     public void Ricarica()
     {
         Righe.Clear();
-        foreach (var nc in AnomalieDelTest(_state, TestId)) Righe.Add(new NcRiga { Nc = nc });
+        // Il Test viene passato alla riga: senza, gli TICKET ereditati dal Test non comparivano nell'elenco dentro il Test.
+        var test = _state.TestCases.GetById(TestId);
+        foreach (var nc in AnomalieDelTest(_state, TestId)) Righe.Add(new NcRiga { Nc = nc, TestCase = test });
     }
 
     public AnomaliaDettaglioViewModel CreaDettaglio(NcRiga riga) => new(_state, riga.Nc);

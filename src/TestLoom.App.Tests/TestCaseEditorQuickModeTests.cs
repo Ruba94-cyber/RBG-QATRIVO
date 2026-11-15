@@ -56,6 +56,39 @@ public sealed class TestCaseEditorQuickModeTests : IDisposable
     }
 
     [Fact]
+    public void ParametriStrumento_ChiusiDiDefaultAncheInSolaLettura_ApribiliDallUtente()
+    {
+        var vm = CreaVm(rapido: false);
+        Assert.True(vm.InModifica); // test nuovo: in costruzione, parametri chiusi di default
+        Assert.False(vm.EspandiParametriOperazione);
+        vm.InModifica = false; // sola visualizzazione: chiusi anche qui
+        Assert.False(vm.EspandiParametriOperazione);
+        Assert.False(vm.ParametriApertiInLettura);
+        vm.ParametriApertiInLettura = true; // apertura esplicita dell'utente
+        Assert.True(vm.EspandiParametriOperazione);
+        Assert.False(vm.ModificheNonSalvate); // solo presentazione
+        vm.ParametriApertiInLettura = false;
+        Assert.False(vm.EspandiParametriOperazione);
+        vm.ParametriApertiInLettura = true;
+        vm.InModifica = true; // in modifica l'apertura "di lettura" non si applica: chiusi di default
+        Assert.False(vm.EspandiParametriOperazione);
+    }
+
+    [Fact]
+    public void ValidazioneApreIParametriAncheInSolaLettura_ENotificaLaProprieta()
+    {
+        var vm = CreaVm(rapido: false);
+        vm.InModifica = false;
+        var notificate = new List<string?>();
+        vm.PropertyChanged += (_, e) => notificate.Add(e.PropertyName);
+        vm.ParametriApertiInLettura = true;
+        Assert.Contains(nameof(vm.EspandiParametriOperazione), notificate);
+        vm.ParametriApertiInLettura = false;
+        vm.ApriParametriPerValidazione();
+        Assert.True(vm.EspandiParametriOperazione);
+    }
+
+    [Fact]
     public void ValidazioneApreIParametriAncheNellaModalitaCompleta()
     {
         var vm = CreaVm(rapido: false);

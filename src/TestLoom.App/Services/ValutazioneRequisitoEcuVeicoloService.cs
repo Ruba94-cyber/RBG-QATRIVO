@@ -278,7 +278,7 @@ public static class ValutazioneRequisitoEcuVeicoloService
         foreach (var valutazione in valutazioni.Where(v => StessaCella(v, componente, requisitoId, veicolo)))
         {
             foreach (var snapshot in valutazione.Storico ?? new List<SnapshotValutazioneAudit>())
-                AggiungiSnapshotUnico(eventi, CopiaSnapshot(snapshot));
+                AggiungiSnapshotUnico(eventi, CopiaSnapshot(snapshot), deduplicaPerIdentita: true);
             if (!valutazione.IsArchiviata)
                 AggiungiSnapshotUnico(eventi, SnapshotCorrente(valutazione));
         }
@@ -288,7 +288,7 @@ public static class ValutazioneRequisitoEcuVeicoloService
                      r.RequisitoId.Equals(requisitoId, StringComparison.OrdinalIgnoreCase)))
         {
             foreach (var snapshot in risoluzione.StoricoPunteggiManuali ?? new List<SnapshotValutazioneAudit>())
-                AggiungiSnapshotUnico(eventi, CopiaSnapshot(snapshot));
+                AggiungiSnapshotUnico(eventi, CopiaSnapshot(snapshot), deduplicaPerIdentita: true);
             if (risoluzione.PunteggioManuale.HasValue)
             {
                 AggiungiSnapshotUnico(eventi, new SnapshotValutazioneAudit
@@ -343,10 +343,18 @@ public static class ValutazioneRequisitoEcuVeicoloService
 
     private static void AggiungiSnapshotUnico(
         IDictionary<Guid, SnapshotValutazioneAudit> eventi,
-        SnapshotValutazioneAudit snapshot)
+        SnapshotValutazioneAudit snapshot, bool deduplicaPerIdentita = false)
     {
         if (snapshot.EventId == Guid.Empty) snapshot.EventId = IdDeterministico(
             $"snapshot|{snapshot.Origine}|{snapshot.Data:O}|{snapshot.Operatore}|{snapshot.Punteggio}|{snapshot.Nota}|{snapshot.TestCaseId}|{snapshot.IterazioneTest}");
+        // Un evento "Test" salvato in passato con il numero REV di allora e lo stesso evento ricostruito oggi dopo una
+        // rinumerazione (unione di un conflitto Test) hanno EventId diversi: l'identita' stabile e' (Test, data, operatore,
+        // punteggio), non il numero. Il primo inserito (la ricostruzione dalle REV attuali) vince; nulla si perde.
+        if (deduplicaPerIdentita && snapshot.Origine == OrigineStoricoValutazioneAudit.Test &&
+            eventi.Values.Any(e => e.Origine == OrigineStoricoValutazioneAudit.Test && e.EventId != snapshot.EventId &&
+                                   string.Equals(e.TestCaseId, snapshot.TestCaseId, StringComparison.OrdinalIgnoreCase) &&
+                                   e.Data == snapshot.Data && e.Operatore == snapshot.Operatore && e.Punteggio == snapshot.Punteggio))
+            return;
         eventi.TryAdd(snapshot.EventId, snapshot);
     }
 

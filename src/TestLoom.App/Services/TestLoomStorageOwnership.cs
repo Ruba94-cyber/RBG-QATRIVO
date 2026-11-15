@@ -51,6 +51,10 @@ public static class TestLoomStorageOwnership
             if (relative.StartsWith("recovery-bin/", StringComparison.OrdinalIgnoreCase) &&
                 fileName.StartsWith("recovery_", StringComparison.OrdinalIgnoreCase)) return true;
 
+            // Copie di conflitto ritirate dalle cartelle dei record (ConflictCopyQuarantineService): dati dell'utente, nei backup.
+            if (relative.StartsWith("recovery-bin/conflitti-aperti/", StringComparison.OrdinalIgnoreCase) &&
+                fileName.StartsWith("conflict_", StringComparison.OrdinalIgnoreCase)) return true;
+
             // Formato legacy notifiche: ancora letto/migrato, ma non confonderlo con file arbitrari.
             if (relative.StartsWith("notifiche/", StringComparison.OrdinalIgnoreCase) &&
                 fileName.StartsWith("notifica_", StringComparison.OrdinalIgnoreCase)) return true;
@@ -192,6 +196,8 @@ public static class TestLoomStorageOwnership
                 DomainRecoveryCategory.Segnalazione =>
                     relative.StartsWith("segnalazioni/", StringComparison.OrdinalIgnoreCase) &&
                     fileName.StartsWith("segnalazione_", StringComparison.OrdinalIgnoreCase),
+                DomainRecoveryCategory.CatalogoMaster =>
+                    relative.StartsWith("_ditm/master-v2/conflitti-risolti/", StringComparison.OrdinalIgnoreCase),
                 _ => false
             };
         }

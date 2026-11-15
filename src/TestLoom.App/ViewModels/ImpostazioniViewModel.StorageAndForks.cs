@@ -27,6 +27,7 @@ public sealed record RecoveryBinRiga(DomainRecoveryRecord Record)
         DomainRecoveryCategory.NonConformita => LocalizationService.Instance.Traduci("RecoveryCategoriaNcTesto"),
         DomainRecoveryCategory.ChangeRequest => LocalizationService.Instance.Traduci("RecoveryCategoriaCrTesto"),
         DomainRecoveryCategory.Segnalazione => LocalizationService.Instance.Traduci("RecoveryCategoriaSegnalazioneTesto"),
+        DomainRecoveryCategory.CatalogoMaster => LocalizationService.Instance.Scegli("Catalogo master", "Master catalog", "Catalogue maître"),
         _ => Record.Category.ToString()
     };
     public string PercorsoOriginale => Record.OriginalRelativePath;
@@ -285,14 +286,40 @@ public partial class ImpostazioniViewModel
                 return;
             }
             var recovery = DelayedForkRecoveryService.LoadAllBranches(_state.Paths, fork, current, copies);
+            var parziale = false;
             if (!recovery.Complete)
             {
-                MessaggioErrore = string.Format(LocalizationService.Instance.Traduci("ForkRecoveryMancanteFmt"), recovery.Missing.Count, riga.TestId);
-                return;
+                var t = LocalizationService.Instance;
+                var dettaglio = DelayedForkRecoveryService.DescriviMancanti(_state.Paths, fork, recovery.Missing);
+                var intestazione = string.Format(t.Traduci("ForkRecoveryMancanteFmt"), recovery.Missing.Count, riga.TestId);
+                var attesa = DelayedForkRecoveryService.AttesaResiduaRisoluzioneParziale(recovery.Missing, DateTime.UtcNow);
+                if (attesa != null)
+                {
+                    MessaggioErrore = intestazione + Environment.NewLine + dettaglio + Environment.NewLine +
+                        string.Format(t.Traduci("ForkAttesaParzialeFmt"), Math.Ceiling(attesa.Value.TotalHours));
+                    return;
+                }
+                // Dopo l'attesa minima l'operatore può risolvere con i rami disponibili: scelta esplicita, mai automatica.
+                var conferma = await ConfirmService.Chiedi(
+                    t.Traduci("ForkParzialeConfermaTitolo"),
+                    string.Format(t.Traduci("ForkParzialeConfermaBodyFmt"), riga.TestId, recovery.Missing.Count) + Environment.NewLine + dettaglio,
+                    t.Traduci("ForkParzialeSi"), t.Traduci("Annulla"));
+                if (!conferma)
+                {
+                    MessaggioErrore = intestazione + Environment.NewLine + dettaglio;
+                    return;
+                }
+                // Fail-closed: senza il record dei rami mancanti nel recovery-bin la risoluzione non parte.
+                DelayedForkRecoveryService.ArchiviaRamiMancanti(_state.Paths, fork, recovery, _state.Config.OperatoreAttivo, DateTime.UtcNow);
+                parziale = true;
             }
 
-            var working = await TestCaseManualForkResolution.RisolviAsync(
-                _state.TestCases, fork, current, recovery, _state.Config.OperatoreAttivo, MergeConflittoDialogService.Risolvi);
+            // Confronto grafico sul Test reale (due versioni affiancate, scelta campo per campo, anteprima) oppure, se il
+            // confronto non e' possibile, scelta della versione intera in sola lettura. Le versioni originali vanno nel recovery-bin.
+            string? avvisoRiallineamento = null;
+            var working = await TestCaseManualForkResolution.RisolviConEditorAsync(
+                _state.TestCases, _state.Paths, fork, current, recovery, _state.Config.OperatoreAttivo,
+                t => avvisoRiallineamento = ConflictResolutionService.RiallineaRiferimentiRev(_state, t));
             if (working == null)
             {
                 MessaggioErrore = LocalizationService.Instance.Traduci("ForkRisoluzioneAnnullata");
@@ -303,7 +330,7 @@ public partial class ImpostazioniViewModel
             _state.RegistraAudit(
                 "ResolveDelayedFork",
                 working.Id,
-                $"fork={forkKey}; branches={fork.Branches.Count}; revision={working.RevisioneDati}; uid={working.Uid:N}");
+                $"fork={forkKey}; partial={parziale}; missing={recovery.Missing.Count}; branches={fork.Branches.Count}; revision={working.RevisioneDati}; uid={working.Uid:N}; rev={working.Esecuzioni.Count}");
 
             DelayedForkRecoveryService.CleanupResolvedRecovery(_state.Paths, fork);
             await Task.Run(() => _state.TestCases.RefreshJournalMetadata());
@@ -311,6 +338,7 @@ public partial class ImpostazioniViewModel
             NotificaForkProperties();
             _onCambiato();
             Messaggio = string.Format(LocalizationService.Instance.Traduci("ForkRisoltoFmt"), working.Id);
+            if (avvisoRiallineamento != null) MessaggioErrore = avvisoRiallineamento; // errori di riallineamento: visibili e gia' nel log
         }
         catch (ConflittoRevisioneException)
         {

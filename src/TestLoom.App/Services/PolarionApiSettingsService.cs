@@ -7,11 +7,25 @@ namespace TestLoom.App.Services;
 /// Master-managed shared REST settings, deliberately separate from legacy Ticketing package defaults.
 /// Token obfuscation is NOT encryption or an access boundary: SharePoint readers can recover the PAT.
 /// </summary>
+/// <summary>Progetto Ticketing selezionabile per i collegamenti dei requisiti (id tecnico + nome leggibile).</summary>
+public sealed class PolarionProgettoConfig
+{
+    public string Id { get; set; } = "";
+    public string Nome { get; set; } = "";
+}
+
 public sealed class PolarionApiSettings
 {
+    public const int MaxProgetti = 50;
+    public const int MaxNomeProgetto = 80;
+
     public long RevisioneDati { get; set; }
     public string ApiRoot { get; set; } = "";
     public string ProjectId { get; set; } = "TICKET_Tickets";
+    /// <summary>Progetti Ticketing aggiuntivi (es. quelli dei requisiti). Additivo: null/assente = solo il progetto TICKET.
+    /// L'TICKET (<see cref="ProjectId"/>) resta sempre il progetto predefinito di Test/NC/CR e non va elencato qui.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<PolarionProgettoConfig>? Progetti { get; set; }
     public bool LetturaAbilitata { get; set; }
     /// <summary>Legacy JSON compatibility: old true values are ignored and writing is disabled.</summary>
     public bool ScritturaAbilitata { get => false; set { } }
@@ -27,6 +41,30 @@ public sealed class PolarionApiSettings
     [JsonIgnore] public string? SourceFingerprint { get; set; }
 
     public bool HaToken => !string.IsNullOrWhiteSpace(TokenOffuscato);
+
+    /// <summary>Progetti selezionabili: prima l'TICKET predefinito (nome dall'elenco se presente, altrimenti il suo ID), poi gli
+    /// altri senza duplicati (confronto senza maiuscole, prima occorrenza), solo con ID valido. Mai null, mai vuoto.</summary>
+    public IReadOnlyList<PolarionProgettoConfig> ProgettiEffettivi()
+    {
+        var result = new List<PolarionProgettoConfig>();
+        var visti = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var ticket = string.IsNullOrWhiteSpace(ProjectId) ? "TICKET_Tickets" : ProjectId.Trim();
+        var nomeEsta = Progetti?.FirstOrDefault(p => string.Equals(p?.Id?.Trim(), ticket, StringComparison.OrdinalIgnoreCase))?.Nome;
+        result.Add(new PolarionProgettoConfig { Id = ticket, Nome = string.IsNullOrWhiteSpace(nomeEsta) ? ticket : nomeEsta.Trim() });
+        visti.Add(ticket);
+        foreach (var p in Progetti ?? new List<PolarionProgettoConfig>())
+        {
+            var id = p?.Id?.Trim() ?? "";
+            if (!PolarionReadClient.IsValidProjectId(id) || !visti.Add(id)) continue;
+            result.Add(new PolarionProgettoConfig { Id = id, Nome = string.IsNullOrWhiteSpace(p!.Nome) ? id : p.Nome.Trim() });
+        }
+        return result;
+    }
+
+    /// <summary>True se <paramref name="projectId"/> e uno dei progetti selezionabili (TICKET compreso).</summary>
+    public bool ProgettoConfigurato(string? projectId) =>
+        !string.IsNullOrWhiteSpace(projectId) &&
+        ProgettiEffettivi().Any(p => string.Equals(p.Id, projectId.Trim(), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Master settings editor calls this with a newly entered token; never expose it in UI bindings.</summary>
     public void ImpostaToken(string token)
@@ -64,6 +102,35 @@ public sealed class PolarionApiSettings
 
 public static class PolarionApiSettingsService
 {
+    /// <summary>Valida e normalizza l'elenco dei progetti: ID con lo stesso pattern di <see cref="PolarionReadClient"/>, nome
+    /// non vuoto (default = ID) e al massimo 80 caratteri, nessun duplicato (senza maiuscole), massimo 50 voci. L'TICKET
+    /// predefinito e implicito: una voce con il suo ID resta solo se porta un nome diverso dall'ID. Lista vuota -> null
+    /// (nessun campo nel JSON). Errori con <see cref="InvalidOperationException"/> senza includere input esterno.</summary>
+    public static List<PolarionProgettoConfig>? NormalizzaProgetti(IEnumerable<PolarionProgettoConfig>? progetti, string? progettoEsta)
+    {
+        if (progetti is null) return null;
+        var ticket = (progettoEsta ?? "").Trim();
+        var result = new List<PolarionProgettoConfig>();
+        var visti = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in progetti)
+        {
+            var id = p?.Id?.Trim() ?? "";
+            var nome = p?.Nome?.Trim() ?? "";
+            if (id.Length == 0 && nome.Length == 0) continue; // riga vuota dell'editor
+            if (!PolarionReadClient.IsValidProjectId(id))
+                throw new InvalidOperationException("Invalid Ticketing project ID in the project list.");
+            if (nome.Length > PolarionApiSettings.MaxNomeProgetto)
+                throw new InvalidOperationException("Ticketing project name is too long.");
+            if (!visti.Add(id))
+                throw new InvalidOperationException("Duplicate Ticketing project ID in the project list.");
+            if (string.Equals(id, ticket, StringComparison.OrdinalIgnoreCase) && (nome.Length == 0 || nome == id)) continue;
+            result.Add(new PolarionProgettoConfig { Id = id, Nome = nome.Length == 0 ? id : nome });
+        }
+        if (result.Count > PolarionApiSettings.MaxProgetti)
+            throw new InvalidOperationException("Too many Ticketing projects.");
+        return result.Count == 0 ? null : result;
+    }
+
     public static PolarionApiSettings Load(DataPaths paths)
     {
         ArgumentNullException.ThrowIfNull(paths);
@@ -98,6 +165,8 @@ public static class PolarionApiSettingsService
                 throw new InvalidOperationException("Ticketing read access needs a valid HTTPS API root and a configured token.");
             _ = settings.LeggiToken();
         }
+
+        settings.Progetti = NormalizzaProgetti(settings.Progetti, settings.ProjectId);
 
         var validUsers = settings.AssegnatariEsta.Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();

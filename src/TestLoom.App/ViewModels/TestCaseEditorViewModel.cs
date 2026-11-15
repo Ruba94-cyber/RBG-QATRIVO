@@ -324,12 +324,97 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     public bool MostraSchedaRiferimenti => ModoEditorRapido ? _rapidaRiferimenti : !IsNew || SchedaCorrente == 4;
     public bool MostraSchedaRevisioni => ModoEditorRapido ? _rapidaRevisioni : !IsNew || SchedaCorrente == 5;
     public bool MostraCronologiaEditor => !IsNew && (!ModoEditorRapido || _rapidaRevisioni);
+    // Riquadri dei campi specifici degli strumenti ("Campi specifici" del test, "Parametri tecnici" di ogni operazione, gruppi):
+    //  - MODIFICA: chiusi di default, apribili a mano, aperti da soli solo quando la validazione porta l'utente a un errore
+    //    al loro interno (ApriParametriPerValidazione).
+    //  - SOLA LETTURA: l'apertura e' calcolata PER RIQUADRO: aperto se e solo se contiene almeno un campo compilato
+    //    (CampoStrumentoValore.HaValore = valore salvato non vuoto). Dentro un riquadro si vedono solo i campi compilati
+    //    (NascondiCampiVuoti). Il pulsante della barra ("Mostra anche i campi vuoti") apre tutti i riquadri e mostra tutti i campi.
+    //    Le intestazioni restano cliccabili: a essere disabilitati sono i singoli campi (CampoStrumentoValore.Modificabile),
+    //    non i contenitori.
+    //  Lo stato viene ricalcolato al cambio di REV visualizzata, al passaggio modifica/lettura e alla ricostruzione dei campi.
     private bool _parametriApertiDaValidazione;
-    // I dettagli tecnici delle singole operazioni non devono occupare tutta la pagina
-    // all'apertura, ne' nella modalita' completa ne' in quella rapida/read-only.
-    // Il controllo Expander e' sempre apribile manualmente; la validazione puo' forzarne
-    // l'apertura quando occorre completare un campo obbligatorio.
-    public bool EspandiParametriOperazione => _parametriApertiDaValidazione;
+    /// <summary>Apertura FORZATA di tutti i riquadri: errore di validazione o "mostra tutto" in lettura. Non include l'apertura per
+    /// contenuto in lettura, che e' per riquadro (Condizione.ParametriAperti, GruppoCampiStrumento.Aperto, CampiStrumentiSpecificiAperto).</summary>
+    public bool EspandiParametriOperazione => _parametriApertiDaValidazione || (!InModifica && _parametriApertiInLettura);
+
+    /// <summary>In sola lettura i campi vuoti non si mostrano (salvo "mostra tutto").</summary>
+    public bool NascondiCampiVuoti => !InModifica && !_parametriApertiInLettura;
+
+    private bool _parametriApertiInLettura;
+    /// <summary>"Mostra anche i campi vuoti" in sola visualizzazione: apre tutti i riquadri e mostra tutti i campi. Solo presentazione: non tocca TestCase ne' ModificheNonSalvate.</summary>
+    public bool ParametriApertiInLettura
+    {
+        get => _parametriApertiInLettura;
+        set
+        {
+            if (_parametriApertiInLettura == value) return;
+            _parametriApertiInLettura = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(EspandiParametriOperazione));
+            SincronizzaPresentazioneCampiStrumento(reimpostaPrincipali: true);
+        }
+    }
+
+    private bool _campiStrumentiSpecificiAperto;
+    /// <summary>Apertura del riquadro "Campi specifici" del Test (scheda Dettagli).</summary>
+    public bool CampiStrumentiSpecificiAperto
+    {
+        get => _campiStrumentiSpecificiAperto;
+        set { if (_campiStrumentiSpecificiAperto == value) return; _campiStrumentiSpecificiAperto = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>In lettura, riquadro "Campi specifici" del Test senza alcun campo compilato: mostra il messaggio al posto dei campi.</summary>
+    public bool MostraNessunCampoCompilatoTest =>
+        NascondiCampiVuoti && !CampoStrumentoValore.AlmenoUnoCompilato(CampiTestCostanti, GruppiTestCostanti);
+
+    private bool AperturaPredefinita(bool haCompilati) => EspandiParametriOperazione || (!InModifica && haCompilati);
+
+    private void ImpostaAperturaGruppi(IEnumerable<GruppoCampiStrumento>? gruppi)
+    {
+        if (gruppi == null) return;
+        foreach (var g in gruppi) g.Aperto = AperturaPredefinita(g.HaCampiCompilati);
+    }
+
+    private void ImpostaModificabilita(IEnumerable<CampoStrumentoValore>? diretti, IEnumerable<GruppoCampiStrumento>? gruppi)
+    {
+        var modificabile = PuoModificareContenuto;
+        if (diretti != null) foreach (var c in diretti) c.Modificabile = modificabile;
+        if (gruppi != null) foreach (var g in gruppi) foreach (var c in g.Campi) c.Modificabile = modificabile;
+    }
+
+    /// <summary>Riallinea apertura dei riquadri e modificabilita' dei campi. reimpostaPrincipali=true azzera anche lo stato dei
+    /// riquadri principali (test e operazioni), cioe' scarta le aperture/chiusure manuali: serve a un cambio di contesto (REV,
+    /// modifica/lettura, mostra tutto, validazione), non alla semplice ricostruzione dei campi in modifica.</summary>
+    private void SincronizzaPresentazioneCampiStrumento(bool reimpostaPrincipali)
+    {
+        if (reimpostaPrincipali)
+        {
+            CampiStrumentiSpecificiAperto = AperturaPredefinita(CampoStrumentoValore.AlmenoUnoCompilato(CampiTestCostanti, GruppiTestCostanti));
+            foreach (var esecuzione in Esecuzioni)
+                foreach (var condizione in esecuzione.Condizioni)
+                    condizione.ParametriAperti = AperturaPredefinita(condizione.HaCampiStrumentoCompilati);
+        }
+        ImpostaAperturaGruppi(GruppiTestCostanti);
+        ImpostaAperturaGruppi(GruppiRevisioneCostanti);
+        ImpostaModificabilita(CampiTestCostanti, GruppiTestCostanti);
+        ImpostaModificabilita(CampiRevisioneCostanti, GruppiRevisioneCostanti);
+        foreach (var esecuzione in Esecuzioni)
+            foreach (var condizione in esecuzione.Condizioni)
+            {
+                ImpostaAperturaGruppi(condizione.GruppiVisual);
+                ImpostaModificabilita(condizione.CampiVisual, condizione.GruppiVisual);
+            }
+        OnPropertyChanged(nameof(NascondiCampiVuoti));
+        OnPropertyChanged(nameof(MostraNessunCampoCompilatoTest));
+    }
+
+    private void SincronizzaPresentazioneCondizione(Condizione condizione)
+    {
+        if (!InModifica) condizione.ParametriAperti = AperturaPredefinita(condizione.HaCampiStrumentoCompilati);
+        ImpostaAperturaGruppi(condizione.GruppiVisual);
+        ImpostaModificabilita(condizione.CampiVisual, condizione.GruppiVisual);
+    }
 
     /// <summary>Reveal required technical fields when validation navigates to a missing field.
     /// Presentation only: does not mutate TestCase, revisions, locks or persisted JSON.</summary>
@@ -338,6 +423,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         if (_parametriApertiDaValidazione) return;
         _parametriApertiDaValidazione = true;
         OnPropertyChanged(nameof(EspandiParametriOperazione));
+        SincronizzaPresentazioneCampiStrumento(reimpostaPrincipali: true);
     }
 
     public bool PuoSchedaIndietro => SchedaCorrente > 0;
@@ -521,6 +607,8 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
             AggiornaCampiStrumenti();
             NotificaBloccoAggiungiDtc();
         }
+        OnPropertyChanged(nameof(NascondiCampiVuoti));
+        SincronizzaPresentazioneCampiStrumento(reimpostaPrincipali: true);
     }
 
     [ObservableProperty] private List<string> avvisi = new();
@@ -1931,9 +2019,10 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         return RimuoviDtcInserito(riga, perditaDatiConfermata: true) == null;
     }
 
-    private List<Veicolo> _tuttiIVeicoli = new();
+    // Cataloghi master in SOLA LETTURA: istanze dello snapshot condiviso (MasterDataRepository.LoadSnapshot), mai modificate qui.
+    private IReadOnlyList<Veicolo> _tuttiIVeicoli = Array.Empty<Veicolo>();
     private List<StrumentoDiagnostico> _tuttiGliStrumenti = new();
-    private List<TestTemplate> _tuttiITemplate = new();
+    private IReadOnlyList<TestTemplate> _tuttiITemplate = Array.Empty<TestTemplate>();
     private readonly bool _modalitaChangeRequest;
 
     [ObservableProperty] private List<CampoStrumentoValore> campiTestCostanti = new();
@@ -1964,7 +2053,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     /// anche se AggiungiTestCorrelato poi li ignora silenziosamente (stesso guard-clause di prima).</summary>
     public List<TestCase> TestCorrelatiDisponibili { get; }
 
-    private List<Funzionalita> _tutteLeFunzionalita = new();
+    private IReadOnlyList<Funzionalita> _tutteLeFunzionalita = Array.Empty<Funzionalita>();
 
     /// <summary>Filtrata per i componenti già scelte sul test (feedback utente 2026-09-23: "le funzionalità...
     /// devono poter essere assegnate a una o più componente, in modo da non dover scorrere troppo all'interno del
@@ -2311,6 +2400,8 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     private bool VistaRapidaConsente(string chiave) => !ModoEditorRapido || MostraTuttiICampiRapido || CampoObbligatorio(chiave);
 
     /// <summary>I campi strumento a livello Test/revisione non hanno mai un flag obbligatorio: in Rapida compaiono solo a richiesta.</summary>
+    /// <summary>Nessun campo per-test degli strumenti selezionati (serve il testo vuoto in sola visualizzazione).</summary>
+    public bool NessunCampoStrumentoTest => CampiTestCostanti.Count == 0 && GruppiTestCostanti.Count == 0;
     public bool MostraCampiStrumentoDettagli => !ModoEditorRapido || MostraTuttiICampiRapido;
 
     /// <summary>Quanti campi opzionali la Rapida sta tenendo nascosti (per l'etichetta dell'interruttore).</summary>
@@ -2522,6 +2613,16 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     /// un test esistente.</summary>
     private bool NotaPianificazioneRichiesta => MostraNotaPianificazione;
     public bool PuoModificare => _state.PuoScrivere;
+
+    /// <summary>Perche' il salvataggio non e' consentito: se la cartella condivisa non e' operativa (sola lettura, OneDrive non
+    /// sincronizzato, cartella non disponibile) si mostra il suo messaggio, non un generico "solo un Master".</summary>
+    private string MotivoSalvataggioNonConsentito(LocalizationService loc)
+    {
+        var stato = _state.StatoCondivisione;
+        return stato.Stato != Models.StatoCondivisione.Operativa && !string.IsNullOrWhiteSpace(stato.Messaggio)
+            ? string.Format(loc.Traduci("SalvataggioBloccatoStatoFmt"), stato.Messaggio)
+            : loc.Traduci("ArchivioAzioneNonAutorizzata");
+    }
 
     /// <summary>I campi di uno strumento restano dati master, modificabili solo da un Master (Addendum §17.3)
     /// anche quando l'editor è aperto da dentro un'operazione e non da Impostazioni → Strumenti (Addendum §8,
@@ -3825,6 +3926,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         OnPropertyChanged(nameof(DettagliStorico));
         OnPropertyChanged(nameof(DettagliStoriciNonDisponibili));
         NotificaVisibilitaCampiTemplate();
+        SincronizzaPresentazioneCampiStrumento(reimpostaPrincipali: true);
     }
 
     /// <summary>Wrapper sull'Operatore della revisione corrente: ogni volta che cambia, l'Assegnatario si
@@ -4520,13 +4622,16 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     /// altrove e tornare indietro per far ricostruire la VM da zero.</summary>
     private void RicaricaListeMaster()
     {
-        _tutteLeEcu = _state.CartellaValida ? _state.Master.Componente.Load().Where(e => !e.Archiviata).ToList() : new();
-        _tuttiIVeicoli = _state.CartellaValida ? _state.Master.Veicoli.Load() : new();
-        _tuttiITemplate = _state.CartellaValida ? _state.Master.TestTemplate.Load() : new();
-        OperatoriDisponibili = _state.CartellaValida ? _state.Master.Operatori.Load().Where(o => !o.Disattivo).Select(o => o.Nome).ToList() : new();
+        // Componente, Veicoli, Template, Operatori e Funzionalita' sono solo consultati da questo editor (nessuna modifica delle righe,
+        // nessun Save): si leggono dallo snapshot condiviso invece di ricostruire copie del catalogo ad ogni apertura.
+        // Requisiti resta su Load(): RequisitiDtc.Risolvi ne popola i guasti sul posto, quindi servono copie private.
+        _tutteLeEcu = _state.CartellaValida ? _state.Master.Componente.LoadSnapshot().Where(e => !e.Archiviata).ToList() : new();
+        _tuttiIVeicoli = _state.CartellaValida ? _state.Master.Veicoli.LoadSnapshot() : Array.Empty<Veicolo>();
+        _tuttiITemplate = _state.CartellaValida ? _state.Master.TestTemplate.LoadSnapshot() : Array.Empty<TestTemplate>();
+        OperatoriDisponibili = _state.CartellaValida ? _state.Master.Operatori.LoadSnapshot().Where(o => !o.Disattivo).Select(o => o.Nome).ToList() : new();
         RequisitiDisponibili = _state.CartellaValida ? _state.Master.Requisiti.Load().Where(r => !r.Archiviata).OrderBy(r => r.Id).ToList() : new();
         _dtcOpzioniCache = null; _haRequisitoD4dConDtc = null; _dtcConteggioCache = null; _dtcInsCache = null;
-        _tutteLeFunzionalita = _state.CartellaValida ? _state.Master.Funzionalita.Load() : new();
+        _tutteLeFunzionalita = _state.CartellaValida ? _state.Master.Funzionalita.LoadSnapshot() : Array.Empty<Funzionalita>();
     }
 
     /// <summary>Rilegge il catalogo campi di sistema (opzioni, tipo ed etichetta dei campi custom) dopo un salvataggio del
@@ -4674,13 +4779,39 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         return result;
     }
 
+    private Esecuzione? _devalidazioniRevisione;
+    private int _devalidazioniFirma;
+
+    /// <summary>Ricalcola le devalidazioni guasto nascoste solo se e' cambiato qualcosa che le determina (esiti, passo, chiave guasto,
+    /// forzatura, numero di condizioni): CaricaPannelloAnomalie viene richiamata anche per semplici cambi di selezione.
+    /// La firma si calcola senza allocazioni.</summary>
+    private void AggiornaDevalidazioniSeCambiate()
+    {
+        var rev = RevisioneCorrente;
+        if (rev == null) { _devalidazioniRevisione = null; return; }
+        var h = new HashCode();
+        h.Add(rev.Condizioni.Count);
+        foreach (var c in rev.Condizioni)
+        {
+            if (!c.RiguardaDtc) continue;
+            h.Add(c.Uid); h.Add(c.Esito); h.Add(c.DtcPasso); h.Add(c.DevalidazioneForzata);
+            h.Add(c.Guasto); h.Add(c.DtcRequisitoId); h.Add(c.DtcVeicolo); h.Add(c.OperazioneOrigineUid);
+            foreach (var e in c.Componente) h.Add(e);
+        }
+        var firma = h.ToHashCode();
+        if (ReferenceEquals(_devalidazioniRevisione, rev) && _devalidazioniFirma == firma) return;
+        rev.AggiornaDevalidazioniNascoste();
+        _devalidazioniRevisione = rev;
+        _devalidazioniFirma = firma;
+    }
+
     /// <summary>Ricalcola anomalie e segnalazioni del Test usando soltanto l'ultimo tentativo di ogni catena.
     /// Se creaMancanti e true, materializza in memoria la segnalazione per ogni problema ancora effettivo;
     /// la persistenza avviene insieme al Test, non durante la digitazione.</summary>
     private void CaricaPannelloAnomalie(bool creaMancanti = false)
     {
         if (_inCostruzione) return; // vedi commento su _inCostruzione: la chiamata finale del costruttore rifà comunque tutto
-        RevisioneCorrente?.AggiornaDevalidazioniNascoste();   // regola guasto: devalidazione solo dopo validazione conforme
+        AggiornaDevalidazioniSeCambiate();   // regola guasto: devalidazione solo dopo validazione conforme
 
         // Il pannello si ricostruisce da zero a ogni chiamata (anche solo per un cambio di selezione altrove
         // nella pagina, es. l'Esito di una condizione: OnCampoSelezioneModificato in code-behind reagisce a
@@ -5603,6 +5734,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
             TipoAmbitoCampo.PerTest, materializzaDefault: PuoModificareContenuto);
         CampiTestCostanti = direttiTest;
         GruppiTestCostanti = gruppiTest;
+        OnPropertyChanged(nameof(NessunCampoStrumentoTest));
 
         AggiornaCampiRevisioneCostanti(strumentiSelezionati);
 
@@ -5618,6 +5750,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         }
         finally { _cacheValoriReali = null; }
         CostruisciVociVistaCampi();
+        SincronizzaPresentazioneCampiStrumento(reimpostaPrincipali: !InModifica);
     }
 
     /// <summary>Una revisione già congelata (non quella corrente, ancora in costruzione) porta il proprio
@@ -5646,6 +5779,8 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
             materializzaDefault: PuoModificareContenuto && ReferenceEquals(revisione, RevisioneCorrente));
         CampiRevisioneCostanti = diretti;
         GruppiRevisioneCostanti = gruppi;
+        ImpostaAperturaGruppi(gruppi);
+        ImpostaModificabilita(diretti, gruppi);
     }
 
     private void AggiornaCampiVisualCondizione(Condizione condizione) => AggiornaCampiVisualCondizione(condizione,
@@ -5659,6 +5794,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         (diretti, gruppi) = ApplicaVistaCampi(diretti, gruppi);
         condizione.CampiVisual = diretti;
         condizione.GruppiVisual = gruppi;
+        SincronizzaPresentazioneCondizione(condizione);
     }
 
     /// <summary>Divide i campi con l'Ambito richiesto tra quelli diretti (Gruppo vuoto, sempre visibili)
@@ -6521,10 +6657,10 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         if (!_state.CartellaValida || TestCase.VeicoliEffettivi.Count == 0) { MessaggioFuoriCategoria = null; return; }
 
         var operatoreRilevanteNome = !string.IsNullOrEmpty(AssegnatarioSelezionato) ? AssegnatarioSelezionato : _state.Config.OperatoreAttivo;
-        var operatoreRilevante = _state.Master.Operatori.Load().FirstOrDefault(o => o.Nome == operatoreRilevanteNome);
+        var operatoreRilevante = _state.Master.Operatori.LoadSnapshot().FirstOrDefault(o => o.Nome == operatoreRilevanteNome);
         if (operatoreRilevante == null || operatoreRilevante.GammeAssegnate.Count == 0) { MessaggioFuoriCategoria = null; return; }
 
-        var fuori = _state.Master.Veicoli.Load().Where(v => TestCase.VeicoliEffettivi.Contains(v.Nome, StringComparer.OrdinalIgnoreCase)
+        var fuori = _state.Master.Veicoli.LoadSnapshot().Where(v => TestCase.VeicoliEffettivi.Contains(v.Nome, StringComparer.OrdinalIgnoreCase)
             && !string.IsNullOrEmpty(v.GammaNome) && !operatoreRilevante.GammeAssegnate.Contains(v.GammaNome)).ToList();
         if (fuori.Count > 0)
         {
@@ -6650,7 +6786,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
 
     // Gamme memorizzate: il catalogo veicoli cambia solo quando _tuttiIVeicoli viene riassegnata dal ricaricamento
     // (RicaricaListeMaster); il binding le legge a ogni notifica e non le deve ricostruire.
-    private List<Veicolo>? _gammeSorgente;
+    private IReadOnlyList<Veicolo>? _gammeSorgente;
     private List<string> _gammeDisponibili = new();
 
     public List<string> GammeDisponibili
@@ -7080,8 +7216,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     private void AggiungiTicket()
     {
         if (string.IsNullOrWhiteSpace(NuovoTicketRiferimento)) return;
-        var riferimento = NuovoTicketRiferimento.Trim().ToUpperInvariant();
-        if (!System.Text.RegularExpressions.Regex.IsMatch(riferimento, "^TICKET-[A-Z0-9_-]+$"))
+        if (!PolarionTicketLinkService.TryNormalizzaCodice(NuovoTicketRiferimento, out var riferimento))
         {
             ErroriValidazione = new List<string> { LocalizationService.Instance.Traduci("FormatoPolarionNonValido") };
             return;
@@ -7628,7 +7763,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         if (_disposto || _annullamentoInCorso || (modificaAttivaAlSalvataggio && !InModifica)) return;
         if (!PuoModificare)
         {
-            ErroriValidazione = new List<string> { loc.Traduci("ArchivioAzioneNonAutorizzata") };
+            ErroriValidazione = new List<string> { MotivoSalvataggioNonConsentito(loc) };
             return;
         }
         if (AvvisoAltraPostazioneVisibile)
@@ -7646,7 +7781,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         if (_disposto || _annullamentoInCorso || (modificaAttivaAlSalvataggio && !InModifica)) return;
         if (!PuoModificare)
         {
-            ErroriValidazione = new List<string> { loc.Traduci("ArchivioAzioneNonAutorizzata") };
+            ErroriValidazione = new List<string> { MotivoSalvataggioNonConsentito(loc) };
             return;
         }
 

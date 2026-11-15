@@ -225,14 +225,23 @@ public sealed class LocalTestIndexStore
     }
 
     /// <summary>
-    /// Applica in una sola transazione tutte le mutazioni generate da un giro watcher. In questo modo un burst
-    /// OneDrive di 10/100 file non apre una connessione e una transazione per ogni path. Gli orphan delle
-    /// proiezioni vengono eliminati soltanto a fine batch: un move rappresentato come remove+upsert dello stesso
-    /// UID non può quindi cancellare temporaneamente statistiche/FTS mentre la nuova destinazione è nello stesso
-    /// commit locale. Il DB resta una cache: un eventuale errore fa rollback dell'intero batch e il successivo
-    /// refresh/full reconciliation lo rigenera dai JSON autorevoli.
+    /// Applica le mutazioni generate da un giro watcher o da un import massivo. Un burst OneDrive di 10/100 file non apre
+    /// una connessione e una transazione per ogni path: i batch fino a <see cref="DimensioneBloccoBatch"/> mutazioni sono
+    /// una sola transazione (tutto o niente). Gli orphan delle proiezioni vengono eliminati soltanto a fine batch (a fine blocco oltre il primo blocco, vedi sotto): un move
+    /// rappresentato come remove+upsert dello stesso UID non puo' quindi cancellare temporaneamente statistiche/FTS mentre
+    /// la nuova destinazione e' nello stesso commit locale. Il DB resta una cache: un eventuale errore fa rollback della
+    /// transazione in corso e il successivo refresh/full reconciliation lo rigenera dai JSON autorevoli.
+    /// <para>Percorsi (stessa semantica, stesso contenuto finale; vedi LocalTestIndexBatchEquivalenzaTests):
+    /// (1) indice vuoto e batch di soli inserimenti con Uid distinti: una sola transazione, indici secondari e trigger di
+    /// revisione sospesi e ricreati nella stessa transazione, nessuna cancellazione di proiezione (non esiste nulla da
+    /// cancellare); (2) batch su indice popolato: blocchi di <see cref="DimensioneBloccoBatch"/> mutazioni, ciascuno in una
+    /// transazione propria e coerente (cache, proiezioni, FTS e fonti Home allineate prima del commit) cosi' un lettore non
+    /// vede mai stati intermedi di un blocco e il blocco di scrittura dura al piu' il tempo di un blocco; la cancellazione FTS
+    /// dei Test da riscrivere e' un'unica scansione per blocco, non una per Test (uid e' UNINDEXED: ogni DELETE per Uid
+    /// scandisce l'intera tabella FTS, costo quadratico).</para>
+    /// <para><paramref name="progress"/> riceve (righe elaborate, totale) a intervalli di circa <see cref="IntervalloProgressRighe"/> righe.</para>
     /// </summary>
-    public void ApplyBatch(IEnumerable<LocalIndexMutation> mutations)
+    public void ApplyBatch(IEnumerable<LocalIndexMutation> mutations, IProgress<LocalIndexBatchProgress>? progress = null)
     {
         var list = mutations
             .Where(m => m != null && !string.IsNullOrWhiteSpace(m.Path))
@@ -242,36 +251,151 @@ public sealed class LocalTestIndexStore
         if (list.Count == 0) return;
 
         using var connection = Open();
-        if (list.Count < SogliaFileCacheBatch)
-        {
-            ApplyBatchInTransazione(connection, list);
-            return;
-        }
         // Cache piu' ampia per i batch con piu' file: a ogni file la cancellazione per Uid scandisce test_search (uid UNINDEXED)
         // e con la cache predefinita le stesse pagine vengono rilette. Misurato su RefreshPaths a 20.000 Test: con 64 MB il
         // tempo cala del 21 % a 100 file e del 19 % a 1.000 file; a un solo file la cache non si ammortizza e non si usa.
-        var cacheOriginale = LeggiCacheSize(connection);
-        ImpostaCacheSize(connection, -CacheScritturaKiB);
+        var cacheOriginale = list.Count >= SogliaFileCacheBatch ? LeggiCacheSize(connection) : (long?)null;
+        if (cacheOriginale != null) ImpostaCacheSize(connection, -CacheScritturaKiB);
         try
         {
-            ApplyBatchInTransazione(connection, list);
+            var contesto = new ContestoBatch(list.Count, progress);
+            if (list.Count >= SogliaBatchMassivo && PuoCaricareDaZero(connection, list))
+            {
+                ApplyBatchDaZero(connection, list, contesto);
+                return;
+            }
+
+            var dimensione = Math.Max(1, DimensioneBloccoBatch);
+            for (var inizio = 0; inizio < list.Count; inizio += dimensione)
+            {
+                var blocco = list.GetRange(inizio, Math.Min(dimensione, list.Count - inizio));
+                ApplyBatchInTransazione(connection, blocco, contesto, ultimoBlocco: inizio + dimensione >= list.Count);
+            }
         }
         finally
         {
-            ImpostaCacheSize(connection, cacheOriginale);
+            if (cacheOriginale != null) ImpostaCacheSize(connection, cacheOriginale.Value);
         }
     }
 
     /// <summary>Numero di file da cui il batch incrementale riusa i comandi della proiezione e usa la cache di scrittura.</summary>
     private const int SogliaFileCacheBatch = 10;
 
-    private void ApplyBatchInTransazione(SqliteConnection connection, List<LocalIndexMutation> list)
+    /// <summary>Numero di mutazioni da cui conviene pre-calcolare in parallelo JSON/fingerprint e sospendere i trigger di revisione.</summary>
+    private const int SogliaBatchMassivo = 200;
+
+    /// <summary>Intervallo (in righe) tra due notifiche di avanzamento.</summary>
+    public const int IntervalloProgressRighe = 250;
+
+    /// <summary>Mutazioni per transazione sui batch su indice popolato: oltre questa soglia il batch non e' piu' atomico nel suo
+    /// complesso (lo e' ogni blocco). Interno per consentire ai test di ridurla.</summary>
+    internal int DimensioneBloccoBatch { get; set; } = 10_000;
+
+    /// <summary>Solo test: invocato dopo ogni riga elaborata da ApplyBatch con il numero di righe gia' elaborate (per simulare
+    /// un'interruzione a meta' batch). Sempre null in produzione.</summary>
+    internal Action<int>? DopoRigaBatchPerTest { get; set; }
+
+    private sealed class ContestoBatch
     {
+        public ContestoBatch(int totale, IProgress<LocalIndexBatchProgress>? progress)
+        {
+            Totale = totale;
+            Progress = progress;
+        }
+
+        public int Totale { get; }
+        public int Elaborate { get; private set; }
+        public int UltimoReport { get; private set; }
+        public IProgress<LocalIndexBatchProgress>? Progress { get; }
+
+        /// <summary>Uid con possibile proiezione da rimuovere a fine blocco (Remove e cambio di Uid sullo stesso path).</summary>
+        public HashSet<string> OrphanCandidates { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public void Avanza()
+        {
+            Elaborate++;
+            if (Progress != null && Elaborate - UltimoReport >= IntervalloProgressRighe)
+            {
+                UltimoReport = Elaborate;
+                Progress.Report(new LocalIndexBatchProgress(Elaborate, Totale));
+            }
+        }
+
+        public void Finito() => Progress?.Report(new LocalIndexBatchProgress(Totale, Totale));
+    }
+
+    /// <summary>Indice completamente vuoto, soli inserimenti con path e Uid distinti: nessun lettore ha nulla da vedere e
+    /// nessuna proiezione esistente da cancellare.</summary>
+    private static bool PuoCaricareDaZero(SqliteConnection connection, List<LocalIndexMutation> list)
+    {
+        if (list.Any(m => m.Kind != LocalIndexMutationKind.Upsert || m.TestCase == null)) return false;
+        if (list.Select(m => m.TestCase!.Uid).Distinct().Count() != list.Count) return false;
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT EXISTS(SELECT 1 FROM test_case_cache) OR EXISTS(SELECT 1 FROM test_summary);";
+        return Convert.ToInt32(command.ExecuteScalar()) == 0;
+    }
+
+    /// <summary>JSON e fingerprint dei Test del batch, calcolati in parallelo prima di aprire la transazione di scrittura:
+    /// sono solo CPU (serializzazione + SHA-256) e non toccano il database.</summary>
+    private static (string Json, string Hash)[] PreparaPayload(List<LocalIndexMutation> list)
+    {
+        var payload = new (string Json, string Hash)[list.Count];
+        void Prepara(int i)
+        {
+            var m = list[i];
+            if (m.Kind != LocalIndexMutationKind.Upsert || m.TestCase == null) return;
+            var tc = m.TestCase;
+            tc.NormalizzaVeicoli();
+            var hash = m.ContentHash ?? TestCaseFingerprint.GetStored(tc) ?? TestCaseFingerprint.Compute(tc);
+            payload[i] = (System.Text.Json.JsonSerializer.Serialize(tc, JsonIo.CompactOptions), hash);
+        }
+        if (list.Count >= SogliaBatchMassivo)
+            Parallel.For(0, list.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Math.Min(Environment.ProcessorCount, 8)) }, Prepara);
+        else
+            for (var i = 0; i < list.Count; i++) Prepara(i);
+        return payload;
+    }
+
+    private void ApplyBatchDaZero(SqliteConnection connection, List<LocalIndexMutation> list, ContestoBatch contesto)
+    {
+        var payload = PreparaPayload(list);
         using var transaction = connection.BeginTransaction();
-        // Comandi della proiezione: un contenitore per file; riusati solo nei batch grandi (per un file la preparazione non si ammortizza).
+        var indiciSospesi = SospendiIndiciSecondari(connection, transaction);
+        var triggerSospesi = SospendiTriggerRevisione(connection, transaction);
+        var ftsEnabled = string.Equals(ReadMeta(connection, FtsEnabledKey), "1", StringComparison.Ordinal);
+
+        using var upsert = CreateUpsertCommand(connection, transaction);
+        upsert.Prepare();
+        using var comandi = new ComandiProiezione(connection, transaction);
+        for (var i = 0; i < list.Count; i++)
+        {
+            var mutation = list[i];
+            var tc = mutation.TestCase!;
+            RigheScritteTotali++;
+            BindUpsert(upsert, mutation.Path, mutation.MtimeUtc, mutation.FileLength, tc, payload[i].Hash, payload[i].Json);
+            upsert.ExecuteNonQuery();
+            RebuildProjection(connection, transaction, mutation.Path, tc,
+                deleteExisting: false, ftsEnabledOverride: ftsEnabled, comandi: comandi);
+            contesto.Avanza();
+            DopoRigaBatchPerTest?.Invoke(contesto.Elaborate);
+        }
+
+        RipristinaIndiciSecondari(connection, transaction, indiciSospesi);
+        AllineaSorgentiHome(connection, transaction);
+        RipristinaTriggerRevisione(connection, transaction, triggerSospesi, list.Count);
+        transaction.Commit();
+        contesto.Finito();
+    }
+
+    private void ApplyBatchInTransazione(SqliteConnection connection, List<LocalIndexMutation> list, ContestoBatch contesto, bool ultimoBlocco)
+    {
+        var payload = PreparaPayload(list);
+        using var transaction = connection.BeginTransaction();
+        // Comandi della proiezione: un contenitore per blocco; riusati solo nei batch grandi (per un file la preparazione non si ammortizza).
         var riusaComandi = list.Count >= SogliaFileCacheBatch;
         var ftsEnabled = string.Equals(ReadMeta(connection, FtsEnabledKey), "1", StringComparison.Ordinal);
-        var orphanCandidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var massivo = list.Count >= SogliaBatchMassivo;
+        var triggerSospesi = massivo ? SospendiTriggerRevisione(connection, transaction) : null;
 
         using var upsert = CreateUpsertCommand(connection, transaction);
         upsert.Prepare();
@@ -281,44 +405,181 @@ public sealed class LocalTestIndexStore
         delete.CommandText = "DELETE FROM test_case_cache WHERE path = $path;";
         var deletePath = delete.Parameters.Add("$path", SqliteType.Text);
         delete.Prepare();
-        foreach (var mutation in list)
+
+        // Stato attuale del path (uid, hash) e presenza della proiezione: comandi preparati e riusati per tutto il blocco.
+        using var leggiPath = connection.CreateCommand();
+        leggiPath.Transaction = transaction;
+        leggiPath.CommandText = "SELECT uid, content_hash FROM test_case_cache WHERE path = $path LIMIT 1;";
+        var leggiPathParam = leggiPath.Parameters.Add("$path", SqliteType.Text);
+        using var esisteProiezione = connection.CreateCommand();
+        esisteProiezione.Transaction = transaction;
+        esisteProiezione.CommandText = "SELECT 1 FROM test_summary WHERE uid = $uid LIMIT 1;";
+        var esisteProiezioneParam = esisteProiezione.Parameters.Add("$uid", SqliteType.Text);
+        if (riusaComandi)
         {
-            var oldUid = ReadUidForPath(connection, transaction, mutation.Path);
+            leggiPath.Prepare();
+            esisteProiezione.Prepare();
+        }
+
+        (string? Uid, string? Hash) LeggiPath(string path)
+        {
+            leggiPathParam.Value = path;
+            using var reader = leggiPath.ExecuteReader();
+            return reader.Read() ? (reader.GetString(0), reader.GetString(1)) : (null, null);
+        }
+
+        bool EsisteProiezione(string uid)
+        {
+            esisteProiezioneParam.Value = uid;
+            return esisteProiezione.ExecuteScalar() != null;
+        }
+
+        // Pre-passata: Test gia' proiettati il cui contenuto cambia. La loro riga FTS si cancella con UNA scansione della
+        // tabella FTS (tabella temporanea di Uid) invece di una scansione per Test.
+        var ftsGiaCancellati = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (ftsEnabled && list.Count >= 2)
+        {
+            var daCancellare = new List<string>();
+            for (var i = 0; i < list.Count; i++)
+            {
+                var m = list[i];
+                if (m.Kind != LocalIndexMutationKind.Upsert || m.TestCase == null) continue;
+                var uid = m.TestCase.Uid.ToString("N");
+                var (_, oldHash) = LeggiPath(m.Path);
+                if (!string.Equals(oldHash, payload[i].Hash, StringComparison.OrdinalIgnoreCase) && EsisteProiezione(uid))
+                    daCancellare.Add(uid);
+            }
+            if (daCancellare.Count >= 2 && CancellaFtsInBlocco(connection, transaction, daCancellare))
+                foreach (var uid in daCancellare) ftsGiaCancellati.Add(uid);
+        }
+
+        using var comandi = new ComandiProiezione(connection, transaction, riusaComandi);
+        for (var i = 0; i < list.Count; i++)
+        {
+            var mutation = list[i];
+            var (oldUid, oldHash) = LeggiPath(mutation.Path);
             if (mutation.Kind == LocalIndexMutationKind.Remove)
             {
                 deletePath.Value = mutation.Path;
                 delete.ExecuteNonQuery();
-                if (!string.IsNullOrWhiteSpace(oldUid)) orphanCandidates.Add(oldUid);
+                if (!string.IsNullOrWhiteSpace(oldUid)) contesto.OrphanCandidates.Add(oldUid);
+                contesto.Avanza();
+                DopoRigaBatchPerTest?.Invoke(contesto.Elaborate);
                 continue;
             }
 
             var tc = mutation.TestCase
                 ?? throw new InvalidDataException($"Mutazione indice Upsert senza TestCase: {mutation.Path}");
-            tc.NormalizzaVeicoli();
-            var oldHash = ReadHashForPath(connection, transaction, mutation.Path);
-            var hash = mutation.ContentHash ?? TestCaseFingerprint.GetStored(tc) ?? TestCaseFingerprint.Compute(tc);
+            var hash = payload[i].Hash;
             RigheScritteTotali++;
-            BindUpsert(upsert, mutation.Path, mutation.MtimeUtc, mutation.FileLength, tc, hash);
+            BindUpsert(upsert, mutation.Path, mutation.MtimeUtc, mutation.FileLength, tc, hash, payload[i].Json);
             upsert.ExecuteNonQuery();
 
-            if (!string.Equals(oldHash, hash, StringComparison.OrdinalIgnoreCase) ||
-                !ProjectionExists(connection, transaction, tc.Uid))
+            var newUid = tc.Uid.ToString("N");
+            var esiste = EsisteProiezione(newUid);
+            if (!string.Equals(oldHash, hash, StringComparison.OrdinalIgnoreCase) || !esiste)
             {
+                // Senza proiezione esistente non c'e' nulla da cancellare (test_summary e FTS si scrivono nella stessa transazione).
                 RebuildProjection(connection, transaction, mutation.Path, tc,
-                    deleteExisting: true, ftsEnabledOverride: ftsEnabled, riusaComandi: riusaComandi);
+                    deleteExisting: esiste, ftsEnabledOverride: ftsEnabled, comandi: comandi,
+                    ftsGiaCancellato: ftsGiaCancellati.Remove(newUid));
             }
 
-            var newUid = tc.Uid.ToString("N");
             if (!string.IsNullOrWhiteSpace(oldUid) &&
                 !oldUid.Equals(newUid, StringComparison.OrdinalIgnoreCase))
-                orphanCandidates.Add(oldUid);
+                contesto.OrphanCandidates.Add(oldUid);
+            contesto.Avanza();
+            DopoRigaBatchPerTest?.Invoke(contesto.Elaborate);
         }
 
-        foreach (var uid in orphanCandidates)
+        // Orphan a fine di ogni blocco, nella stessa transazione delle sue cancellazioni: ogni stato committato ha cache e proiezioni
+        // allineate. Con un solo blocco (il caso normale) e' identico al comportamento "a fine batch".
+        foreach (var uid in contesto.OrphanCandidates)
             RemoveProjectionIfOrphan(connection, transaction, uid);
 
         AllineaSorgentiHome(connection, transaction);
+        if (triggerSospesi != null) RipristinaTriggerRevisione(connection, transaction, triggerSospesi, list.Count);
         transaction.Commit();
+        contesto.OrphanCandidates.Clear();
+        if (ultimoBlocco) contesto.Finito();
+    }
+
+    /// <summary>Cancella dalla FTS le righe dei Uid indicati con una sola scansione. Falso se la FTS non e' utilizzabile
+    /// (in tal caso il chiamante ricade sul percorso per singolo Uid, che gia' tollera l'errore).</summary>
+    private static bool CancellaFtsInBlocco(SqliteConnection connection, SqliteTransaction transaction, List<string> uids)
+    {
+        try
+        {
+            using (var crea = connection.CreateCommand())
+            {
+                crea.Transaction = transaction;
+                crea.CommandText = "CREATE TEMP TABLE IF NOT EXISTS fts_da_cancellare(uid TEXT PRIMARY KEY) WITHOUT ROWID; DELETE FROM fts_da_cancellare;";
+                crea.ExecuteNonQuery();
+            }
+            using (var inserisci = connection.CreateCommand())
+            {
+                inserisci.Transaction = transaction;
+                inserisci.CommandText = "INSERT OR IGNORE INTO fts_da_cancellare(uid) VALUES($uid);";
+                var p = inserisci.Parameters.Add("$uid", SqliteType.Text);
+                inserisci.Prepare();
+                foreach (var uid in uids)
+                {
+                    p.Value = uid;
+                    inserisci.ExecuteNonQuery();
+                }
+            }
+            using var cancella = connection.CreateCommand();
+            cancella.Transaction = transaction;
+            cancella.CommandText = "DELETE FROM test_search WHERE uid IN (SELECT uid FROM fts_da_cancellare);";
+            cancella.ExecuteNonQuery();
+            return true;
+        }
+        catch (SqliteException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Elimina i trigger del contatore di revisione e ne restituisce il SQL originale. Ogni inserimento di proiezione
+    /// li attivava (un UPDATE su meta per ogni riga scritta in 12 tabelle); in un batch massivo la revisione si fa avanzare
+    /// una sola volta a fine blocco. Il DDL e' transazionale: un errore li ripristina col rollback.</summary>
+    private static List<string> SospendiTriggerRevisione(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        var trigger = new List<(string Nome, string Definizione)>();
+        using (var elenco = connection.CreateCommand())
+        {
+            elenco.Transaction = transaction;
+            elenco.CommandText = "SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg\\_revisione\\_%' ESCAPE '\\' AND sql IS NOT NULL;";
+            using var lettore = elenco.ExecuteReader();
+            while (lettore.Read()) trigger.Add((lettore.GetString(0), lettore.GetString(1)));
+        }
+        foreach (var (nome, _) in trigger)
+        {
+            using var drop = connection.CreateCommand();
+            drop.Transaction = transaction;
+            drop.CommandText = $"DROP TRIGGER \"{nome}\";";
+            drop.ExecuteNonQuery();
+        }
+        return trigger.Select(t => t.Definizione).ToList();
+    }
+
+    /// <summary>Ricrea i trigger sospesi e fa avanzare la revisione dell'indice (almeno di 1) per il blocco appena scritto.</summary>
+    private static void RipristinaTriggerRevisione(SqliteConnection connection, SqliteTransaction transaction,
+        List<string> definizioni, int righe)
+    {
+        foreach (var definizione in definizioni)
+        {
+            using var create = connection.CreateCommand();
+            create.Transaction = transaction;
+            create.CommandText = definizione;
+            create.ExecuteNonQuery();
+        }
+        if (definizioni.Count == 0) return;
+        using var bump = connection.CreateCommand();
+        bump.Transaction = transaction;
+        bump.CommandText = $"UPDATE meta SET value = CAST(value AS INTEGER) + $n WHERE key = '{LocalIndexSnapshot.ChiaveRevisione}';";
+        bump.Parameters.AddWithValue("$n", Math.Max(1, righe));
+        bump.ExecuteNonQuery();
     }
 
     /// <summary>
@@ -388,12 +649,34 @@ public sealed class LocalTestIndexStore
         // Comandi di proiezione riusati per tutta la riconciliazione: si preparano dalla seconda esecuzione (vedi ComandiProiezione).
         using var comandi = new ComandiProiezione(connection, transaction);
 
+        // Riconciliazione su indice popolato: i Test gia' proiettati il cui contenuto cambia hanno la riga FTS cancellata con UNA
+        // scansione (uid e' UNINDEXED: un DELETE per Uid scandisce l'intera tabella FTS, costo quadratico).
+        string[]? hashCalcolati = null;
+        var ftsGiaCancellati = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!freshProjectionStore && ftsEnabled && uidProiettati.Count > 0)
+        {
+            hashCalcolati = new string[entryList.Count];
+            var daCancellare = new List<string>();
+            for (var i = 0; i < entryList.Count; i++)
+            {
+                var e = entryList[i];
+                var h = hashCalcolati[i] = e.ContentHash ?? TestCaseFingerprint.Compute(e.TestCase);
+                var u = e.TestCase.Uid.ToString("N");
+                var invariato = esistenti.TryGetValue(e.Path, out var r) && r.Hash.Equals(h, StringComparison.OrdinalIgnoreCase);
+                if (!invariato && uidProiettati.Contains(u)) daCancellare.Add(u);
+            }
+            if (daCancellare.Count >= 2 && CancellaFtsInBlocco(connection, transaction, daCancellare))
+                foreach (var u in daCancellare) ftsGiaCancellati.Add(u);
+        }
+
+        var indice = -1;
         foreach (var entry in entryList)
         {
+            indice++;
             seenPath.Value = entry.Path;
             seen.ExecuteNonQuery();
 
-            var hash = entry.ContentHash ?? TestCaseFingerprint.Compute(entry.TestCase);
+            var hash = hashCalcolati?[indice] ?? entry.ContentHash ?? TestCaseFingerprint.Compute(entry.TestCase);
             var uid = entry.TestCase.Uid.ToString("N");
             var hashInvariato = esistenti.TryGetValue(entry.Path, out var riga) &&
                 riga.Hash.Equals(hash, StringComparison.OrdinalIgnoreCase);
@@ -409,7 +692,8 @@ public sealed class LocalTestIndexStore
             if (!hashInvariato || !uidProiettati.Contains(uid))
             {
                 RebuildProjection(connection, transaction, entry.Path, entry.TestCase,
-                    deleteExisting: !freshProjectionStore, ftsEnabledOverride: ftsEnabled, uidProiettati: uidProiettati, comandi: comandi);
+                    deleteExisting: !freshProjectionStore && uidProiettati.Contains(uid), ftsEnabledOverride: ftsEnabled,
+                    uidProiettati: uidProiettati, comandi: comandi, ftsGiaCancellato: ftsGiaCancellati.Remove(uid));
             }
         }
 
@@ -1135,6 +1419,17 @@ public sealed class LocalTestIndexStore
             transaction.Commit();
         }
 
+        // Regola 2 del conteggio per operatore (un'operazione = una volta, copie non toccate escluse): unit_count va
+        // ricalcolato una sola volta dal JSON in cache. Marcatore in meta, indipendente da schema_version (nessuna
+        // incompatibilita' per client precedenti: la proiezione resta ricostruibile).
+        if (ReadMeta(connection, "regola_unita_operatore") != "2")
+        {
+            using var ricalcolo = connection.BeginTransaction();
+            RecomputeOperationCounts(connection, ricalcolo);
+            WriteMeta(connection, ricalcolo, "regola_unita_operatore", "2");
+            ricalcolo.Commit();
+        }
+
         EnsureHomeIndex(connection);
 
         // Contatore di revisione (P2.6): seme nel meta e trigger sulle tabelle di contenuto, nella stessa transazione.
@@ -1262,6 +1557,7 @@ public sealed class LocalTestIndexStore
 
             var totalAttempts = 0;
             var totalEffective = 0;
+            var unitaOperatore = OperationalSemantics.OperatorWorkUnitsPerRevision(tc);
             for (var revisionIdx = 0; revisionIdx < tc.Esecuzioni.Count; revisionIdx++)
             {
                 var revision = tc.Esecuzioni[revisionIdx];
@@ -1271,7 +1567,7 @@ public sealed class LocalTestIndexStore
                 totalEffective += effective;
 
                 revisionRaw.Value = raw;
-                revisionUnits.Value = OperationalSemantics.CountWorkUnits(tc, revision);
+                revisionUnits.Value = unitaOperatore[revisionIdx];
                 revisionEffective.Value = effective;
                 revisionOrigine.Value = (int)revision.Origine;
                 revisionUid.Value = row.Uid;
@@ -1867,9 +2163,10 @@ public sealed class LocalTestIndexStore
         DateTime mtimeUtc,
         long fileLength,
         TestCase testCase,
-        string? precomputedHash = null)
+        string? precomputedHash = null,
+        string? precomputedJson = null)
     {
-        var json = System.Text.Json.JsonSerializer.Serialize(testCase, JsonIo.CompactOptions);
+        var json = precomputedJson ?? System.Text.Json.JsonSerializer.Serialize(testCase, JsonIo.CompactOptions);
         var hash = precomputedHash ?? TestCaseFingerprint.Compute(testCase);
         command.Parameters["$path"].Value = path;
         command.Parameters["$uid"].Value = testCase.Uid.ToString("N");
@@ -1893,7 +2190,8 @@ public sealed class LocalTestIndexStore
         bool? ftsEnabledOverride = null,
         HashSet<string>? uidProiettati = null,
         ComandiProiezione? comandi = null,
-        bool riusaComandi = true)
+        bool riusaComandi = true,
+        bool ftsGiaCancellato = false)
     {
         // Senza comandi condivisi (batch incrementali, migrazioni) la proiezione di questo Test usa comandi propri.
         using var comandiLocali = comandi == null ? new ComandiProiezione(connection, transaction, riusaComandi) : null;
@@ -1921,7 +2219,7 @@ public sealed class LocalTestIndexStore
         var ftsEnabled = ftsEnabledOverride ?? string.Equals(ReadMeta(connection, FtsEnabledKey), "1", StringComparison.Ordinal);
         if (deleteExisting)
         {
-            DeleteProjection(connection, transaction, uid, ftsEnabled);
+            DeleteProjection(connection, transaction, uid, ftsEnabled && !ftsGiaCancellato);
             uidProiettati?.Remove(uid);
         }
         // Un path puo' cambiare Uid (file riparato o sostituito): la proiezione del vecchio Uid va rimossa prima
@@ -1995,6 +2293,7 @@ public sealed class LocalTestIndexStore
         }
 
         var globalAttempt = 0;
+        var unitaOperatore = OperationalSemantics.OperatorWorkUnitsPerRevision(tc);
         for (var revisionIndex = 0; revisionIndex < tc.Esecuzioni.Count; revisionIndex++)
         {
             var revision = tc.Esecuzioni[revisionIndex];
@@ -2012,7 +2311,7 @@ public sealed class LocalTestIndexStore
                 revisionCommand.Parameters["$raw"].Value = revision.Condizioni.Count(c => c.Esito.EEseguito());
                 revisionCommand.Parameters["$effective"].Value = revision.CondizioniEffettive.Count(c => c.Esito.EEseguito());
                 revisionCommand.Parameters["$origine"].Value = (int)revision.Origine;
-                revisionCommand.Parameters["$units"].Value = OperationalSemantics.CountWorkUnits(tc, revision);
+                revisionCommand.Parameters["$units"].Value = unitaOperatore[revisionIndex];
                 revisionCommand.Parameters["$note"].Value = revision.Note ?? "";
                 revisionCommand.Parameters["$deviazioni"].Value = revision.Deviazioni ?? "";
                 revisionCommand.ExecuteNonQuery();
@@ -2054,7 +2353,9 @@ public sealed class LocalTestIndexStore
 
         InsertDtcOperations(connection, transaction, uid, tc);
         UpsertFts(comandi, tc, ftsEnabled);
-        MarcaSorgentiHomeDirty(connection, transaction, uid);
+        var dirty = comandi.Dirty;
+        dirty.Parameters["$uid"].Value = uid;
+        dirty.ExecuteNonQuery();
     }
 
     /// <summary>Proietta le operazioni con Guasto valorizzato (6.5.0, punto 7) in test_dtc_operation. Nessun costo
@@ -2578,6 +2879,8 @@ public sealed class LocalTestIndexStore
             """,
             ("$uid", SqliteType.Text), ("$revision", SqliteType.Integer), ("$attempt", SqliteType.Integer),
             ("$componente", SqliteType.Text));
+        private readonly ComandoRiusabile _dirty = new(
+            "INSERT OR IGNORE INTO home_source_dirty(test_uid) VALUES ($uid);", ("$uid", SqliteType.Text));
         private readonly ComandoRiusabile _fts = new(
             """
             INSERT INTO test_search(uid, id, descrizione_breve, descrizione, assegnatario, creato_da,
@@ -2609,6 +2912,7 @@ public sealed class LocalTestIndexStore
         public SqliteCommand Tentativo => _tentativo.Ottieni(_connection, _transaction);
         public SqliteCommand OperazioneEcu => _operazioneEcu.Ottieni(_connection, _transaction);
         public SqliteCommand Fts => _fts.Ottieni(_connection, _transaction);
+        public SqliteCommand Dirty => _dirty.Ottieni(_connection, _transaction);
 
         /// <summary>Inserimento dei valori di una tabella di valori (test_ecu, test_vehicle, ...), un comando per tabella.
         /// 'esecuzioni' e' il numero di inserimenti del ciclo: con piu' di uno il comando si prepara subito.</summary>
@@ -2632,6 +2936,7 @@ public sealed class LocalTestIndexStore
             _tentativo.Dispose();
             _operazioneEcu.Dispose();
             _fts.Dispose();
+            _dirty.Dispose();
             _veicolo.Dispose();
             foreach (var comando in _valori.Values) comando.Dispose();
         }
@@ -2722,6 +3027,9 @@ public sealed record LocalIndexWriteEntry(
     long FileLength,
     TestCase TestCase,
     string? ContentHash = null);
+
+/// <summary>Avanzamento reale della scrittura di un batch nell'indice locale: righe elaborate su totale.</summary>
+public readonly record struct LocalIndexBatchProgress(int Elaborate, int Totale);
 
 public enum LocalIndexMutationKind
 {

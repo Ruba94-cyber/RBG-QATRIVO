@@ -100,6 +100,7 @@ public sealed class PolarionBackgroundSyncService : IDisposable
 
         // Enumerate and discard references before awaiting network calls.
         IReadOnlyList<string> ids;
+        IReadOnlyList<RequisitoPolarionLink> reqLinks = Array.Empty<RequisitoPolarionLink>();
         IReadOnlyDictionary<string, PolarionNotificationScopeService.Mode> scopes;
         try
         {
@@ -128,9 +129,20 @@ public sealed class PolarionBackgroundSyncService : IDisposable
         {
             return new(PolarionSyncStatus.WorkspaceUnavailable, 0, 0, 0, 0);
         }
-        if (ids.Count == 0) return new(PolarionSyncStatus.NoTickets, 0, 0, 0, 0);
+        // Requisiti collegati a work item Ticketing: sola lettura, stessi tetti/cache/pianificazione dei ticket TICKET.
+        // Si leggono solo i collegamenti dei requisiti attivi verso progetti configurati dal Master; un errore del catalogo
+        // requisiti non deve mai fermare la sincronizzazione TICKET.
+        try { reqLinks = CollectRequirementLinks(_state.Master.Requisiti.Load(), settings, ids); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            DiagnosticTraceService.Registra("Ticketing.Sync", "requirements-unavailable kind=" + ex.GetType().Name);
+        }
+        var work = ids.Select(id => (Project: settings.ProjectId, Id: id, Ticket: true))
+            .Concat(reqLinks.Select(l => (Project: l.Progetto, Id: l.WorkItemId, Ticket: false))).ToList();
+        var totalItems = work.Count;
+        if (totalItems == 0) return new(PolarionSyncStatus.NoTickets, 0, 0, 0, 0);
         DiagnosticTraceService.Registra("Ticketing.Sync",
-            "start linked-tickets=" + ids.Count + " force=" + force);
+            "start linked-tickets=" + ids.Count + " linked-requirements=" + reqLinks.Count + " force=" + force);
         var refreshed = 0;
         var skippedFresh = 0;
         var failed = 0;
@@ -163,28 +175,28 @@ public sealed class PolarionBackgroundSyncService : IDisposable
 
             // A follower or read-only workspace must not contact Ticketing on a timer.
             // Explicit manual refresh remains independent of this best-effort schedule.
-            if (!force && !_state.PuoScrivere) return new(PolarionSyncStatus.Deferred, ids.Count, 0, 0, 0);
+            if (!force && !_state.PuoScrivere) return new(PolarionSyncStatus.Deferred, totalItems, 0, 0, 0);
             using var lease = force ? null : new PolarionSyncCoordinator(paths).TryBegin(refreshInterval, DateTimeOffset.UtcNow);
-            if (!force && lease is null) return new(PolarionSyncStatus.Deferred, ids.Count, 0, 0, 0);
+            if (!force && lease is null) return new(PolarionSyncStatus.Deferred, totalItems, 0, 0, 0);
             using var linked = lease is null ? null : CancellationTokenSource.CreateLinkedTokenSource(token, lease.LostToken);
             var requestToken = linked?.Token ?? token;
             using var http = _httpFactory();
             var client = new PolarionReadClient(http, new Uri(settings.ApiRoot, UriKind.Absolute), settings.LeggiToken());
             try
             {
-            foreach (var id in ids)
+            foreach (var (project, id, isEsta) in work)
             {
                 requestToken.ThrowIfCancellationRequested();
-                progress?.Report(new(processed, ids.Count, id));
+                progress?.Report(new(processed, totalItems, id));
                 try
                 {
-                    var notificationMode = scopes.TryGetValue(id, out var selected)
+                    var notificationMode = isEsta && scopes.TryGetValue(id, out var selected)
                         ? selected : PolarionNotificationScopeService.Mode.Silent;
                     // A recent snapshot from another PC avoids unnecessary calls from each replica.
                     // This is a bandwidth hint, NOT proof that a TestLoom workflow transition is safe.
                     try
                     {
-                        var cached = store.Load(settings.ProjectId, id);
+                        var cached = store.Load(project, id);
                         if (cached is not null)
                         {
                             if (!force && cached.RetrievedAtUtc <= DateTimeOffset.UtcNow &&
@@ -208,8 +220,9 @@ public sealed class PolarionBackgroundSyncService : IDisposable
                     {
                         if (lease is not null && !lease.ConfirmOwnership()) { failed++; break; }
                         var result = await new PolarionTicketRefreshService(client, store)
-                            .RefreshAndStoreAsync(settings.ProjectId, id, requestToken).ConfigureAwait(false);
-                        tracker.Observe(result.Snapshot, notificationMode);
+                            .RefreshAndStoreAsync(project, id, requestToken, requisito: !isEsta).ConfigureAwait(false);
+                        // Il cursore "non letto" riguarda solo i ticket TICKET collegati a NC/CR, non i requisiti.
+                        if (isEsta) tracker.Observe(result.Snapshot, notificationMode);
                         if (result.CacheWritten) refreshed++;
                         else skippedFresh++;
                         // Shared refresh already records the same observation, including
@@ -275,7 +288,7 @@ public sealed class PolarionBackgroundSyncService : IDisposable
                     if (!token.IsCancellationRequested)
                     {
                         processed++;
-                        progress?.Report(new(processed, ids.Count, id));
+                        progress?.Report(new(processed, totalItems, id));
                     }
                 }
             }
@@ -285,7 +298,7 @@ public sealed class PolarionBackgroundSyncService : IDisposable
                 // The schedule is stamped BEFORE the first request. A pass cut short (app closed, network
                 // pause, lost lease) would otherwise leave the remaining tickets - and their status history -
                 // stale for a whole interval. Bring the next attempt forward; fresh tickets are skipped by cache.
-                if (lease is not null && !stopRetry && (retryLater || processed < ids.Count))
+                if (lease is not null && !stopRetry && (retryLater || processed < totalItems))
                     lease.ScheduleRetry(refreshInterval, PolarionSyncCoordinator.IncompleteRetryDelay);
             }
         }
@@ -299,11 +312,11 @@ public sealed class PolarionBackgroundSyncService : IDisposable
         {
             DiagnosticTraceService.Registra("Ticketing.Sync",
                 "complete refreshed=" + refreshed + " fresh-cache=" + skippedFresh +
-                " failed=" + failed + " total=" + ids.Count);
+                " failed=" + failed + " total=" + totalItems);
         }
-        return new(failed == 0 && processed == ids.Count ? PolarionSyncStatus.Success
+        return new(failed == 0 && processed == totalItems ? PolarionSyncStatus.Success
             : refreshed > 0 ? PolarionSyncStatus.PartialFailure : PolarionSyncStatus.Failed,
-            ids.Count, refreshed, failed, skippedFresh, failureStatus);
+            totalItems, refreshed, failed, skippedFresh, failureStatus);
     }
 
     internal static IReadOnlyList<string> CollectTicketIds(IEnumerable<NonConformita> nc, IEnumerable<ChangeRequest> cr)
@@ -326,6 +339,18 @@ public sealed class PolarionBackgroundSyncService : IDisposable
             if (!match.Success) match = TicketId.Match(url ?? "");
             if (match.Success) result.Add(match.Value.ToUpperInvariant());
         }
+    }
+
+    /// <summary>Collegamenti requisito -> work item da sincronizzare: requisiti non archiviati, progetto presente nell'elenco
+    /// configurato dal Master, senza duplicare i ticket TICKET gia' letti (stesso progetto TICKET e stesso ID).</summary>
+    internal static IReadOnlyList<RequisitoPolarionLink> CollectRequirementLinks(
+        IEnumerable<Requisito> requisiti, PolarionApiSettings settings, IReadOnlyCollection<string> estaIds)
+    {
+        var ticket = new HashSet<string>(estaIds, StringComparer.OrdinalIgnoreCase);
+        return RequisitoPolarionRegole.CollegamentiAttivi(requisiti)
+            .Where(l => settings.ProgettoConfigurato(l.Progetto))
+            .Where(l => !(string.Equals(l.Progetto, settings.ProjectId, StringComparison.OrdinalIgnoreCase) && ticket.Contains(l.WorkItemId)))
+            .ToList();
     }
 
     public void Dispose()

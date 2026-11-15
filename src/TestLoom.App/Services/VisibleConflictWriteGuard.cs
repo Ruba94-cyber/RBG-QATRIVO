@@ -11,6 +11,29 @@ namespace TestLoom.App.Services;
 /// </summary>
 public static class VisibleConflictWriteGuard
 {
+    private static readonly AsyncLocal<HashSet<string>?> Esenti = new();
+
+    /// <summary>
+    /// Ambito di risoluzione di UN conflitto da parte del Master: durante il salvataggio della versione risolta la guardia non
+    /// deve bloccarsi sulla copia che si sta risolvendo (id dell'envelope in quarantena oppure percorso completo del file in
+    /// loco). Ogni ALTRA copia divergente continua a bloccare. Valido solo nel flusso asincrono corrente.
+    /// </summary>
+    public static IDisposable BeginResolution(IEnumerable<string> copieInRisoluzione)
+    {
+        var precedente = Esenti.Value;
+        var nuovo = new HashSet<string>(precedente ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+        foreach (var c in copieInRisoluzione) nuovo.Add(c);
+        Esenti.Value = nuovo;
+        return new Ambito(() => Esenti.Value = precedente);
+    }
+
+    private sealed class Ambito(Action ripristina) : IDisposable
+    {
+        public void Dispose() => ripristina();
+    }
+
+    private static bool EsenteDaRisoluzione(string chiave) => Esenti.Value?.Contains(chiave) == true;
+
     /// <summary>Regola di chiusura fornita dal chiamante (journal del dominio): true se la copia visibile e' una versione
     /// GIA' CHIUSA di questo record (rami di un fork risolto, o revisione nota e superata). Una copia chiusa non blocca;
     /// ogni altra copia divergente blocca come prima. Riceve il canonico solo se e' leggibile.</summary>
@@ -21,8 +44,11 @@ public static class VisibleConflictWriteGuard
     /// versione divergente sconosciuta (il suo contenuto e' gia' nel merge). Ogni altra copia divergente blocca comunque.</param>
     /// <param name="copiaChiusa">Regola di chiusura del dominio (vedi <see cref="CopiaChiusaPredicate"/>): una copia di un fork
     /// gia' risolto non blocca i salvataggi successivi, anche se OneDrive l'ha consegnata dopo la risoluzione.</param>
+    /// <param name="workspaceRoot">Radice del workspace condiviso. Se presente, la guardia considera anche le copie di conflitto
+    /// gia' ritirate nella quarantena (<see cref="ConflictCopyQuarantineService"/>): ritirare la copia dalla cartella del record
+    /// non deve rendere silenzioso un conflitto ancora da risolvere. Stesse regole di esenzione delle copie visibili.</param>
     public static void EnsureNoVisibleFork(string canonicalPath, Guid entityUid, IReadOnlySet<string>? ramiGiaRisolti = null,
-        CopiaChiusaPredicate? copiaChiusa = null)
+        CopiaChiusaPredicate? copiaChiusa = null, string? workspaceRoot = null)
     {
         if (entityUid == Guid.Empty)
             throw new IOException("Salvataggio bloccato: UID non valido.");
@@ -46,6 +72,7 @@ public static class VisibleConflictWriteGuard
             {
                 var file = Path.GetFileName(path);
                 if (file.Equals(canonicalFile, comparison)) continue;
+                if (EsenteDaRisoluzione(Path.GetFullPath(path))) continue;
                 var name = Path.GetFileNameWithoutExtension(file);
                 if (!name.StartsWith(canonicalName, StringComparison.OrdinalIgnoreCase)) continue;
                 var kind = ClassifySuffix(name[canonicalName.Length..]);
@@ -84,6 +111,27 @@ public static class VisibleConflictWriteGuard
                     if (copiaChiusa != null && copiaChiusa(other.RootElement, expected.RootElement)) continue;
                     throw new IOException($"Salvataggio bloccato: versioni OneDrive divergenti del record {canonicalName}. " +
                         "Nessuna copia sovrascritta; richiedere la risoluzione Master.");
+                }
+            }
+
+            // Copie gia' ritirate nella quarantena: stesso criterio, nessuna lettura se l'UID non ha conflitti aperti.
+            if (!string.IsNullOrWhiteSpace(workspaceRoot) && ConflictCopyQuarantineService.HasOpen(workspaceRoot, entityUid))
+            {
+                foreach (var entry in ConflictCopyQuarantineService.List(workspaceRoot, entityUid))
+                {
+                    if (EsenteDaRisoluzione(entry.Id)) continue;
+                    using var other = JsonDocument.Parse(entry.Payload);
+                    if (EsTombstone(other.RootElement)) continue;
+                    if (ramiGiaRisolti is { Count: > 0 } && HashDiCopia(other.RootElement) is { } hashCopia &&
+                        ramiGiaRisolti.Contains(hashCopia)) continue;
+                    expected ??= File.Exists(canonicalPath) ? ReadJson(canonicalPath) : null;
+                    if (expected == null)
+                        throw new IOException($"Salvataggio bloccato: conflitto per {canonicalName} senza documento canonico. " +
+                            "Recupero manuale Master richiesto.");
+                    if (JsonElement.DeepEquals(expected.RootElement, other.RootElement)) continue;
+                    if (copiaChiusa != null && copiaChiusa(other.RootElement, expected.RootElement)) continue;
+                    throw new IOException($"Salvataggio bloccato: conflitto aperto fra versioni del record {canonicalName} " +
+                        "(Impostazioni, scheda Conflitti). Nessuna versione sovrascritta; richiedere la risoluzione Master.");
                 }
             }
         }
@@ -147,7 +195,90 @@ public static class VisibleConflictWriteGuard
                 CrashLogService.Registra($"Copia di conflitto {file}: archiviazione dopo risoluzione", ex);
             }
         }
+
+        // Copie gia' ritirate nella quarantena il cui contenuto e' incorporato nella risoluzione: archivio + chiusura.
+        if (ConflictCopyQuarantineService.HasOpen(paths.Root, entityUid))
+        {
+            foreach (var entry in ConflictCopyQuarantineService.List(paths.Root, entityUid))
+            {
+                try
+                {
+                    using var json = JsonDocument.Parse(entry.Payload);
+                    if (!isRisolta(json.RootElement)) continue;
+                    archiviate.Add(DomainRecoveryService.ArchivePayload(paths, canonicalPath, categoria, entry.Payload,
+                        operatore, "copia di conflitto incorporata nella risoluzione"));
+                    ConflictCopyQuarantineService.Close(paths.Root, entry);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException
+                                               or InvalidDataException or JsonException)
+                {
+                    CrashLogService.Registra($"Copia di conflitto in quarantena {entry.Id}: archiviazione dopo risoluzione", ex);
+                }
+            }
+        }
         return archiviate;
+    }
+
+    /// <summary>Una copia di conflitto divergente dello stesso record: visibile nella cartella (Key = percorso completo) oppure in
+    /// quarantena (Key = id dell'envelope). Le chiavi sono quelle accettate da <see cref="BeginResolution"/>.</summary>
+    public sealed record CopiaDivergente(string Key, byte[] Bytes, string Origine, ConflictCopyEntry? Entry, string? Percorso);
+
+    /// <summary>
+    /// Tutte le copie (visibili e in quarantena) dello stesso UID il cui contenuto differisce dal canonico. Serve alla risoluzione:
+    /// OGNI versione divergente deve entrare nel confronto (o essere archiviata), altrimenti la guardia bloccherebbe proprio il
+    /// salvataggio che le risolve. Le copie illeggibili o tombstone non sono elencate (restano dove sono e continuano a bloccare).
+    /// </summary>
+    public static IReadOnlyList<CopiaDivergente> ElencaCopieDivergenti(string canonicalPath, Guid entityUid, string? workspaceRoot)
+    {
+        var risultato = new List<CopiaDivergente>();
+        if (entityUid == Guid.Empty || !File.Exists(canonicalPath)) return risultato;
+        byte[] canonici;
+        try { canonici = JsonIo.ReadAllBytesShared(canonicalPath); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return risultato; }
+        using var canonico = JsonDocument.Parse(canonici);
+
+        var dir = Path.GetDirectoryName(Path.GetFullPath(canonicalPath))!;
+        var nome = Path.GetFileNameWithoutExtension(canonicalPath);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        foreach (var path in Directory.EnumerateFiles(dir, nome + "*.json", SearchOption.TopDirectoryOnly).ToList())
+        {
+            if (Path.GetFileName(path).Equals(Path.GetFileName(canonicalPath), comparison)) continue;
+            var stem = Path.GetFileNameWithoutExtension(path);
+            if (!stem.StartsWith(nome, StringComparison.OrdinalIgnoreCase)) continue;
+            if (ClassifySuffix(stem[nome.Length..]) == CandidateKind.None) continue;
+            try
+            {
+                var bytes = JsonIo.ReadAllBytesShared(path);
+                using var doc = JsonDocument.Parse(bytes);
+                if (EsTombstone(doc.RootElement) || ReadUid(doc.RootElement) != entityUid) continue;
+                if (JsonElement.DeepEquals(canonico.RootElement, doc.RootElement)) continue;
+                risultato.Add(new CopiaDivergente(Path.GetFullPath(path), bytes, "cartella", null, path));
+            }
+            catch (JsonException)
+            {
+                // Copia esplicita di conflitto con contenuto non-JSON (file troncato/danneggiato): la guardia la tratta come
+                // blocco, quindi deve poter entrare nella risoluzione (come versione NON leggibile: si puo' solo scartare, dopo
+                // averne archiviato i byte) altrimenti il Test resterebbe bloccato per sempre. Gli ID ambigui non sono copie.
+                if (ClassifySuffix(stem[nome.Length..]) != CandidateKind.ExplicitConflictCopy) continue;
+                try { risultato.Add(new CopiaDivergente(Path.GetFullPath(path), JsonIo.ReadAllBytesShared(path), "cartella (illeggibile)", null, path)); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+        if (!string.IsNullOrWhiteSpace(workspaceRoot) && ConflictCopyQuarantineService.HasOpen(workspaceRoot, entityUid))
+        {
+            foreach (var entry in ConflictCopyQuarantineService.List(workspaceRoot, entityUid))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(entry.Payload);
+                    if (EsTombstone(doc.RootElement) || JsonElement.DeepEquals(canonico.RootElement, doc.RootElement)) continue;
+                    risultato.Add(new CopiaDivergente(entry.Id, entry.Payload, "quarantena", entry, null));
+                }
+                catch (JsonException) { }
+            }
+        }
+        return risultato;
     }
 
     private static bool EsTombstone(JsonElement root) =>

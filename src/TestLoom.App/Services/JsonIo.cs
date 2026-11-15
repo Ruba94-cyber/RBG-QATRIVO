@@ -152,8 +152,24 @@ public static class JsonIo
         WriteBytesAtomicCore(path, bytes, overwrite, File.Exists(path));
     }
 
+    /// <summary>Notifica ogni scrittura riuscita (usata dal registro dei file da sincronizzare su OneDrive).</summary>
+    internal static Action<string>? DopoScritturaRiuscita;
+
+    /// <summary>Solo per i test: simula un altro PC che sostituisce il file tra l'ingresso e il rename.</summary>
+    internal static Action<string>? PrimaDelControlloDestinazioneTestHook;
+
+    private static byte[]? HashDestinazioneSeEsiste(string path)
+    {
+        try { return System.Security.Cryptography.SHA256.HashData(ReadAllBytesShared(path)); }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
+    }
+
     private static void WriteBytesAtomicCore(string path, ReadOnlySpan<byte> bytes, bool overwrite, bool destinationExistedAtEntry)
     {
+        // Contenuto della destinazione all'ingresso: subito prima del rename si verifica che nessun altro PC/processo
+        // l'abbia sostituita nel frattempo, altrimenti la sovrascrittura cancellerebbe in silenzio la sua modifica.
+        var destinazioneAllIngresso = overwrite && destinationExistedAtEntry ? HashDestinazioneSeEsiste(path) : null;
         byte[] bytesToWrite;
         string? observedBeforeSha;
         try
@@ -193,6 +209,13 @@ public static class JsonIo
             // durante serializzazione/prepare/temp-write fa fallire File.Move e viene gestita dal repository
             // come conflitto, non trasformata in last-writer-wins.
             // Intenzione con hash atteso registrata prima dello spostamento (review P1.9): un crash dopo File.Move è riconoscibile.
+            PrimaDelControlloDestinazioneTestHook?.Invoke(path);
+            if (destinazioneAllIngresso != null)
+            {
+                var attuale = HashDestinazioneSeEsiste(path);
+                if (attuale != null && !attuale.AsSpan().SequenceEqual(destinazioneAllIngresso))
+                    throw new DestinazioneModificataDuranteScritturaException(path);
+            }
             WorkflowTransactionService.BeforeMove(path, bytesToWrite);
             File.Move(tmp, path, overwrite && destinationExistedAtEntry);
         }
@@ -225,6 +248,8 @@ public static class JsonIo
         // disco e gli effetti post-scrittura (es. journal) verrebbero cancellati (review P1.11). La transazione registra
         // l'errore e diventa non committabile; la traccia di successo non dipende dagli esiti precedenti.
         WorkflowTransactionService.AfterWrite(path, bytesToWrite);
+        try { DopoScritturaRiuscita?.Invoke(path); }
+        catch (Exception ex) { CrashLogService.Registra($"Registro scritture: {path}", ex); }
         try
         {
             PilotConcurrencyTraceService.RecordAtomicWrite(

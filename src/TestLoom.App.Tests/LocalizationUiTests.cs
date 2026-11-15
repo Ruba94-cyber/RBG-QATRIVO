@@ -164,7 +164,7 @@ public class LocalizationUiTests
         {
             var keys = LocalizationService.TraduzioniItalianoInglese.Keys
                 .Where(k => k.StartsWith("EstaRpt", StringComparison.Ordinal)).ToList();
-            Assert.Equal(51, keys.Count);
+            Assert.Equal(53, keys.Count);
             Assert.All(keys, key => Assert.True(
                 LocalizationService.TraduzioniFrancesi.ContainsKey(key),
                 "Missing French TICKET report label: " + key));

@@ -61,6 +61,17 @@ public partial class TestCaseEditorViewModel
             foreach (var ticketId in summary.LinkedTicketIds)
                 EstaStatoRighe.Add(ticketId + " · " +
                     loc.Scegli("Collegato nel Test TestLoom", "Linked in TestLoom Test", "Lié dans le test TestLoom"));
+            // Gli TICKET collegati alle NC di questo Test (aperte o chiuse) sono parte del quadro TICKET del Test: prima non
+            // comparivano qui e con una NC aperta non erano raggiungibili dal Test.
+            if (!IsNew && _state.CartellaValida)
+            {
+                var gia = new HashSet<string>(summary.LinkedTicketIds, StringComparer.OrdinalIgnoreCase);
+                foreach (var nc in _state.NonConformita.GetByTestIds(new[] { TestCase.Id }))
+                    foreach (var codice in nc.CollegamentiPolarion.Select(l => (l.Codice ?? "").Trim()).Where(c => c.Length > 0))
+                        if (gia.Add(codice))
+                            EstaStatoRighe.Add(codice + " · " + string.Format(
+                                loc.Scegli("Collegato sulla NC {0}", "Linked on NC {0}", "Lié sur la NC {0}"), nc.Id));
+            }
 
             EstaStatoSintesi = string.Format(loc.Scegli(
                 unreadableReceipt ? "Almeno {0} richieste locali visibili · {1} TICKET collegati nel Test" : "{0} richieste locali in attesa · {1} TICKET collegati nel Test",

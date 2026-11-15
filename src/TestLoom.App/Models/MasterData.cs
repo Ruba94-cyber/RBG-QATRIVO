@@ -100,6 +100,51 @@ public class Requisito : MasterEntity
     /// cambia i guasti l'impronta cambia e il conteggio risolto viene ricalcolato alla Risolvi successiva.</summary>
     [JsonIgnore]
     public string? DtcConteggioRisoltoImpronta { get; set; }
+
+    private string? _polarionProgetto;
+    private string? _polarionWorkItemId;
+
+    /// <summary>Progetto Ticketing del work item collegato a questo requisito (uno dei progetti configurati in Impostazioni).
+    /// Additivo e retro-compatibile: null (default, ogni requisito esistente) non viene scritto nel JSON, quindi i requisiti
+    /// senza collegamento restano byte-identici; un client piu vecchio conserva il campo in ExtensionData senza perderlo.
+    /// Un valore vuoto/spazi equivale a null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PolarionProgetto
+    {
+        get => _polarionProgetto;
+        set => _polarionProgetto = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    /// <summary>ID del work item Ticketing (es. "REQ-123") nel progetto <see cref="PolarionProgetto"/>. Stesse regole di additivita.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PolarionWorkItemId
+    {
+        get => _polarionWorkItemId;
+        set => _polarionWorkItemId = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    /// <summary>Vista testuale "PROGETTO/ID" del collegamento per import/export Excel (colonna opzionale F). Mai serializzata.
+    /// In lettura un testo non interpretabile non viene perso in silenzio: finisce in <see cref="PolarionTestoNonValido"/> e
+    /// l'import lo segnala come errore.</summary>
+    [JsonIgnore]
+    public string PolarionTesto
+    {
+        get => RequisitoPolarionRegole.Di(this)?.ToString() ?? "";
+        set
+        {
+            PolarionTestoNonValido = null;
+            if (!RequisitoPolarionRegole.TryParse(value, null, out var link, out _))
+            {
+                PolarionTestoNonValido = (value ?? "").Trim();
+                return;
+            }
+            RequisitoPolarionRegole.Imposta(this, link);
+        }
+    }
+
+    /// <summary>Testo della colonna Ticketing non interpretabile nell'ultima lettura testuale (solo memoria, mai salvato).</summary>
+    [JsonIgnore]
+    public string? PolarionTestoNonValido { get; set; }
 }
 
 /// <summary>Una coppia veicolo–componente associata esplicitamente a un requisito Extra.</summary>

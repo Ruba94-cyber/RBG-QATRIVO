@@ -72,17 +72,12 @@ public sealed class MainViewModelPreparaPaginaTests : IDisposable
             main.NavItems.Select(p => p.Id), primaPagina);
 
         Assert.DoesNotContain(primaPagina, coda);
-        Assert.Contains("test", coda);
-        Assert.Contains("anomalie", coda);
-        Assert.Contains("wustatus", coda);
-        Assert.Contains("guasto", coda);
-        Assert.Contains("report", coda);
-        Assert.Contains("audit", coda);
-        Assert.Contains("impostazioni", coda);
+        // Il precache e' limitato alle sole pagine che pagano un ricalcolo alla prima visita.
+        Assert.All(coda, id => Assert.Contains(id, new[] { "test", "wustatus", "report" }));
+        Assert.DoesNotContain("impostazioni", coda);
+        Assert.DoesNotContain("guasto", coda);
 
-        // La View Impostazioni viene riscaldata senza creare un VM:
-        // OttieniPagina lo ricrea deliberatamente ad ogni ingresso.
-        foreach (var id in coda.Where(id => id != "impostazioni"))
+        foreach (var id in coda)
         {
             var pagina = await main.PreparaPaginaAsync(id);
             Assert.NotNull(pagina);

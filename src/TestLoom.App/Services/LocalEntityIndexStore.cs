@@ -392,6 +392,8 @@ public sealed class LocalEntityIndexStore
         return new LocalEntitySlice<T>(result, total);
     }
 
+    /// <summary>Record per chiave business (senza distinguere le maiuscole). INDEXED BY e' necessario: con ORDER BY path il planner
+    /// SQLite sceglie la scansione della chiave primaria (kind,path) invece dell'indice sulla chiave, cioe' O(N) (1,5 s a 100.000 CR).</summary>
     public LocalEntityRecord<T>? GetByKey<T>(string kind, string key)
     {
         ValidateKind(kind);
@@ -400,7 +402,7 @@ public sealed class LocalEntityIndexStore
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT path,uid,item_key,mtime_ticks,file_length,content_hash,json
-            FROM entity_item
+            FROM entity_item INDEXED BY ix_entity_kind_key
             WHERE kind=$kind AND item_key=$key COLLATE NOCASE
             ORDER BY path
             LIMIT 2;
@@ -554,6 +556,79 @@ public sealed class LocalEntityIndexStore
         using var reader = command.ExecuteReader();
         while (reader.Read()) stamp[reader.GetString(0)] = (reader.GetInt64(1), reader.GetInt64(2));
         return stamp;
+    }
+
+    /// <summary>Percorso, mtime e lunghezza dei soli record del tipo con il flag archiviato richiesto (nessun payload letto):
+    /// serve a sincronizzare la proiezione di elenco in RAM con l'indice leggendo i JSON dei soli record cambiati.</summary>
+    public List<(string Path, long MtimeTicks, long Length)> CaricaStampPerArchiviazione(string kind, bool archiviata)
+    {
+        ValidateKind(kind);
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT path,mtime_ticks,file_length FROM entity_item WHERE kind=$kind AND archived=$archived;";
+        command.Parameters.AddWithValue("$kind", kind);
+        command.Parameters.AddWithValue("$archived", archiviata ? 1 : 0);
+        var risultato = new List<(string, long, long)>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) risultato.Add((reader.GetString(0), reader.GetInt64(1), reader.GetInt64(2)));
+        return risultato;
+    }
+
+    /// <summary>Payload JSON dei percorsi indicati (percorso esatto, chiave primaria), con il loro stamp. I percorsi
+    /// assenti dall'indice non compaiono nel risultato. Ogni chiamata usa la propria connessione: e' chiamabile in parallelo.</summary>
+    public List<(string Path, long MtimeTicks, long Length, string Json)> LeggiJsonPerPercorsi(string kind, IReadOnlyList<string> percorsi)
+    {
+        ValidateKind(kind);
+        var risultato = new List<(string, long, long, string)>(percorsi.Count);
+        if (percorsi.Count == 0) return risultato;
+        using var connection = Open();
+        const int Gruppo = 400;
+        for (var inizio = 0; inizio < percorsi.Count; inizio += Gruppo)
+        {
+            var n = Math.Min(Gruppo, percorsi.Count - inizio);
+            using var command = connection.CreateCommand();
+            var segnaposto = new string[n];
+            for (var i = 0; i < n; i++)
+            {
+                segnaposto[i] = "$p" + i;
+                command.Parameters.AddWithValue(segnaposto[i], percorsi[inizio + i]);
+            }
+            command.Parameters.AddWithValue("$kind", kind);
+            command.CommandText = $"SELECT path,mtime_ticks,file_length,json FROM entity_item WHERE kind=$kind AND path IN ({string.Join(',', segnaposto)});";
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) risultato.Add((reader.GetString(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetString(3)));
+        }
+        return risultato;
+    }
+
+    /// <summary>Record completi per UID (solo lettura, indice (kind,uid)): apertura di una pagina di elenco senza scansioni.
+    /// Gli UID assenti non compaiono; l'ordine del risultato non e' garantito.</summary>
+    public List<LocalEntityRecord<T>> GetByUids<T>(string kind, IReadOnlyList<Guid> uids)
+    {
+        ValidateKind(kind);
+        var risultato = new List<LocalEntityRecord<T>>(uids.Count);
+        if (uids.Count == 0) return risultato;
+        using var connection = Open();
+        const int Gruppo = 400;
+        for (var inizio = 0; inizio < uids.Count; inizio += Gruppo)
+        {
+            var n = Math.Min(Gruppo, uids.Count - inizio);
+            using var command = connection.CreateCommand();
+            var segnaposto = new string[n];
+            for (var i = 0; i < n; i++)
+            {
+                segnaposto[i] = "$u" + i;
+                command.Parameters.AddWithValue(segnaposto[i], uids[inizio + i].ToString("N"));
+            }
+            command.Parameters.AddWithValue("$kind", kind);
+            command.CommandText = $"""
+                SELECT path,uid,item_key,mtime_ticks,file_length,content_hash,json
+                FROM entity_item INDEXED BY ix_entity_kind_uid WHERE kind=$kind AND uid IN ({string.Join(',', segnaposto)});
+                """;
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) risultato.Add(ReadRecord<T>(reader));
+        }
+        return risultato;
     }
 
     /// <summary>Percorsi dei record il cui JSON contiene la sottostringa, senza distinguere le maiuscole ASCII (lower su

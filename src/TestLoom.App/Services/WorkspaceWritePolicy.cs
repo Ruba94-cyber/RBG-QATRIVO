@@ -31,6 +31,10 @@ public static class WorkspaceWritePolicy
         if (WorkspaceReadOnlyService.IsEnabled(paths.Root))
             throw new IOException($"{operation} bloccata: modalità visualizzatore locale attiva. " +
                 "Conserva una bozza locale delle modifiche in corso.");
+        // OneDrive non allineato all'avvio: sola lettura finché "Riprova" non riesce (in memoria, vedi OneDriveSyncGate).
+        var bloccoOneDrive = OneDriveSyncGate.Motivo(paths.Root);
+        if (bloccoOneDrive != null)
+            throw new IOException($"{operation} bloccata: OneDrive non è allineato ({bloccoOneDrive}) Nessuna modifica è stata scritta.");
         // 6.6.1 (d): una scrittura sulla cartella condivisa è già fallita in questa sessione. Il gate resta chiuso anche se
         // la UI non ha ancora aggiornato lo stato; il giro periodico riesegue la prova e lo riapre quando la cartella torna.
         var perdita = SharedWriteLossMonitor.MotivoPerdita(paths.Root);
@@ -60,6 +64,7 @@ public static class WorkspaceWritePolicy
         try
         {
             if (WorkspaceReadOnlyService.IsEnabled(paths.Root)) return false;
+            if (OneDriveSyncGate.Attivo(paths.Root)) return false;
             if (SharedWriteLossMonitor.MotivoPerdita(paths.Root) != null) return false;
             var availability = CondivisioneHealthService.VerificaDisponibilitaSenzaScrivere(paths.Root);
             if (CompatibilitaVersioneService.VerificaSenzaScrivere(paths, availability).Stato != Models.StatoCondivisione.Operativa)

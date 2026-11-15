@@ -13,6 +13,21 @@ public class RequisitiViewModel : MasterDataEditorViewModelBase<Requisito>
     /// memoria in modifica), creano righe del proprio Tipo e non mescolano mai le liste.</summary>
     public TipoRequisito Scheda { get; }
     public bool ESchedaD4d => Scheda == TipoRequisito.Extra;
+
+    // Stato Ticketing dei requisiti (sola lettura dalla cache in memoria; la view si sottoscrive solo mentre e visibile).
+    public AppState StatoPolarion => StatoApp;
+    public DataPaths? PolarionPaths => StatoApp.CartellaValida ? StatoApp.Paths : null;
+    private int _polarionVersione;
+    public int PolarionVersione { get => _polarionVersione; private set { _polarionVersione = value; OnPropertyChanged(); } }
+    public void CollegaCachePolarion()
+    {
+        RequisitoPolarionCache.Aggiornato -= OnCachePolarionAggiornata;
+        RequisitoPolarionCache.Aggiornato += OnCachePolarionAggiornata;
+        RequisitoPolarionCache.Richiedi(StatoApp);
+    }
+    public void ScollegaCachePolarion() => RequisitoPolarionCache.Aggiornato -= OnCachePolarionAggiornata;
+    private void OnCachePolarionAggiornata() => PolarionVersione++;
+    public void NotificaCollegamentoPolarionModificato() => PolarionVersione++;
     public string TitoloScheda => ESchedaD4d ? "Requisiti Extra" : LocalizationService.Instance.Traduci("RequisitiTitolo");
     public bool PuoImportareDtcMassivo => ESchedaD4d && InModifica && !ImportDtcInCorso;
 
@@ -824,13 +839,18 @@ public class RequisitiViewModel : MasterDataEditorViewModelBase<Requisito>
     /// <summary>Contratto Excel: A Id, B Testo, C Banco, D Veicolo (invariate) + E OPZIONALE "Veicolo-componente Extra" (coppie
     /// "Veicolo|componente; Veicolo|componente", solo scheda Extra). Un file a 4 colonne (o con la E vuota) non tocca mai le coppie esistenti;
     /// con la E valorizzata le coppie si AGGIUNGONO a quelle esistenti (mai rimosse/sovrascritte).</summary>
-    protected override IReadOnlyList<string> ColonneImportOrdine => new[] { nameof(Requisito.Id), nameof(Requisito.Testo), nameof(Requisito.ApplicabileBanco), nameof(Requisito.ApplicabileVeicolo), nameof(Requisito.VeicoliEcuD4DTesto) };
+    protected override IReadOnlyList<string> ColonneImportOrdine => new[] { nameof(Requisito.Id), nameof(Requisito.Testo), nameof(Requisito.ApplicabileBanco), nameof(Requisito.ApplicabileVeicolo), nameof(Requisito.VeicoliEcuD4DTesto), nameof(Requisito.PolarionTesto) };
 
     protected override IReadOnlyList<string> ValidaRigaImport(Requisito item)
     {
         var loc = LocalizationService.Instance;
         const string col = "Veicolo-componente Extra";
         var errori = new List<string>();
+        if (item.PolarionTestoNonValido is { Length: > 0 } polarionNonValido)
+            errori.Add(loc.Scegli(
+                $"Colonna Ticketing: collegamento non valido ({polarionNonValido}); atteso \"PROGETTO/ID\" (es. REQ_PROJ/REQ-123).",
+                $"Ticketing column: invalid link ({polarionNonValido}); expected \"PROJECT/ID\" (e.g. REQ_PROJ/REQ-123).",
+                $"Colonne Ticketing : lien non valide ({polarionNonValido}) ; attendu « PROJET/ID » (ex. REQ_PROJ/REQ-123)."));
         if (item.VeicoliEcuD4DNonValide is { Count: > 0 } nonValide)
             errori.Add(loc.Scegli(
                 $"Colonna {col}: formato non valido ({string.Join("; ", nonValide)}); atteso \"Veicolo|componente; Veicolo|componente\".",
@@ -877,6 +897,30 @@ public class RequisitiViewModel : MasterDataEditorViewModelBase<Requisito>
     /// <summary>Unione additiva delle coppie Extra su un requisito Extra gia' esistente: aggiunge le coppie mancanti (i nomi come
     /// scritti nel file, gia' validati contro i master), non rimuove mai nulla. Righe senza coppie nel file, o requisiti esistenti non Extra: invariati (saltati).</summary>
     protected override bool ProvaUnisciRigaImport(Requisito destinazione, Requisito sorgente)
+    {
+        var polarionUnito = ProvaUnisciPolarion(destinazione, sorgente);
+        var d4dUnito = ProvaUnisciCoppieD4D(destinazione, sorgente);
+        return polarionUnito || d4dUnito;
+    }
+
+    /// <summary>Il collegamento Ticketing del file riempie SOLO un requisito esistente ancora senza collegamento: un import non
+    /// sovrascrive mai un collegamento gia' impostato (anche diverso), coerente con la regola "mai sovrascrivere" dell'import.</summary>
+    private bool ProvaUnisciPolarion(Requisito destinazione, Requisito sorgente)
+    {
+        if (RequisitoPolarionRegole.Di(sorgente) is not { } nuovo || RequisitoPolarionRegole.Di(destinazione) is not null) return false;
+        if (!string.IsNullOrWhiteSpace(destinazione.PolarionProgetto) || !string.IsNullOrWhiteSpace(destinazione.PolarionWorkItemId)) return false;
+        RequisitoPolarionRegole.Imposta(destinazione, nuovo);
+        destinazione.UltimaModifica = DateTime.Now;
+        destinazione.ModificatoDa = StatoApp.Config.OperatoreAttivo;
+        destinazione.Changelog.Add(new ChangelogEntry
+        {
+            Data = DateTime.Now, Operatore = StatoApp.Config.OperatoreAttivo,
+            Campo = nameof(Requisito.PolarionTesto), ValoreNuovo = nuovo.ToString()
+        });
+        return true;
+    }
+
+    private bool ProvaUnisciCoppieD4D(Requisito destinazione, Requisito sorgente)
     {
         if (sorgente.VeicoliEcuD4D is not { Count: > 0 } nuove || !RequisitoApplicabilita.ED4D(destinazione)) return false;
         var esistenti = destinazione.VeicoliEcuD4D ?? new List<RequisitoVeicoloEcu>();

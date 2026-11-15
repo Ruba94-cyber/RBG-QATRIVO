@@ -254,6 +254,25 @@
                         </ItemsControl>
                     </StackPanel>
                 </Expander>
+                <Expander Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptCommentsTitle}" IsExpanded="True"
+                          AutomationProperties.AutomationId="Report_Ticketing_Comments_Expander">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=EstaRptCommentsEmpty}"
+                                   Classes="Muted" TextWrapping="Wrap" IsVisible="{Binding !HaCommentiPolarion}"
+                                   AutomationProperties.AutomationId="Report_Ticketing_Comments_Empty_Text"/>
+                        <ItemsControl ItemsSource="{Binding PolarionReportComments}" AutomationProperties.AutomationId="Report_Ticketing_Comments_Items">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <Grid ColumnDefinitions="140,140,*" Margin="0,3" ColumnSpacing="10">
+                                        <TextBlock Grid.Column="0" Text="{Binding CreatedText}" Classes="Muted"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Author}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding Text}" TextWrapping="Wrap"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Expander>
             </StackPanel>
         </Border>
 

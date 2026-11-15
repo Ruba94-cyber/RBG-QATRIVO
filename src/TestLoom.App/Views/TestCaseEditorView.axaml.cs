@@ -37,6 +37,12 @@ public sealed class CampiSeEspansoConverter : IMultiValueConverter
     public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
         if (values.Count < 2 || values[1] is not bool espanso || !espanso) return null;
+        // Terzo valore opzionale: in sola lettura i campi vuoti (e i gruppi senza alcun campo compilato) si nascondono.
+        if (values.Count > 2 && values[2] is true)
+        {
+            if (values[0] is IEnumerable<CampoStrumentoValore> campi) return campi.Where(c => c.HaValore).ToList();
+            if (values[0] is IEnumerable<GruppoCampiStrumento> gruppi) return gruppi.Where(g => g.HaCampiCompilati).ToList();
+        }
         return values[0];
     }
 }
@@ -96,7 +102,15 @@ public partial class TestCaseEditorView : UserControl
             }
             InstradaComandoSalvaSicuro();
         };
-        AttachedToVisualTree += (_, _) => InstradaComandoSalvaSicuro();
+        AttachedToVisualTree += (_, _) => { InstradaComandoSalvaSicuro(); (DataContext as TestCaseEditorViewModel)?.CollegaCachePolarion(); };
+        DetachedFromVisualTree += (_, _) => (DataContext as TestCaseEditorViewModel)?.ScollegaCachePolarion();
+    }
+
+    /// <summary>Clic sul badge Ticketing di un requisito collegato: dettaglio con stato, risoluzione e commenti.</summary>
+    private void OnApriRequisitoPolarion(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not TestCaseEditorViewModel vm || sender is not Control { Tag: string id }) return;
+        RequisitoPolarionDialogHelper.Apri(this, vm.PolarionHandoffState, id);
     }
 
     /// <summary>
@@ -126,6 +140,9 @@ public partial class TestCaseEditorView : UserControl
         // In creazione (wizard a schede) la sezione target potrebbe non essere quella corrente: senza questo
         // passo BringIntoView non farebbe nulla (sezione non visibile) e il popup sembrerebbe non portare da
         // nessuna parte, tornando solo in cima alla pagina (feedback utente).
+        // Errori sulle operazioni: i parametri tecnici (chiusi di default) si aprono in ogni modalita'.
+        if (chiave == CampiSistema.OperazioneCondizione && DataContext is TestCaseEditorViewModel vmOperazioni)
+            vmOperazioni.ApriParametriPerValidazione();
         if (DataContext is TestCaseEditorViewModel vmRapido && vmRapido.ModoEditorRapido)
         {
             vmRapido.ApriParametriPerValidazione();

@@ -33,6 +33,8 @@ public static class PerfContatori
     private static long _homeLetturaGraficiCount;
     private static long _homeSondaIndiceCount;
     private static long _wuIndiceCostruitoCount;
+    private static long _catalogSnapshotRiusatoCount;
+    private static long _catalogCloneMsX10;
 
     public static void IncrementaMasterLoad() => Interlocked.Increment(ref _masterLoadCount);
     public static void IncrementaPhaseDRefreshEseguito(double ms)
@@ -92,8 +94,16 @@ public static class PerfContatori
     /// della pagina e, a click con cache non valida, in background). Un click con cache valida non lo incrementa.</summary>
     public static void IncrementaWuIndiceCostruito() => Interlocked.Increment(ref _wuIndiceCostruitoCount);
 
+    /// <summary>Un accesso a un catalogo master e' stato servito dallo snapshot condiviso in cache (nessuna lettura di teste ne'
+    /// deserializzazione completa). Le letture complete effettive restano contate da <see cref="IncrementaLoadCatalog"/>.</summary>
+    public static void AggiungiCatalogCloneMs(double ms) => Interlocked.Add(ref _catalogCloneMsX10, (long)(ms * 10));
+
+    public static void IncrementaCatalogSnapshotRiusato() => Interlocked.Increment(ref _catalogSnapshotRiusatoCount);
+
     public static void Reset()
     {
+        Interlocked.Exchange(ref _catalogSnapshotRiusatoCount, 0);
+        Interlocked.Exchange(ref _catalogCloneMsX10, 0);
         Interlocked.Exchange(ref _masterLoadCount, 0);
         Interlocked.Exchange(ref _phaseDRefreshEseguiti, 0);
         Interlocked.Exchange(ref _phaseDRefreshAccorpati, 0);
@@ -123,7 +133,9 @@ public static class PerfContatori
         long FingerprintCalcolati, long FingerprintRiusati,
         long HomeLetturaSommario, long HomeLetturaCopertura, long HomeLetturaListe,
         long HomeLetturaFiltri, long HomeLetturaGrafici, long HomeSondaIndice,
-        long WuIndiceCostruito);
+        long WuIndiceCostruito,
+        long CatalogSnapshotRiusati = 0,
+        double CatalogCloneMs = 0);
 
     public static Snapshot LeggiSnapshot() => new(
         Interlocked.Read(ref _masterLoadCount),
@@ -144,5 +156,7 @@ public static class PerfContatori
         Interlocked.Read(ref _homeLetturaFiltriCount),
         Interlocked.Read(ref _homeLetturaGraficiCount),
         Interlocked.Read(ref _homeSondaIndiceCount),
-        Interlocked.Read(ref _wuIndiceCostruitoCount));
+        Interlocked.Read(ref _wuIndiceCostruitoCount),
+        Interlocked.Read(ref _catalogSnapshotRiusatoCount),
+        Interlocked.Read(ref _catalogCloneMsX10) / 10.0);
 }

@@ -21,7 +21,75 @@ public partial class RequisitiView : UserControl
         DataContextChanged += OnDataContextChanged;
         // Il layout colonne salvato viene riapplicato in differita all'attach: la visibilita si riafferma anche li.
         Loaded += (_, _) => AggiornaVisibilitaColonne();
-        AttachedToVisualTree += (_, _) => AggiornaVisibilitaColonne();
+        AttachedToVisualTree += (_, _) => { AggiornaVisibilitaColonne(); _vmCorrente?.CollegaCachePolarion(); };
+        DetachedFromVisualTree += (_, _) => _vmCorrente?.ScollegaCachePolarion();
+    }
+
+    /// <summary>Colonna Ticketing: in modifica apre l'editor del collegamento (progetto + ID), altrimenti il dettaglio con commenti.</summary>
+    private async void OnPolarionRequisito(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RequisitiViewModel vm || sender is not Button { Tag: Requisito requisito } button) return;
+        if (!vm.InModifica)
+        {
+            if (RequisitoPolarionRegole.Di(requisito) is not null)
+                RequisitoPolarionDialogHelper.Apri(this, vm.StatoPolarion, requisito.Id);
+            return;
+        }
+        List<PolarionProgettoConfig> progetti;
+        try { progetti = (await System.Threading.Tasks.Task.Run(() => PolarionApiSettingsService.Load(vm.StatoPolarion.Paths).ProgettiEffettivi())).ToList(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { progetti = new(); }
+        new Avalonia.Controls.Flyout { Content = CreaEditorPolarion(vm, requisito, progetti, button) }.ShowAt(button);
+    }
+
+    internal static StackPanel CreaEditorPolarion(RequisitiViewModel vm, Requisito requisito, IReadOnlyList<PolarionProgettoConfig> progetti, Button button)
+    {
+        var loc = LocalizationService.Instance;
+        var panel = new StackPanel { Spacing = 6, MinWidth = 300 };
+        panel.Children.Add(new TextBlock { Text = loc.Scegli("Collegamento Ticketing del requisito", "Requirement Ticketing link", "Lien Ticketing de l'exigence"), FontWeight = Avalonia.Media.FontWeight.SemiBold });
+        var combo = new ComboBox { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, ItemsSource = progetti.Select(p => p.Nome == p.Id ? p.Id : p.Nome + " (" + p.Id + ")").ToList() };
+        Avalonia.Automation.AutomationProperties.SetAutomationId(combo, "Requis_Ticketing_Progetto_ComboBox");
+        var attuale = requisito.PolarionProgetto;
+        var indice = attuale is null ? 0 : progetti.ToList().FindIndex(p => string.Equals(p.Id, attuale, StringComparison.OrdinalIgnoreCase));
+        combo.SelectedIndex = progetti.Count == 0 ? -1 : Math.Max(indice, 0);
+        var id = new TextBox { Text = requisito.PolarionWorkItemId ?? "", PlaceholderText = loc.Scegli("ID work item (es. REQ-123) o URL Ticketing", "Work item ID (e.g. REQ-123) or Ticketing URL", "ID du work item (ex. REQ-123) ou URL Ticketing") };
+        Avalonia.Automation.AutomationProperties.SetAutomationId(id, "Requis_Ticketing_Id_TextBox");
+        var errore = new TextBlock { Foreground = Avalonia.Media.Brushes.IndianRed, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        var applica = new Button { Content = loc.Scegli("Applica", "Apply", "Appliquer") };
+        Avalonia.Automation.AutomationProperties.SetAutomationId(applica, "Requis_Ticketing_Applica_Button");
+        var rimuovi = new Button { Content = loc.Scegli("Rimuovi collegamento", "Remove link", "Retirer le lien") };
+        Avalonia.Automation.AutomationProperties.SetAutomationId(rimuovi, "Requis_Ticketing_Rimuovi_Button");
+        void Fine() { vm.NotificaCollegamentoPolarionModificato(); (button.Parent as Control)?.InvalidateVisual(); }
+        applica.Click += (_, _) =>
+        {
+            var predefinito = combo.SelectedIndex >= 0 ? progetti[combo.SelectedIndex].Id : null;
+            if (!RequisitoPolarionRegole.TryParse(id.Text, predefinito, out var link, out var codice) || link is null)
+            {
+                errore.Text = codice == "progetto"
+                    ? loc.Scegli("ID progetto non valido.", "Invalid project ID.", "ID de projet invalide.")
+                    : loc.Scegli("ID non valido: usare un formato come REQ-123, PROGETTO/REQ-123 o l'URL del work item.",
+                        "Invalid ID: use a format like REQ-123, PROJECT/REQ-123 or the work item URL.",
+                        "ID invalide : utilisez un format comme REQ-123, PROJET/REQ-123 ou l'URL du work item.");
+                return;
+            }
+            // Se l'ID e' stato digitato senza progetto vale il progetto scelto nel menu; un URL/PROGETTO/ID porta il proprio progetto.
+            if (!progetti.Any(p => string.Equals(p.Id, link.Value.Progetto, StringComparison.OrdinalIgnoreCase)))
+            {
+                errore.Text = loc.Scegli($"Il progetto {link.Value.Progetto} non e' tra quelli configurati in Impostazioni.",
+                    $"Project {link.Value.Progetto} is not among those configured in Settings.",
+                    $"Le projet {link.Value.Progetto} ne figure pas parmi ceux configurés dans les paramètres.");
+                return;
+            }
+            RequisitoPolarionRegole.Imposta(requisito, link);
+            Fine();
+        };
+        rimuovi.Click += (_, _) => { RequisitoPolarionRegole.Imposta(requisito, null); id.Text = ""; errore.Text = ""; Fine(); };
+        if (progetti.Count == 0)
+            panel.Children.Add(new TextBlock { Text = loc.Scegli("Nessun progetto configurato: un Master deve impostarli in Impostazioni.", "No project configured: a Master must set them in Settings.", "Aucun projet configuré : un Master doit les définir dans les paramètres."), TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+        panel.Children.Add(combo); panel.Children.Add(id); panel.Children.Add(errore);
+        var righe = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8 };
+        righe.Children.Add(applica); righe.Children.Add(rimuovi);
+        panel.Children.Add(righe);
+        return panel;
     }
 
     private void OnGridBeginningEdit(object? sender, DataGridBeginningEditEventArgs e) =>

@@ -1,3 +1,4 @@
+using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TestLoom.App.Services;
 
@@ -22,6 +23,19 @@ public partial class AvvioViewModel : ViewModelBase
     [ObservableProperty] private double percentuale;
     [ObservableProperty] private string trascorsoTesto = "0s";
     [ObservableProperty] private string stimaTesto = "";
+
+    /// <summary>Versione mostrata nella schermata di avvio, letta da AssemblyInformationalVersion.
+    /// Il suffisso di build dopo '+' (hash sorgente) non viene mostrato all'utente.</summary>
+    public static string VersioneApplicazione => FormattaVersione(
+        typeof(AvvioViewModel).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion);
+
+    /// <summary>Taglia il metadato di build (tutto da '+' in poi). Vuoto se la versione non e' disponibile.</summary>
+    public static string FormattaVersione(string? informationalVersion)
+    {
+        if (string.IsNullOrWhiteSpace(informationalVersion)) return "";
+        var senzaBuild = informationalVersion.Split('+', 2)[0].Trim();
+        return senzaBuild.Length == 0 ? "" : $"v{senzaBuild}";
+    }
 
     public void Aggiorna(BootstrapProgress valore)
     {

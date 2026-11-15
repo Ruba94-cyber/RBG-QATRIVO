@@ -82,6 +82,50 @@ public static class DomainRecoveryService
     }
 
     /// <summary>
+    /// Archivia nel recovery-bin una VERSIONE in memoria (non un file da cancellare): usata dalla risoluzione dei conflitti per
+    /// non perdere mai la versione scartata o i rami incorporati in un merge. Il payload e' conservato byte-per-byte, anche se
+    /// non e' JSON valido (una versione corrotta e' comunque da conservare). L'envelope usa il percorso canonico del record
+    /// come percorso originale: un eventuale ripristino non sovrascrive mai un canonico diverso (vedi RestoreCore).
+    /// Create-only, riletto e verificato per hash prima di restituire.
+    /// </summary>
+    public static DomainRecoveryRecord ArchivePayload(
+        DataPaths paths,
+        string canonicalPath,
+        DomainRecoveryCategory category,
+        byte[] payload,
+        string? operatore,
+        string motivo)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        if (payload.Length == 0) throw new InvalidDataException("Versione vuota: nulla da archiviare.");
+        WorkspaceWritePolicy.EnsureCanWrite(paths, "Archiviazione della versione scartata nel recovery-bin");
+        var full = ValidateRecoverableSource(paths, canonicalPath, category);
+
+        var record = new DomainRecoveryRecord
+        {
+            RecoveryId = Guid.NewGuid(),
+            Category = category,
+            OriginalRelativePath = Path.GetRelativePath(Path.GetFullPath(paths.Root), full),
+            OriginalFileName = Path.GetFileName(full),
+            ArchivedUtc = DateTime.UtcNow,
+            ArchivedBy = operatore ?? "",
+            Device = Environment.MachineName,
+            Sha256 = Hash(payload),
+            PayloadBase64 = Convert.ToBase64String(payload),
+            Note = motivo ?? "",
+            VersioneScartata = true
+        };
+        var recoveryPath = RecoveryPath(paths, record);
+        JsonIo.WriteAtomic(recoveryPath, record, overwrite: false);
+        var persisted = JsonIo.TryRead<DomainRecoveryRecord>(recoveryPath, out var error)
+            ?? throw new IOException($"La copia di recovery non è rileggibile; operazione bloccata: {error}");
+        ValidateEnvelope(paths, persisted, recoveryPath);
+        if (!persisted.Sha256.Equals(record.Sha256, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("La copia di recovery non corrisponde alla versione originale; operazione bloccata.");
+        return record;
+    }
+
+    /// <summary>
     /// Archive + delete è sempre una singola Unit of Work. Se il chiamante è già nel salvataggio Test più
     /// ampio viene riusata quella transazione; altrimenti ne viene creata una locale. In questo modo non può
     /// esistere una delete senza recovery envelope committed insieme al tombstone.
@@ -192,6 +236,9 @@ public static class DomainRecoveryService
             ?? throw new FileNotFoundException($"Recovery {recoveryId:N} non trovata.");
         var record = JsonIo.TryRead<DomainRecoveryRecord>(recoveryPath, out var error)
             ?? throw new InvalidDataException($"Recovery non leggibile: {error}");
+        if (record.Category == DomainRecoveryCategory.CatalogoMaster)
+            throw new InvalidOperationException("Le versioni scartate dei cataloghi master sono consultabili ma non ripristinabili da qui: " +
+                "restano comunque nei journal master. Rivolgersi al supporto per riapplicarle.");
         var target = ValidateEnvelope(paths, record, recoveryPath);
         var payload = DecodeAndVerify(record);
 
@@ -385,6 +432,7 @@ public static class DomainRecoveryService
         DomainRecoveryCategory.NonConformita => "nonconformita",
         DomainRecoveryCategory.ChangeRequest => "change-request",
         DomainRecoveryCategory.Segnalazione => "segnalazione",
+        DomainRecoveryCategory.CatalogoMaster => "catalogo-master",
         _ => throw new ArgumentOutOfRangeException(nameof(category))
     };
 
@@ -408,7 +456,10 @@ public enum DomainRecoveryCategory
     TestCase,
     NonConformita,
     ChangeRequest,
-    Segnalazione
+    Segnalazione,
+    /// <summary>Versione scartata di una voce dei cataloghi master (conflitto fra postazioni). Solo consultazione: il ripristino
+    /// automatico non e' previsto (la versione resta anche nei journal master, mai cancellati).</summary>
+    CatalogoMaster
 }
 
 public sealed class DomainRecoveryRecord
@@ -425,6 +476,10 @@ public sealed class DomainRecoveryRecord
     public DateTime? RestoredUtc { get; set; }
     public string RestoredBy { get; set; } = "";
     public bool RestoreAlreadyPresent { get; set; }
+    /// <summary>Motivo dell'archiviazione quando non e' una cancellazione (es. versione scartata in un conflitto).</summary>
+    public string Note { get; set; } = "";
+    /// <summary>True per le versioni archiviate dalla risoluzione di un conflitto (non un record cancellato).</summary>
+    public bool VersioneScartata { get; set; }
 }
 
 public sealed record DomainRecoveryRestoreResult(DomainRecoveryRecord Record, string TargetPath, bool AlreadyPresent);

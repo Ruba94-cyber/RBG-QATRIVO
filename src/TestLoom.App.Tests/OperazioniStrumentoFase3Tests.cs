@@ -366,4 +366,38 @@ public sealed class OperazioniStrumentoEditorTests : IDisposable
         Assert.Equal(new[] { "F1", "F1", "F2" }, ultima.Condizioni.Select(c => c.Funzionalita).ToArray());
         vm.Dispose();
     }
+
+    [Fact]
+    public void DevalidazioneDtc_RicalcoloSoloSeCambiaUnEsito_ForzaturaEdEsitoSonoRispettati()
+    {
+        Condizione Guasto(PassoDtc passo, Esito esito) => new() { Esito = esito, Guasto = "P0001", DtcRequisitoId = "S1", DtcPasso = passo, Componente = new EcuSelection(new[] { "ECM" }) };
+        var val = Guasto(PassoDtc.Validazione, Esito.NonConforme);
+        var dev = Guasto(PassoDtc.Devalidazione, Esito.DaEseguire);
+        var vm = Apri(CreaStato(), Test(new[] { "F1" }, val, dev));
+        // l'editor lavora su una copia: si usano le condizioni della revisione corrente
+        var conds = vm.RevisioneCorrente!.Condizioni;
+        val = conds.First(c => c.DtcPasso == PassoDtc.Validazione);
+        dev = conds.First(c => c.DtcPasso == PassoDtc.Devalidazione);
+        // validazione non conforme: devalidazione nascosta, non richiesta, inseribile su richiesta
+        vm.SincronizzaEsitoCondizioni();
+        Assert.True(dev.DevalidazioneNascosta);
+        Assert.Same(dev, val.DevalidazioneInseribile);
+
+        // «forza devalidazione» (stesso gesto della View): resta non richiesta ma visibile
+        dev.DevalidazioneForzata = true;
+        vm.SincronizzaEsitoCondizioni();
+        Assert.False(dev.DevalidazioneNascosta);
+        Assert.True(dev.DevalidazioneNonRichiesta);
+        Assert.Null(val.DevalidazioneInseribile);
+
+        // un cambio di esito della validazione e' riconosciuto dal ricalcolo condizionato
+        val.Esito = Esito.Conforme;
+        vm.SincronizzaEsitoCondizioni();
+        Assert.False(dev.DevalidazioneNonRichiesta);
+        val.Esito = Esito.NonConforme;
+        vm.SincronizzaEsitoCondizioni();
+        Assert.True(dev.DevalidazioneNonRichiesta);
+        Assert.False(dev.DevalidazioneNascosta);   // forzata: resta visibile
+        vm.Dispose();
+    }
 }

@@ -54,7 +54,21 @@ public sealed class PhaseDMasterSnapshot<T> where T : MasterEntity
     /// solo per collisione di chiave business, vedi <see cref="PhaseDMasterMaterializer.LoadCatalog{T}"/>) con la
     /// testa deterministica: la lettura non fallisce piu' per il conflitto.</summary>
     public IReadOnlyList<Guid> ConflictedUids { get; init; } = Array.Empty<Guid>();
+
+    /// <summary>Revisione locale del catalogo letta nella STESSA transazione di lettura delle teste (WAL: fotografia coerente).
+    /// Chiave di validita' della cache degli snapshot condivisi (<see cref="MasterCatalogSnapshotCache"/>).</summary>
+    public long Revision { get; init; }
+
+    /// <summary>Identita' del file read-model (epoca di ricreazione + data di creazione): cambia se il DB locale viene
+    /// ricreato, cosi' una revisione numericamente uguale ma di un altro DB non puo' essere scambiata per la stessa.</summary>
+    public string DatabaseIdentity { get; init; } = "";
+
+    /// <summary>Payload JSON sorgente di ciascuna voce di <see cref="Items"/>, nello stesso ordine (per ricostruire copie private).</summary>
+    internal IReadOnlyList<string> ItemPayloads { get; init; } = Array.Empty<string>();
 }
+
+/// <summary>Esito della sonda economica di versione di un catalogo (Refresh + lettura della sola revisione).</summary>
+internal readonly record struct PhaseDMasterCatalogProbe(long Revision, string DatabaseIdentity);
 
 public sealed record PhaseDMasterCatalogState(string SourceFingerprint, int ActiveCount, long Revision);
 
@@ -150,6 +164,9 @@ public sealed class PhaseDMasterMaterializer
             var impacted = new HashSet<EntityKey>();
 
             var mappingsRemoved = 0L;
+            // Device per cui QUESTO Refresh ha acquisito contenuto nuovo: solo per loro la copertura checkpoint puo' avere
+            // mappature da rimuovere che prima non c'erano (vedi sotto).
+            var deviceConContenutoNuovo = new HashSet<string>(StringComparer.Ordinal);
             foreach (var source in sources)
             {
                 var path = NormalizePath(source.Path);
@@ -162,7 +179,20 @@ public sealed class PhaseDMasterMaterializer
                 // completo/incompleto) e' il lavoro di ingest, che e' idempotente: nessuna mutation nuova puo'
                 // comparire da contenuto bit-per-bit identico, quindi rifare upsert riga per riga e ricalcolare
                 // le teste impattate non cambierebbe alcun risultato.
-                var read = PhaseDMasterJournalSourceReader.Read(source);
+                PhaseDMasterJournalSourceRead? read;
+                if (source.Kind == PhaseDMasterJournalSourceKind.Current && previous != null)
+                {
+                    // Stessi byte dell'ultima acquisizione (SHA-256 e lunghezza identici) => stesso esito del parsing, quindi
+                    // stesso stato completo/incompleto e nessuna mutation nuova: si salta anche il parsing NDJSON, che e' la
+                    // parte costosa di un Refresh che non trova nulla di nuovo. Il file e' comunque riletto e hashato ad ogni
+                    // Refresh (nessuna scorciatoia su mtime/dimensione).
+                    read = PhaseDMasterJournalSourceReader.ReadSeCambiato(source, previous.Sha256, previous.Length);
+                    if (read == null) continue;
+                }
+                else
+                {
+                    read = PhaseDMasterJournalSourceReader.Read(source);
+                }
                 if (source.Kind != PhaseDMasterJournalSourceKind.Current && !read.Complete)
                     throw new InvalidDataException($"Sorgente Phase D immutabile incompleta: {Path.GetFileName(source.Path)}");
                 if (previous != null && source.Kind != PhaseDMasterJournalSourceKind.Current &&
@@ -177,6 +207,7 @@ public sealed class PhaseDMasterMaterializer
                 }
 
                 IngestSource(connection, tx, path, source, read, impacted);
+                deviceConContenutoNuovo.Add(source.DeviceId);
                 known[path] = new SourceState(
                     path, source.DeviceId, source.Kind, read.Sha256, read.Length, read.Complete,
                     Math.Max(previous?.MaxDeviceSequence ?? 0, read.MaxDeviceSequence),
@@ -196,8 +227,19 @@ public sealed class PhaseDMasterMaterializer
 
             // Anche il path current e' riutilizzato dopo una rotazione: le mapping storiche restano finche' un
             // checkpoint non le copre, poi vengono eliminate per mantenere bounded il DB locale.
+            // La rimozione delle mappature coperte e' una funzione dello stato del DB locale: dopo averla applicata fino a una
+            // certa copertura non ha piu' nulla da fare finche' la copertura del checkpoint non avanza o questo Refresh non
+            // acquisisce contenuto nuovo dello stesso device (le mappature si aggiungono solo in IngestSource). Rieseguirla ad ogni
+            // Refresh costava una JOIN su centinaia di migliaia di mappature per ogni segmento (decine di ms a 10k record).
             foreach (var pair in checkpointCoverage)
+            {
+                var chiaveApplicata = "covered_applied:" + pair.Key;
+                if (!deviceConContenutoNuovo.Contains(pair.Key) &&
+                    ReadLongMeta(connection, tx, chiaveApplicata) >= pair.Value)
+                    continue;
                 mappingsRemoved += RemoveCoveredNonCheckpointMappings(connection, tx, pair.Key, pair.Value, impacted);
+                WriteMeta(connection, tx, chiaveApplicata, pair.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
 
             // IngestSource fa solo upsert: nessuna mutation puo' diventare orfana (senza piu' un mapping in
             // phase_d_source_mutation) a meno che QUESTO refresh non abbia appena rimosso mappature sopra
@@ -265,9 +307,31 @@ public sealed class PhaseDMasterMaterializer
     public PhaseDMasterSnapshot<T> LoadCatalog<T>(string sharedRoot, string catalog) where T : MasterEntity
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(catalog);
-        PerfContatori.IncrementaLoadCatalog();
+        Refresh(sharedRoot);
+        return LeggiCatalogo<T>(catalog);
+    }
+
+    /// <summary>Sonda economica di versione: Refresh del journal (e' il segnale che intercetta anche le modifiche
+    /// arrivate da altri PC / sync OneDrive, vedi <see cref="Refresh"/>) + lettura della sola revisione del catalogo.
+    /// Nessuna lettura di teste, nessuna deserializzazione.</summary>
+    internal PhaseDMasterCatalogProbe SondaCatalogo(string sharedRoot, string catalog)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(catalog);
         Refresh(sharedRoot);
         using var connection = Open();
+        return new PhaseDMasterCatalogProbe(ReadCatalogRevision(connection, catalog), DatabaseIdentity(connection));
+    }
+
+    /// <summary>Lettura integrale del catalogo SENZA Refresh (il chiamante l'ha appena eseguito, vedi <see cref="SondaCatalogo"/>).
+    /// <see cref="PhaseDMasterSnapshot{T}.Revision"/> e' letta PRIMA delle teste: se un altro thread/processo aggiorna il
+    /// catalogo nel frattempo le teste sono piu' nuove dell'etichetta, quindi la cache al prossimo accesso vede una revisione
+    /// diversa e rilegge (un rebuild in piu', mai un dato stantio presentato come corrente).</summary>
+    internal PhaseDMasterSnapshot<T> LeggiCatalogo<T>(string catalog) where T : MasterEntity
+    {
+        PerfContatori.IncrementaLoadCatalog();
+        using var connection = Open();
+        var revisionPrima = ReadCatalogRevision(connection, catalog);
+        var identity = DatabaseIdentity(connection);
         var rows = ReadHeads(connection, catalog);
         var revision = ReadCatalogRevision(connection, catalog);
         var tolerant = PhaseDMasterKeyCollisionTolerance.IsTolerant(catalog);
@@ -283,6 +347,7 @@ public sealed class PhaseDMasterMaterializer
         }
 
         var items = new List<T>();
+        var itemPayloads = new List<string>();
         var heads = new Dictionary<Guid, PhaseDMaterializedHead>(rows.Count);
         var conflicts = new List<Guid>();
         var businessKeys = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
@@ -322,6 +387,7 @@ public sealed class PhaseDMasterMaterializer
             if (!PhaseDMasterBusinessKeyService.Get(item).Equals(head.BusinessKey, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException($"Chiave business payload Phase D diversa dall'envelope per {catalog}/{head.EntityUid:N}.");
             items.Add(item);
+            itemPayloads.Add(head.PayloadJson);
         }
 
         return new PhaseDMasterSnapshot<T>
@@ -329,7 +395,10 @@ public sealed class PhaseDMasterMaterializer
             Items = items,
             Heads = heads,
             ConflictedUids = conflicts,
-            SourceFingerprint = CatalogFingerprint(catalog, revision, upsertCount)
+            SourceFingerprint = CatalogFingerprint(catalog, revision, upsertCount),
+            Revision = revisionPrima,
+            ItemPayloads = itemPayloads,
+            DatabaseIdentity = identity
         };
     }
 
@@ -345,9 +414,10 @@ public sealed class PhaseDMasterMaterializer
         ORDER BY entity_uid;
         """;
 
-    private static List<PhaseDMaterializedHead> ReadHeads(SqliteConnection connection, string catalog)
+    private static List<PhaseDMaterializedHead> ReadHeads(SqliteConnection connection, string catalog, SqliteTransaction? transaction = null)
     {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = SqlTesteCatalogo;
         command.Parameters.AddWithValue("$catalog", catalog);
 
@@ -833,9 +903,10 @@ public sealed class PhaseDMasterMaterializer
         command.ExecuteNonQuery();
     }
 
-    private static long ReadCatalogRevision(SqliteConnection connection, string catalog)
+    private static long ReadCatalogRevision(SqliteConnection connection, string catalog, SqliteTransaction? transaction = null)
     {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = "SELECT revision FROM phase_d_catalog_state WHERE catalog=$catalog;";
         command.Parameters.AddWithValue("$catalog", catalog);
         return command.ExecuteScalar() is long value ? value : 0;
@@ -868,6 +939,7 @@ public sealed class PhaseDMasterMaterializer
                     throw new LocalIndexSchemaIncompatibleException($"Schema SQLite master-v2 locale incompatibile: {schema}.");
                 using var tx = connection.BeginTransaction();
                 WriteMeta(connection, tx, "schema_version", SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                EnsureInstanceId(connection, tx);
                 tx.Commit();
             }
             catch (LocalIndexSchemaIncompatibleException)
@@ -967,6 +1039,35 @@ public sealed class PhaseDMasterMaterializer
         command.ExecuteNonQuery();
     }
 
+    /// <summary>Contatore di ricreazione del read-model per percorso DB, nello stesso processo.</summary>
+    private static readonly ConcurrentDictionary<string, long> DatabaseEpochs = new(
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
+    private void BumpDatabaseEpoch()
+    {
+        DatabaseEpochs.AddOrUpdate(DatabasePath, 1, (_, v) => v + 1);
+        MasterCatalogSnapshotCache.InvalidaDatabase(DatabasePath);
+    }
+
+    private const string MetaInstanceId = "instance_id";
+
+    /// <summary>Identita' del read-model: id casuale scritto nel DB alla creazione (cambia se il file locale viene cancellato e
+    /// ricreato, anche da un altro processo: le revisioni ripartirebbero da zero e un confronto sulla sola revisione scambierebbe
+    /// il nuovo contenuto per quello in cache) + epoca di ricreazione in-process. Una query su una tabella di poche righe.</summary>
+    internal string DatabaseIdentity(SqliteConnection connection) =>
+        (ReadMeta(connection, MetaInstanceId) ?? "") + ":" +
+        DatabaseEpochs.GetValueOrDefault(DatabasePath).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private static void EnsureInstanceId(SqliteConnection connection, SqliteTransaction tx)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = tx;
+        command.CommandText = "INSERT OR IGNORE INTO phase_d_meta(meta_key,meta_value) VALUES($key,$value);";
+        command.Parameters.AddWithValue("$key", MetaInstanceId);
+        command.Parameters.AddWithValue("$value", Guid.NewGuid().ToString("N"));
+        command.ExecuteNonQuery();
+    }
+
     private SqliteConnection Open()
     {
         var connection = new SqliteConnection(_connectionString);
@@ -979,6 +1080,7 @@ public sealed class PhaseDMasterMaterializer
 
     private void QuarantineAndRecreate()
     {
+        BumpDatabaseEpoch();
         try
         {
             SqliteConnection.ClearAllPools();
@@ -994,10 +1096,12 @@ public sealed class PhaseDMasterMaterializer
     /// <summary>Crea lo schema nuovo su un file locale gia' eliminato o messo in quarantena.</summary>
     private void RecreateSchema()
     {
+        BumpDatabaseEpoch();
         using var connection = Open();
         CreateSchema(connection);
         using var tx = connection.BeginTransaction();
         WriteMeta(connection, tx, "schema_version", SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        EnsureInstanceId(connection, tx);
         tx.Commit();
     }
 

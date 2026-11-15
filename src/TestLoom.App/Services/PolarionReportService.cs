@@ -15,15 +15,32 @@ public static class PolarionReportService
     public sealed record ObservedTransition(DateTimeOffset AtUtc, string Status,
         string Resolution, bool IsBaseline);
 
-    private static string CompactComment(string? richText)
+    private static string PlainComment(string? richText)
     {
         if (string.IsNullOrWhiteSpace(richText)) return "";
-        // Ticketing supplies rich text: the tooltip must render plain text only, never markup.
+        // Ticketing supplies rich text: the UI must render plain text only, never markup.
         var decoded = System.Net.WebUtility.HtmlDecode(
             System.Text.RegularExpressions.Regex.Replace(richText, "<[^>]*>", " "));
-        var singleLine = string.Join(" ", decoded.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return string.Join(" ", decoded.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private static string CompactComment(string? richText)
+    {
+        var singleLine = PlainComment(richText);
         return singleLine.Length > 240 ? singleLine[..237] + "…" : singleLine;
     }
+
+    /// <summary>Un commento Ticketing in sola lettura (testo pulito, mai markup), per la dashboard TICKET.</summary>
+    public sealed record CommentEntry(string Author, string CreatedText, string Text);
+
+    /// <summary>Tutti i commenti della cache, dal piu' recente, con testo completo (non troncato).</summary>
+    public static IReadOnlyList<CommentEntry> BuildComments(IEnumerable<PolarionCommentSnapshot>? comments) =>
+        (comments ?? Enumerable.Empty<PolarionCommentSnapshot>())
+            .OrderByDescending(x => x.Created ?? DateTimeOffset.MinValue)
+            .Select(x => new CommentEntry(x.AuthorId ?? "",
+                x.Created?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—", PlainComment(x.Text)))
+            .Where(x => x.Text.Length > 0)
+            .ToArray();
 
     public sealed class Row
     {
@@ -57,6 +74,8 @@ public static class PolarionReportService
         /// <summary>Short, safely rendered excerpt of the latest cached TICKET comment.</summary>
         public string LatestCommentPreview { get; init; } = "";
         public string LatestCommentAuthor { get; init; } = "";
+        /// <summary>Tutti i commenti Ticketing in cache (piu' recente prima), mostrati nella dashboard TICKET.</summary>
+        public IReadOnlyList<CommentEntry> Comments { get; init; } = Array.Empty<CommentEntry>();
         /// <summary>TestLoom-observed transitions after baseline; never official historical totals.</summary>
         public int TestingTransitionsObserved { get; init; }
         public int ClosureTransitionsObserved { get; init; }
@@ -238,6 +257,7 @@ public static class PolarionReportService
                 CommentsCount = snapshot?.Comments?.Count ?? 0,
                 LatestCommentPreview = CompactComment(snapshot?.Comments?.OrderByDescending(x => x.Created ?? DateTimeOffset.MinValue).FirstOrDefault()?.Text),
                 LatestCommentAuthor = snapshot?.Comments?.OrderByDescending(x => x.Created ?? DateTimeOffset.MinValue).FirstOrDefault()?.AuthorId ?? "",
+                Comments = BuildComments(snapshot?.Comments),
                 TestingTransitionsObserved = testingCount,
                 ClosureTransitionsObserved = closureCount,
                 ReopenTransitionsObserved = reopenCount,

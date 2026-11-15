@@ -248,7 +248,7 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
     {
         // Cartella di rete (6.6.1): nessun "cloud" da verificare, solo la prova di scrittura già eseguita.
         Models.StatoCondivisione.Operativa when EModalitaRete => LocalizationService.Instance.Traduci("SyncReteOk"),
-        Models.StatoCondivisione.Operativa => LocalizationService.Instance.Scegli(
+        Models.StatoCondivisione.Operativa => SyncHandshake.TestoStato(SyncHandshake.UltimoReport) ?? LocalizationService.Instance.Scegli(
             "Cartella locale disponibile (cloud non verificato)",
             "Local folder accessible (cloud sync not verified)",
             "Dossier local accessible (cloud non vérifié)"),
@@ -556,7 +556,8 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
         PolarionApiWriteEnabled != _polarionApiLoaded.ScritturaAbilitata ||
         !string.Equals(PolarionBrowserCreateUrl.Trim(), _polarionApiLoaded.BrowserCreateUrl, StringComparison.Ordinal) ||
         !string.Equals(PolarionAssigneeOne.Trim(), _polarionApiLoaded.AssegnatariEsta.ElementAtOrDefault(0) ?? "", StringComparison.Ordinal) ||
-        !string.Equals(PolarionAssigneeTwo.Trim(), _polarionApiLoaded.AssegnatariEsta.ElementAtOrDefault(1) ?? "", StringComparison.Ordinal);
+        !string.Equals(PolarionAssigneeTwo.Trim(), _polarionApiLoaded.AssegnatariEsta.ElementAtOrDefault(1) ?? "", StringComparison.Ordinal) ||
+        ProgettiPolarionModificati();
 
     public string PolarionApiPendingStatus => PolarionApiHasUnsavedChanges
             ? PolarionText("Modifiche TICKET non salvate: salva prima di verificare o aggiornare.", "TICKET changes are unsaved: save before testing or refreshing.", "Modifications TICKET non enregistrées : enregistrez avant le test ou l’actualisation.")
@@ -575,6 +576,7 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
         PolarionBrowserCreateUrl = _polarionApiLoaded.BrowserCreateUrl;
         PolarionAssigneeOne = _polarionApiLoaded.AssegnatariEsta.ElementAtOrDefault(0) ?? "";
         PolarionAssigneeTwo = _polarionApiLoaded.AssegnatariEsta.ElementAtOrDefault(1) ?? "";
+        CaricaProgettiPolarion();
         PolarionApiNewToken = "";
         OnPropertyChanged(nameof(PolarionApiTokenIndicator));
         OnPropertyChanged(nameof(PolarionApiPendingStatus));
@@ -590,8 +592,19 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
         {
             // Preserve the loaded revision/fingerprint; never re-read a newer configuration and
             // silently overwrite it with this dialog's stale values.
+            List<PolarionProgettoConfig>? progetti;
+            try { progetti = ProgettiPolarionDaSalvare(); }
+            catch (InvalidOperationException)
+            {
+                SetPolarionFeedback(PolarionText(
+                    "Elenco progetti non valido: controlla gli ID (lettera iniziale, poi lettere/cifre/_), i duplicati e la lunghezza dei nomi.",
+                    "Invalid project list: check the IDs (leading letter, then letters/digits/_), duplicates and name length.",
+                    "Liste de projets invalide : vérifiez les ID (lettre initiale, puis lettres/chiffres/_), les doublons et la longueur des noms."), true);
+                return;
+            }
             var settings = new PolarionApiSettings
             {
+                Progetti = progetti,
                 RevisioneDati = _polarionApiLoaded.RevisioneDati,
                 SourceFingerprint = _polarionApiLoaded.SourceFingerprint,
                 ProjectId = _polarionApiLoaded.ProjectId,
@@ -609,6 +622,8 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
                 settings.ImpostaToken(PolarionApiNewToken);
             PolarionApiSettingsService.Save(_state.Paths, settings, _state.EMaster);
             _polarionApiLoaded = settings;
+            CaricaProgettiPolarion();   // riallinea l'editor all'elenco normalizzato e salvato
+            RequisitoPolarionCache.Invalida(_state.Paths);
             PolarionApiNewToken = "";
             OnPropertyChanged(nameof(PolarionApiTokenIndicator));
             OnPropertyChanged(nameof(PolarionApiPendingStatus));
@@ -1033,6 +1048,7 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
         _polarionActionCts?.Cancel();
         if (PaginaCorrente is IDisposable disposabile && !ReferenceEquals(disposabile, this)) disposabile.Dispose();
         _state.BackupGiornalieroStatoCambiato -= _backupGiornalieroStatoCambiato;
+        SyncHandshake.ReportAggiornato -= _handshakeAggiornato;
         UnitaRete.Classificata -= AlClassificata;
     }
 
@@ -1064,6 +1080,7 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
     /// mai dal thread UI: il marshalling verso il Dispatcher è responsabilità di questo sottoscrittore, non del
     /// chiamante (stesso contratto di MainViewModel._cambiamentiSuDiscoRilevati).</summary>
     private readonly Action _backupGiornalieroStatoCambiato;
+    private readonly Action _handshakeAggiornato;
 
     public ImpostazioniViewModel(AppState state, Action onCambiato, ObservableCollection<NavItem>? navPrincipale = null)
     {
@@ -1079,6 +1096,9 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
         _backupGiornalieroStatoCambiato = () => Avalonia.Threading.Dispatcher.UIThread.Post(
             () => OnPropertyChanged(nameof(BackupGiornalieroStatoTesto)));
         _state.BackupGiornalieroStatoCambiato += _backupGiornalieroStatoCambiato;
+        _handshakeAggiornato = () => Avalonia.Threading.Dispatcher.UIThread.Post(
+            () => OnPropertyChanged(nameof(StatoSincronizzazioneTesto)));
+        SyncHandshake.ReportAggiornato += _handshakeAggiornato;
 
         // Il titolo delle 5 sezioni "gemelle" di un ruolo di CampoSistemaDefinizione segue l'Etichetta
         // rinominata dal Master nel catalogo campi di sistema (Addendum: grill-me 2026-08-18, follow-up) —
@@ -1116,6 +1136,7 @@ public partial class ImpostazioniViewModel : ViewModelBase, IDisposable
         CaricaFiltriNotifichePolarion();
         CaricaModalitaAccesso();
         _ = CaricaConflittiMasterAsync();
+        _ = CaricaConflittiCopieAsync(ritira: false);
     }
 
     /// <summary>Persiste l'ordine corrente delle due barre (Addendum: grill-me 2026-08-18, follow-up:

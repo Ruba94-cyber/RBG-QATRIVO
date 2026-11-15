@@ -280,7 +280,7 @@ public sealed class SegnalazioneRepository
             var path = _paths.SegnalazioneFile(item.Uid);
             using var commitLock = DomainRecordCommitLock.Acquire("Segnalazione", item.Uid.ToString("N"), path);
             VisibleConflictWriteGuard.EnsureNoVisibleFork(path, item.Uid, null,
-                RecordJournal?.CopiaChiusaPer(DomainRecordJournalService.SegnalazioneDomain, item.Uid));
+                RecordJournal?.CopiaChiusaPer(DomainRecordJournalService.SegnalazioneDomain, item.Uid), _paths.Root);
             RecordJournal?.EnsureNotBlocked(DomainRecordJournalService.SegnalazioneDomain, item.Uid, item.Uid.ToString("N"));
             SegnalazioneDaClassificare? corrente = null;
             if (File.Exists(path))

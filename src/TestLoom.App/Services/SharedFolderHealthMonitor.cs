@@ -91,7 +91,7 @@ public static class SharedFolderHealthMonitor
             if (EsCopiaDiConflittoRecente(file, now, o.FinestraCopieFresche)) copieRecenti.Add(file.Name);
         }
         if (copieRecenti.Count > 0)
-            motivi.Add($"Copie di conflitto OneDrive/SharePoint recenti nel campione ({copieRecenti.Count}): {string.Join(", ", copieRecenti.Take(3))}.");
+            motivi.Add($"Copie di conflitto OneDrive/SharePoint recenti nel campione ({copieRecenti.Count}): {string.Join(", ", copieRecenti.Take(3))}. Si gestiscono in Impostazioni → Conflitti.");
         if (offline > 0)
             motivi.Add($"{offline} file JSON operativi segnati solo online nel campione di {campione.Count} esaminati.");
 

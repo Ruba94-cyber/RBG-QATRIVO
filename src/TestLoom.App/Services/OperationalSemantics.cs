@@ -94,6 +94,83 @@ public static class OperationalSemantics
     public static int CountWorkUnits(TestCase testCase, Esecuzione revision) =>
         revision.Condizioni.Where(c => c.Esito.EEseguito()).Sum(c => Math.Max(1, EcuUnits(testCase, c).Count));
 
+    /// <summary>Regola utente (conteggio per operatore): un'operazione vale UNA volta per l'operatore che la porta a uno
+    /// stato finale (Esito.EEseguito); pianificate/Da eseguire/N.A. e REV di Origine Rete non contano. Le copie non
+    /// toccate in una nuova REV non vengono ricontate: sono la stessa esecuzione se portano lo stesso
+    /// <see cref="Condizione.EsecuzioneUid"/>; senza riconoscimento (dati legacy) la stessa operazione (Uid) con lo
+    /// stesso esito della REV precedente e' un'ereditarieta', mentre un esito nuovo o un'operazione nuova e' una
+    /// nuova esecuzione dell'operatore della REV. Una riesecuzione con lo stesso esito ma nuova identita conta.
+    /// Ritorna una voce per operazione riconosciuta, con l'indice della REV in cui compare per la prima volta.</summary>
+    public static IEnumerable<(int RevisionIndex, string Operatore, int Units)> EnumerateOperatorWork(TestCase testCase)
+    {
+        var viste = new HashSet<Guid>();
+        var precedente = new Dictionary<Guid, (Esito Esito, Guid Chiave)>();
+        for (var i = 0; i < testCase.Esecuzioni.Count; i++)
+        {
+            var rev = testCase.Esecuzioni[i];
+            var corrente = new Dictionary<Guid, (Esito Esito, Guid Chiave)>();
+            foreach (var c in rev.Condizioni)
+            {
+                if (!c.Esito.EEseguito()) continue;
+                bool nuova;
+                Guid chiave;
+                if (c.EsecuzioneUid is { } id) { chiave = id; nuova = !viste.Contains(id); }
+                else if (precedente.TryGetValue(c.Uid, out var p) && p.Esito == c.Esito) { chiave = p.Chiave; nuova = false; }
+                else { chiave = Guid.NewGuid(); nuova = true; }
+                viste.Add(chiave);
+                corrente[c.Uid] = (c.Esito, chiave);
+                if (!nuova || !rev.EsecuzioneDaOperatore) continue;
+                var operatore = string.IsNullOrWhiteSpace(c.OperatoreEsecuzione) ? rev.Operatore : c.OperatoreEsecuzione;
+                if (string.IsNullOrEmpty(operatore)) continue;
+                yield return (i, operatore, Math.Max(1, EcuUnits(testCase, c).Count));
+            }
+            precedente = corrente;
+        }
+    }
+
+    /// <summary>Unita di lavoro per REV attribuite all'operatore della REV stessa (colonna test_revision.unit_count,
+    /// aggregata per r.operatore): stessa regola di <see cref="EnumerateOperatorWork"/>.</summary>
+    public static int[] OperatorWorkUnitsPerRevision(TestCase testCase)
+    {
+        var unita = new int[testCase.Esecuzioni.Count];
+        foreach (var (indice, operatore, units) in EnumerateOperatorWork(testCase))
+            if (string.Equals(operatore, testCase.Esecuzioni[indice].Operatore, StringComparison.OrdinalIgnoreCase))
+                unita[indice] += units;
+        return unita;
+    }
+
+    /// <summary>Assegna il riconoscimento (operatore/data/identita) alle operazioni della REV corrente che hanno appena
+    /// raggiunto uno stato finale, ed eredita quello della REV precedente per le copie non toccate. Tocca solo l'ultima
+    /// REV (le precedenti sono storiche e immutabili) e non produce differenze "tecniche" (non crea REV).</summary>
+    public static void RiconosciEsecuzioni(TestCase testCase)
+    {
+        if (testCase.Esecuzioni.Count == 0) return;
+        var rev = testCase.Esecuzioni[^1];
+        if (!rev.EsecuzioneDaOperatore) return;
+        var prec = testCase.Esecuzioni.Count > 1 ? testCase.Esecuzioni[^2].Condizioni : null;
+        foreach (var c in rev.Condizioni)
+        {
+            if (!c.Esito.EEseguito())
+            {
+                c.OperatoreEsecuzione = null; c.DataEsecuzione = null; c.EsecuzioneUid = null;
+                continue;
+            }
+            var p = prec?.FirstOrDefault(x => x.Uid == c.Uid && x.Esito.EEseguito());
+            var copiaInalterata = p != null && p.Esito == c.Esito;
+            var riconoscimentoObsoleto = p != null && p.Esito != c.Esito && p.EsecuzioneUid.HasValue && p.EsecuzioneUid == c.EsecuzioneUid;
+            if (c.EsecuzioneUid.HasValue && !riconoscimentoObsoleto) continue;
+            if (copiaInalterata)
+            {
+                // Senza riconoscimento sulla REV precedente (dato legacy) resta la deduzione al momento del conteggio.
+                c.OperatoreEsecuzione = p!.OperatoreEsecuzione; c.DataEsecuzione = p.DataEsecuzione; c.EsecuzioneUid = p.EsecuzioneUid;
+                continue;
+            }
+            c.OperatoreEsecuzione = string.IsNullOrWhiteSpace(rev.Operatore) ? null : rev.Operatore;
+            c.DataEsecuzione = rev.Data;
+            c.EsecuzioneUid = Guid.NewGuid();
+        }
+    }
+
     public static int CountAttemptUnits(TestCase testCase) =>
         testCase.Esecuzioni.Sum(e => CountAttemptUnits(testCase, e));
 

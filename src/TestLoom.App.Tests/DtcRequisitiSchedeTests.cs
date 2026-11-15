@@ -34,24 +34,39 @@ public sealed class DtcRequisitiSchedeTests : IDisposable
     }
 
     [Fact]
-    public void Schede_NonMescolanoLeRighe_ENuovoImpostaIlTipoDellaScheda()
+    public async Task Schede_NonMescolanoLeRighe_ENuovoImpostaIlTipoDellaScheda()
     {
-        var state = CreaStato();
-        state.Master.Requisiti.Save(new List<Requisito> { Std("S1"), Extra("D1"), Std("S2") });
-        using var std = new RequisitiViewModel(state);
-        using var extra = new RequisitiViewModel(state, TipoRequisito.Extra);
+        // ConfirmService.Handler e' statico: un handler rimasto da un altro test che rifiuta l'abbandono delle modifiche
+        // farebbe restare in modifica la scheda Extra (e il suo lock). Il test fissa la risposta e poi ripristina.
+        var handlerOriginale = ConfirmService.Handler;
+        ConfirmService.Handler = (_, _, _, _) => Task.FromResult(true);
+        try
+        {
+            var state = CreaStato();
+            state.Master.Requisiti.Save(new List<Requisito> { Std("S1"), Extra("D1"), Std("S2") });
+            using var std = new RequisitiViewModel(state);
+            using var extra = new RequisitiViewModel(state, TipoRequisito.Extra);
 
-        Assert.Equal(new[] { "S1", "S2" }, std.ItemsAttivi.Select(r => r.Id));
-        Assert.Equal(new[] { "D1" }, extra.ItemsAttivi.Select(r => r.Id));
+            Assert.Equal(new[] { "S1", "S2" }, std.ItemsAttivi.Select(r => r.Id));
+            Assert.Equal(new[] { "D1" }, extra.ItemsAttivi.Select(r => r.Id));
 
-        extra.IniziaModificaCommand.AttendiModifica();
-        extra.NuovoCommand.Execute(null);
-        Assert.Equal(TipoRequisito.Extra, RequisitoApplicabilita.TipoDi(extra.ElementoSelezionato!));
-        extra.AnnullaCommand.Execute(null);
+            extra.IniziaModificaCommand.AttendiModifica();
+            Assert.True(extra.InModifica, "la scheda Extra deve essere entrata in modifica (lock acquisito)");
+            extra.NuovoCommand.Execute(null);
+            Assert.Equal(TipoRequisito.Extra, RequisitoApplicabilita.TipoDi(extra.ElementoSelezionato!));
+            await extra.AnnullaCommand.ExecuteAsync(null);
+            // Le due schede condividono lo stesso file master e quindi lo stesso lock: Annulla rilascia la sessione in modo
+            // asincrono. Senza attenderlo la seconda scheda trova il lock ancora occupato, non entra in modifica e
+            // NuovoCommand non fa nulla (ElementoSelezionato nullo -> NullReferenceException in TipoDi), a seconda del carico.
+            if (extra.RilascioSessioneLockInCorso is { } rilascio)
+                await rilascio.WaitAsync(TimeSpan.FromSeconds(10));
 
-        std.IniziaModificaCommand.AttendiModifica();
-        std.NuovoCommand.Execute(null);
-        Assert.Equal(TipoRequisito.Standard, RequisitoApplicabilita.TipoDi(std.ElementoSelezionato!));
+            std.IniziaModificaCommand.AttendiModifica();
+            Assert.True(std.InModifica, "la scheda Standard deve poter entrare in modifica dopo il rilascio del lock della Extra");
+            std.NuovoCommand.Execute(null);
+            Assert.Equal(TipoRequisito.Standard, RequisitoApplicabilita.TipoDi(std.ElementoSelezionato!));
+        }
+        finally { ConfirmService.Handler = handlerOriginale; }
     }
 
     [Fact]

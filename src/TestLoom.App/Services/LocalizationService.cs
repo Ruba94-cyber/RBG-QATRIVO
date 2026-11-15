@@ -49,6 +49,15 @@ public sealed partial class LocalizationService : INotifyPropertyChanged
 
     /// <summary>Ricerca per chiave: francese se la lingua è "fr" e la chiave ha una traduzione francese;
     /// altrimenti inglese (anche per "fr" senza traduzione); chiave sconosciuta: la chiave stessa.</summary>
+    /// <summary>True se la chiave esiste nel dizionario (testo nella lingua corrente, senza ripiegare sulla chiave stessa).</summary>
+    public bool TryTraduci(string chiave, out string testo)
+    {
+        testo = "";
+        if (!Dizionario.ContainsKey(chiave)) return false;
+        testo = Traduci(chiave);
+        return true;
+    }
+
     public string Traduci(string chiave)
     {
         if (!Dizionario.TryGetValue(chiave, out var coppia)) return chiave;
@@ -174,6 +183,8 @@ public sealed partial class LocalizationService : INotifyPropertyChanged
         ["EstaRptReopened"] = ("Riaperture rilevate:", "Observed reopenings:"),
         ["EstaRptUpperBoundHelp"] = ("I tempi Apertura → Testing/Closed sono soltanto LIMITI SUPERIORI. La transizione reale potrebbe essere precedente. I conteggi includono solo cambi osservati dopo il baseline.", "Open → Testing/Closed intervals are UPPER BOUNDS only. The actual transition may have occurred earlier. Counts include only changes observed after baseline."),
         ["EstaRptRowHelp"] = ("Una riga per TICKET, anche con più NC/CR. 'Rilevato' = prima lettura RBG - QATRIVO del cambiamento, non data esatta di transizione. 'Non noto' = dato storico non disponibile.", "One row per TICKET, even with multiple NC/CRs. 'Observed' means first RBG - QATRIVO detection, not the exact transition date. 'Unknown' means historical data is unavailable."),
+        ["EstaRptCommentsTitle"] = ("Commenti Ticketing del ticket selezionato", "Ticketing comments of the selected ticket"),
+        ["EstaRptCommentsEmpty"] = ("Nessun commento in cache per il ticket selezionato (selezionane uno o aggiorna da Ticketing).", "No cached comments for the selected ticket (select one or refresh from Ticketing)."),
         ["EstaRptColEsta"] = ("TICKET", "TICKET"),
         ["EstaRptColTitle"] = ("Titolo", "Title"),
         ["EstaRptColRecord"] = ("NC / CR", "NC / CR"),
@@ -644,6 +655,11 @@ public sealed partial class LocalizationService : INotifyPropertyChanged
         ["TestListExportCompletoSuccessoFmt"] = ("Esportati {0} Test con tutte le revisioni, operazioni e i campi.", "Exported {0} Tests with every revision, operation and field."),
         ["TestListExportCompletoErrore"] = ("Impossibile esportare i Test. Nessun file parziale è stato salvato.", "Could not export Tests. No partial file was saved."),
         ["TestListExportCompletoAnnullaBtn"] = ("Annulla export", "Cancel export"),
+        ["EditorParametriStrumentoLetturaToggle"] = ("Mostra anche campi vuoti", "Show empty fields too"),
+        ["EditorCampiStrumentiNessunCompilato"] = ("Nessun campo strumento compilato.", "No instrument field filled in."),
+        ["AuditColonneBtn"] = ("Colonne", "Columns"),
+        ["EditorCampiStrumentiSpecificiTitoloSolaLettura"] = ("Campi specifici degli strumenti", "Instrument-specific fields"),
+        ["EditorCampiStrumentiSpecificiVuoto"] = ("Nessuno strumento selezionato in questo test.", "No instrument selected in this test."),
         ["EditorCampiStrumentiSpecificiTitolo"] = ("Campi specifici degli strumenti · espandi per compilare", "Instrument-specific fields · expand to fill in"),
         ["FunzionalitaMancanteTitolo"] = ("Test incompleto: Funzionalità mancante", "Incomplete Test: missing Functionality"),
         ["FunzionalitaMancanteMsg"] = ("⚠ Senza una Funzionalità associata, questo Test risulterà NON COMPLETAMENTE COMPILATO.\n\nLa Funzionalità serve anche per generare correttamente la reportistica: copertura, statistiche e report per Funzionalità potrebbero risultare incompleti o non attribuire questo Test.\n\nVuoi salvare comunque il Test incompleto oppure tornare indietro e selezionare la Funzionalità?", "⚠ Without a linked Functionality, this Test will be INCOMPLETELY FILLED IN.\n\nFunctionality is also needed to generate accurate reports: coverage, statistics and reports by Functionality may be incomplete or omit this Test.\n\nDo you want to save the incomplete Test anyway, or go back and select a Functionality?"),
@@ -2028,6 +2044,19 @@ public sealed partial class LocalizationService : INotifyPropertyChanged
         ["TxMotivoRicevutaAssente"] = ("ricevuta non presente nel ledger", "receipt not present in the ledger"),
         ["TxMarkerNonRimovibile"] = ("marker residuo non rimovibile", "stale marker cannot be removed"),
         ["TxMarkerScadutoFmt"] = ("Il salvataggio RBG - QATRIVO del PC {0} (ultimo segno di vita {1}) risulta interrotto, ma la sua ricevuta non è confermabile ({2}). Le scritture restano bloccate finché il PC proprietario completa il ripristino o il ledger diventa verificabile.", "The RBG - QATRIVO save from PC {0} (last heartbeat {1}) appears interrupted, but its receipt cannot be confirmed ({2}). Writes stay blocked until the owning PC completes recovery or the ledger becomes verifiable."),
+        ["SalvataggioBloccatoStatoFmt"] = ("Salvataggio non consentito in questo momento: {0}", "Saving is not allowed right now: {0}"),
+        ["EstaLinkDalTestTooltip"] = ("TICKET collegato al Test di questa NC", "TICKET linked to this NC's Test"),
+        ["OneDriveSolaLetturaCaricamentoFermoFmt"] = ("OneDrive non sta caricando le modifiche: {0} file in attesa da oltre 10 minuti. Controlla che OneDrive non sia in pausa, che l'account sia connesso e che la rete funzioni, poi premi Riprova. Intanto i dati restano in sola lettura per non perdere lavoro.", "OneDrive is not uploading changes: {0} file(s) waiting for more than 10 minutes. Check that OneDrive is not paused, the account is signed in and the network works, then press Retry. Meanwhile data stays read-only so no work is lost."),
+        ["HandshakeConfermataFmt"] = ("Sincronizzazione confermata: {0} postazione/i hanno ricevuto le tue ultime scritture.", "Sync confirmed: {0} workstation(s) received your latest writes."),
+        ["HandshakeInAttesaFmt"] = ("Sincronizzazione non ancora confermata: {0} di {1} postazioni attive non hanno ancora ricevuto le tue ultime scritture.", "Sync not confirmed yet: {0} of {1} active workstations have not received your latest writes."),
+        ["HandshakeNessunaPostazione"] = ("Nessun'altra postazione attiva: solo lo stato locale dei file è verificabile.", "No other active workstation: only the local file state can be verified."),
+        ["HandshakeUscitaNonConfermataFmt"] = ("Le altre postazioni attive ({0}) non hanno ancora confermato la ricezione. I tuoi dati restano salvati e si sincronizzeranno appena OneDrive è di nuovo attivo.", "The other active workstations ({0}) have not confirmed receipt yet. Your data is saved and will sync as soon as OneDrive is active again."),
+        ["ForkAttesaParzialeFmt"] = ("Se il ramo non arriva, potrai risolvere con i rami disponibili tra circa {0} ore (attesa minima di 24 ore dall'ultimo evento mancante).", "If the branch does not arrive, you will be able to resolve with the available branches in about {0} hours (24-hour minimum wait from the latest missing event)."),
+        ["ForkParzialeConfermaTitolo"] = ("Risolvere con i rami disponibili?", "Resolve with the available branches?"),
+        ["ForkParzialeConfermaBodyFmt"] = ("Per il Test {0} mancano {1} ramo/i recovery e sono passate più di 24 ore. Puoi procedere con i rami presenti: le versioni originali e un record dei rami mancanti vengono salvati nel recovery-bin, e un ramo che arrivasse dopo resta recuperabile. Rami mancanti:", "For Test {0}, {1} recovery branch(es) are missing and more than 24 hours have passed. You can proceed with the branches present: the original versions and a record of the missing branches are saved in the recovery-bin, and a branch arriving later stays recoverable. Missing branches:"),
+        ["ForkParzialeSi"] = ("Risolvi con i rami disponibili", "Resolve with available branches"),
+        ["ForkRamoMancanteAssenteFmt"] = ("- evento {0} del {1} (postazione {2}): il file di recovery non è ancora arrivato da OneDrive.", "- event {0} of {1} (workstation {2}): the recovery file has not arrived from OneDrive yet."),
+        ["ForkRamoMancanteNonValidoFmt"] = ("- evento {0} del {1} (postazione {2}): il file di recovery c'è ma non è leggibile o non corrisponde (sincronizzazione incompleta?).", "- event {0} of {1} (workstation {2}): the recovery file exists but is unreadable or does not match (incomplete sync?)."),
         ["ForkRecoveryMancanteFmt"] = ("Mancano {0} ramo/i recovery del conflitto {1}. Nessun merge parziale è consentito: sincronizza le altre postazioni/OneDrive e premi Aggiorna.", "{0} recovery branch(es) are missing for conflict {1}. Partial merges are not allowed: synchronize the other workstations/OneDrive and press Refresh."),
         ["ForkRisoluzioneAnnullata"] = ("Risoluzione annullata. Nessun dato è stato modificato.", "Resolution canceled. No data was modified."),
         ["ForkRisoltoFmt"] = ("Conflitto di sincronizzazione del Test {0} risolto e salvato correttamente.", "Synchronization conflict for Test {0} resolved and saved successfully."),
@@ -2262,7 +2291,29 @@ public sealed partial class LocalizationService : INotifyPropertyChanged
         ["ImportUdtScegliMainTitolo"] = ("Scegli il log principale UnitLogger", "Choose the UnitLogger main log"),
         ["ImportUdtWuFileTipo"] = ("Log e report (*.log, *.log.*, *.txt)", "Logs and reports (*.log, *.log.*, *.txt)"),
         ["ImportUdtMainFileTipo"] = ("Log principale UnitLogger (udt_main)", "UnitLogger main logs (udt_main)"),
-        ["ImportaLogUdtWuBtn"] = ("Importa log WU...", "Import WU log..."),
+        ["ImportaLogUdtWuBtn"] = ("Log WU (file o cartella)...", "WU log (files or folder)..."),
+        ["ImportLogWuTitolo"] = ("Log della Pacchetto", "Package logs"),
+        ["ImportLogWuIntro"] = ("Aggiungi i file di log della WU (anche piu' file, es. BaseCustomApp.log e le sue rotazioni .1, .2) oppure la cartella che li contiene. Un'operazione corrisponde a una sola Pacchetto.", "Add the WU log files (several files are fine, e.g. BaseCustomApp.log and its rotations .1, .2) or the folder that contains them. One operation corresponds to a single Package."),
+        ["ImportLogWuAggiungiFileBtn"] = ("Aggiungi file log...", "Add log files..."),
+        ["ImportLogWuAggiungiCartellaBtn"] = ("Aggiungi cartella log...", "Add log folder..."),
+        ["ImportLogWuScegliFileTitolo"] = ("Scegli i file di log della WU", "Choose the WU log files"),
+        ["ImportLogWuScegliCartellaTitolo"] = ("Scegli la cartella dei log della WU", "Choose the WU log folder"),
+        ["ImportLogWuConteggioFmt"] = ("File di log selezionati: {0}", "Selected log files: {0}"),
+        ["ImportLogWuIgnoratiFmt"] = ("Ignorati {0}: {1}", "Ignored {0}: {1}"),
+        ["ImportLogWuMotivoEstensioneNonAccettata"] = ("tipo di file non accettato", "file type not accepted"),
+        ["ImportLogWuMotivoNonEsiste"] = ("file inesistente", "file not found"),
+        ["ImportLogWuMotivoNonLeggibile"] = ("file non leggibile", "unreadable file"),
+        ["ImportLogWuMotivoVuoto"] = ("file vuoto", "empty file"),
+        ["ImportLogWuMotivoDuplicato"] = ("gia' presente nell'elenco", "already in the list"),
+        ["ImportLogWuMotivoAltraFamiglia"] = ("log di un'altra Pacchetto", "log of another Package"),
+        ["ImportLogWuNessunLog"] = ("Nessun file di log valido nella selezione. Scegli file .log/.txt della WU o la cartella che li contiene.", "No valid log file in the selection. Choose the WU .log/.txt files or the folder that contains them."),
+        ["ImportLogWuCartellaVuotaFmt"] = ("La cartella \"{0}\" non contiene log validi.", "The folder \"{0}\" contains no valid logs."),
+        ["ImportLogWuAmbiguoFmt"] = ("La selezione contiene log di {0} famiglie diverse ({1}). Un'operazione corrisponde a una sola Pacchetto e i log di WU diverse non si aggregano: rimuovi i file in eccesso.", "The selection contains logs of {0} different families ({1}). One operation corresponds to a single Package and logs of different WUs are not merged: remove the extra files."),
+        ["ImportLogWuRimuoviBtn"] = ("Rimuovi", "Remove"),
+        ["ImportLogWuImportaBtn"] = ("Importa", "Import"),
+        ["ImportLogWuProgressoVerifica"] = ("Verifica file {0} di {1}", "Checking file {0} of {1}"),
+        ["ImportLogWuProgressoLettura"] = ("Lettura file {0} di {1}", "Reading file {0} of {1}"),
+        ["ImportLogWuErroreLetturaFmt"] = ("Lettura dei log non riuscita: {0}", "Could not read the logs: {0}"),
         ["ImportaLogUdtMainBtn"] = ("Importa log main...", "Import main log..."),
         ["ImportExcelGuidaTestoFmt"] = ("Prepara un file .xlsx o .xls con una riga per elemento. L'import legge le colonne in base alla posizione: le intestazioni possono avere qualsiasi testo.\n\n{0}\n\nLe righe vuote vengono ignorate; gli elementi già presenti in genere non vengono sovrascritti. Per componente e Funzionalità le associazioni vengono invece aggiunte. Dopo questo avviso potrai scegliere il file, il foglio e la riga delle intestazioni.", "Prepare an .xlsx or .xls file with one row per item. Columns are read by position, so header text can be anything.\n\n{0}\n\nBlank rows are ignored; existing items are generally not overwritten. component and Functionality associations are added instead. After this notice you can choose the file, sheet, and header row."),
         ["ImportDtcGuidaTestoFmt"] = ("Prepara il file guasto nel formato indicato. Sono accettati Excel (.xlsx/.xls), CSV e TXT.\n\n{0}\n\nPer Excel scegli il foglio e la riga da usare come intestazione: quella riga viene esclusa e i dati successivi sono letti per posizione. CSV/TXT possono avere intestazioni riconosciute (Requisito, guasto, componente, Prodotto) oppure essere senza intestazione; accettano il separatore punto e virgola. Dopo questo avviso potrai scegliere il file.", "Prepare the fault file in the format shown. Excel (.xlsx/.xls), CSV, and TXT are supported.\n\n{0}\n\nFor Excel, choose the sheet and header row: that row is excluded, and subsequent data is read by position. CSV/TXT may use recognized headers (Requirement, fault, component, Product) or be headerless; semicolon separators are supported. After this notice you can choose the file."),
@@ -2619,6 +2670,19 @@ public sealed partial class LocalizationService : INotifyPropertyChanged
         ["AvvioTempoRimanenteFmt"] = ("Tempo stimato rimanente: {0}", "Estimated time remaining: {0}"),
         ["AvvioCalcoloStimaTesto"] = ("Calcolo della stima in corso…", "Estimate in progress…"),
         ["AvvioTotaleSconosciutoTesto"] = ("Totale non ancora conosciuto…", "Total not known yet…"),
+        ["OneDriveVerificaTesto"] = ("Verifica della sincronizzazione OneDrive…", "Checking OneDrive synchronization…"),
+        ["OneDriveAvvioClientTesto"] = ("Avvio del client OneDrive…", "Starting the OneDrive client…"),
+        ["OneDriveScaricamentoFmt"] = ("Sincronizzazione OneDrive: {0} file da scaricare, {1} da caricare…", "OneDrive sync: {0} files to download, {1} to upload…"),
+        ["OneDriveAttesaCaricamentoFmt"] = ("Attesa del caricamento su OneDrive: {0} file…", "Waiting for OneDrive to upload {0} files…"),
+        ["OneDriveSolaLetturaTimeoutFmt"] = ("OneDrive non ha completato la sincronizzazione entro il tempo previsto ({0} file da scaricare, {1} da caricare). I dati sono aperti in sola lettura per non scrivere su informazioni non aggiornate.", "OneDrive did not finish synchronizing in time ({0} files to download, {1} to upload). Data is open read-only to avoid writing on outdated information."),
+        ["OneDriveSolaLetturaClientTesto"] = ("Il client OneDrive non è in esecuzione e non è stato possibile avviarlo. I dati sono aperti in sola lettura per non scrivere su informazioni non aggiornate: avvia OneDrive e premi Riprova.", "The OneDrive client is not running and could not be started. Data is open read-only to avoid writing on outdated information: start OneDrive and press Retry."),
+        ["OneDriveRiprovaBtn"] = ("Riprova", "Retry"),
+        ["OneDriveUscitaTitolo"] = ("Chiusura: sincronizzazione OneDrive", "Closing: OneDrive synchronization"),
+        ["OneDriveUscitaTesto"] = ("Sincronizzazione OneDrive in corso. Attendi il completamento prima di spegnere il PC.", "OneDrive synchronization in progress. Wait for it to finish before turning off the PC."),
+        ["OneDriveUscitaFmt"] = ("File ancora da caricare: {0}", "Files still to upload: {0}"),
+        ["OneDriveUscitaChiudiSubito"] = ("Chiudi senza attendere", "Close without waiting"),
+        ["OneDriveUscitaChiudi"] = ("Chiudi", "Close"),
+        ["OneDriveUscitaAvvisoFmt"] = ("Restano {0} file da caricare su OneDrive. Verranno ritentati al prossimo avvio: lascia OneDrive in esecuzione per completare il caricamento.", "{0} files are still waiting to be uploaded to OneDrive. They will be retried at the next start: leave OneDrive running to complete the upload."),
         ["DtcCaricamentoInCorsoTesto"] = ("Caricamento guasto in corso...", "Loading Faults..."),
         ["DtcAnteprimaRequisitiFmt"] = ("Requisiti toccati: {0}", "Requirements affected: {0}"),
         ["DtcAnteprimaNuoviFmt"] = ("Guasto nuovi da aggiungere: {0}", "New Faults to add: {0}"),

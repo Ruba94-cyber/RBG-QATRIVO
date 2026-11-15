@@ -129,6 +129,13 @@ public static class PhaseDMasterConflictResolver
                 throw new PhaseDMasterBusinessKeyConflictException(catalogo, scelta.BusinessKey, proprietario, entityUid);
         }
 
+        // Nulla si perde: le versioni scartate vanno nel recovery-bin PRIMA di pubblicare la scelta. Se l'archivio non e'
+        // scrivibile la risoluzione non avviene (le versioni restano comunque nei journal).
+        var sceltaId = VersionIdOf(scelta.Operation, scelta.PayloadSha256);
+        ArchiviaVersioni(paths, catalogo, entityUid, testa.ConcurrentHeads
+            .Where(m => !VersionIdOf(m.Operation, m.PayloadSha256).Equals(sceltaId, StringComparison.OrdinalIgnoreCase)),
+            operatore, "versione scartata nella risoluzione di un conflitto del catalogo master");
+
         var isUpsert = scelta.Operation == PhaseDMasterMutationOperation.Upsert;
         var nuova = new PhaseDMasterMutation
         {
@@ -150,6 +157,142 @@ public static class PhaseDMasterConflictResolver
             throw new PhaseDMasterConflictException(catalogo, new[] { entityUid });
 
         return new PhaseDMasterRisoluzione(catalogo, entityUid, nuova.MutationId, scelta.Operation, operatore);
+    }
+
+    /// <summary>Una versione concorrente con il suo contenuto completo (per il confronto grafico: il JSON non viene mai mostrato).</summary>
+    public sealed record VersionePerConfronto(string VersionId, PhaseDMasterMutationOperation Operazione, DateTime TimestampUtc,
+        bool Visualizzata, string BusinessKey, byte[] PayloadUtf8);
+
+    /// <summary>Versioni concorrenti con payload, ordinate per data. La visualizzata (testa deterministica) e' contrassegnata.</summary>
+    public static IReadOnlyList<VersionePerConfronto> CaricaVersioni(string root, string catalogo, Guid entityUid, string? localBaseDirectory = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(root);
+        var lettore = new PhaseDMasterScalableReader(root, localBaseDirectory);
+        var stato = lettore.LoadPatchState(catalogo, new[] { entityUid }, Array.Empty<string>());
+        if (!stato.Heads.TryGetValue(entityUid, out var testa) || !testa.HasConflict)
+            return Array.Empty<VersionePerConfronto>();
+        var visualizzataId = VersionIdOf(testa.Operation, testa.PayloadSha256);
+        return testa.ConcurrentHeads
+            .GroupBy(m => VersionIdOf(m.Operation, m.PayloadSha256), StringComparer.Ordinal)
+            .Select(g => g.OrderBy(m => m.TimestampUtc).ThenBy(m => m.MutationId).Last())
+            .Select(m =>
+            {
+                var id = VersionIdOf(m.Operation, m.PayloadSha256);
+                return new VersionePerConfronto(id, m.Operation, m.TimestampUtc, id == visualizzataId, m.BusinessKey,
+                    System.Text.Encoding.UTF8.GetBytes(m.PayloadJson ?? ""));
+            })
+            .OrderBy(v => v.TimestampUtc).ThenBy(v => v.VersionId, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Risolve un conflitto con una versione UNITA campo per campo (scelta/modifica dell'utente nel confronto grafico).
+    /// Tutte le versioni concorrenti vengono archiviate nel recovery-bin PRIMA di pubblicare; la nuova mutation domina tutte le
+    /// teste (stesso meccanismo di <see cref="Risolvi"/>). La chiave di business della voce non puo' essere composta da campi
+    /// presi da versioni diverse o scritta a mano: deve coincidere con quella di una delle versioni.
+    /// </summary>
+    public static PhaseDMasterRisoluzione RisolviConUnione(
+        DataPaths paths, string catalogo, Guid entityUid, byte[] payloadUnito, string operatore, bool isMaster,
+        string? localBaseDirectory = null)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        ArgumentException.ThrowIfNullOrWhiteSpace(catalogo);
+        ArgumentNullException.ThrowIfNull(payloadUnito);
+        if (entityUid == Guid.Empty) throw new ArgumentException("Uid vuoto.", nameof(entityUid));
+        if (!isMaster)
+            throw new UnauthorizedAccessException("Solo un Master può risolvere un conflitto fra postazioni nei cataloghi master.");
+        WorkspaceWritePolicy.EnsureCanWrite(paths, $"Risoluzione conflitto master Phase D {catalogo}");
+
+        var lettore = new PhaseDMasterScalableReader(paths.Root, localBaseDirectory);
+        var stato = lettore.LoadPatchState(catalogo, new[] { entityUid }, Array.Empty<string>());
+        if (!stato.Heads.TryGetValue(entityUid, out var testa) || !testa.HasConflict)
+            throw new InvalidOperationException(
+                "Nessun conflitto aperto per questa voce: forse un'altra postazione l'ha già risolto. Aggiorna l'elenco.");
+
+        System.Text.Json.Nodes.JsonObject unito;
+        try
+        {
+            unito = System.Text.Json.Nodes.JsonNode.Parse(payloadUnito) as System.Text.Json.Nodes.JsonObject
+                    ?? throw new InvalidDataException("La versione unita non è un record valido.");
+        }
+        catch (JsonException ex) { throw new InvalidDataException("La versione unita non è un record valido.", ex); }
+
+        var businessKey = ScegliChiaveDiBusiness(testa.ConcurrentHeads, unito);
+        if (!PhaseDMasterKeyCollisionTolerance.IsTolerant(catalogo))
+        {
+            var proprietari = lettore.LoadPatchState(catalogo, Array.Empty<Guid>(), new[] { businessKey }).BusinessKeyOwners;
+            if (proprietari.TryGetValue(businessKey, out var proprietario) && proprietario != entityUid)
+                throw new PhaseDMasterBusinessKeyConflictException(catalogo, businessKey, proprietario, entityUid);
+        }
+
+        ArchiviaVersioni(paths, catalogo, entityUid, testa.ConcurrentHeads, operatore,
+            "versione in conflitto incorporata in un'unione campo per campo (catalogo master)");
+
+        var payload = JsonSerializer.Serialize(unito, JsonIo.CompactOptions);
+        var nuova = new PhaseDMasterMutation
+        {
+            MutationId = Guid.NewGuid(),
+            Catalog = catalogo,
+            EntityUid = entityUid,
+            Operation = PhaseDMasterMutationOperation.Upsert,
+            VersionVector = PhaseDVersionVector.Increment(testa.VersionVector, DeviceIdentityService.GetOrCreate()),
+            PayloadJson = payload,
+            PayloadSha256 = PhaseDMasterMutation.HashPayload(payload),
+            BusinessKey = businessKey,
+            TimestampUtc = DateTime.UtcNow
+        };
+        PhaseDMasterBatchWriter.Pubblica(paths, localBaseDirectory, new[] { nuova });
+
+        var dopo = lettore.LoadPatchState(catalogo, new[] { entityUid }, Array.Empty<string>());
+        if (!dopo.Heads.TryGetValue(entityUid, out var testaDopo) || testaDopo.HasConflict)
+            throw new PhaseDMasterConflictException(catalogo, new[] { entityUid });
+        return new PhaseDMasterRisoluzione(catalogo, entityUid, nuova.MutationId, PhaseDMasterMutationOperation.Upsert, operatore);
+    }
+
+    /// <summary>La chiave di business dell'unione: quella di una versione concorrente i cui campi-chiave coincidono con
+    /// l'unione. Senza corrispondenza (chiave composta da piu' versioni o riscritta) l'unione e' rifiutata.</summary>
+    internal static string ScegliChiaveDiBusiness(IEnumerable<PhaseDMasterMutation> teste, System.Text.Json.Nodes.JsonObject unito)
+    {
+        foreach (var h in teste.Where(t => t.Operation == PhaseDMasterMutationOperation.Upsert && !string.IsNullOrWhiteSpace(t.BusinessKey)))
+        {
+            System.Text.Json.Nodes.JsonObject? obj;
+            try { obj = System.Text.Json.Nodes.JsonNode.Parse(h.PayloadJson) as System.Text.Json.Nodes.JsonObject; }
+            catch (JsonException) { continue; }
+            if (obj == null) continue;
+            var campiChiave = new List<string>();
+            foreach (var parte in h.BusinessKey.Split('|', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var campo = obj.FirstOrDefault(p => p.Value is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var s)
+                                                   && string.Equals(s?.Trim(), parte.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (campo.Key != null) campiChiave.Add(campo.Key);
+            }
+            if (campiChiave.Count == 0) continue;
+            if (campiChiave.All(c => System.Text.Json.Nodes.JsonNode.DeepEquals(obj[c], unito[c]))) return h.BusinessKey;
+        }
+        throw new InvalidOperationException(
+            "La chiave della voce (il campo che la identifica) deve restare quella di una delle due versioni: non puo' essere " +
+            "mescolata o scritta a mano. Scegliere lo stesso lato per tutti i campi che compongono il nome/codice della voce.");
+    }
+
+    private static void ArchiviaVersioni(DataPaths paths, string catalogo, Guid entityUid,
+        IEnumerable<PhaseDMasterMutation> versioni, string operatore, string motivo)
+    {
+        var cartella = string.Concat(catalogo.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '_'));
+        foreach (var m in versioni.GroupBy(v => VersionIdOf(v.Operation, v.PayloadSha256), StringComparer.Ordinal).Select(g => g.First()))
+        {
+            var bytes = m.Operation == PhaseDMasterMutationOperation.Upsert && !string.IsNullOrEmpty(m.PayloadJson)
+                ? System.Text.Encoding.UTF8.GetBytes(m.PayloadJson)
+                : System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+                {
+                    Operazione = "Eliminazione",
+                    Catalogo = catalogo,
+                    Uid = entityUid,
+                    m.TimestampUtc
+                }, JsonIo.CompactOptions));
+            var canonico = Path.Combine(paths.Root, "_ditm", "master-v2", "conflitti-risolti", cartella,
+                $"{entityUid:N}_{VersionIdOf(m.Operation, m.PayloadSha256)[..8]}.json");
+            DomainRecoveryService.ArchivePayload(paths, canonico, DomainRecoveryCategory.CatalogoMaster, bytes, operatore, motivo);
+        }
     }
 
     /// <summary>Nomi dei campi di primo livello che differiscono dalla versione mostrata. Mai i valori.</summary>

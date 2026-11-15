@@ -18,6 +18,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // Dimensione predefinita (1400x860) limitata all'area di lavoro dello schermo: su 1024x700 / 1366x768 non esce dal monitor.
+        WindowSizeClamp.Applica(this);
         // Layout adattivo (6.6.1): il modo segue la dimensione client reale, con isteresi (LayoutAdattivo). Ogni cambio
         // aggiorna le classi di questa finestra (Window.compatto / Window.minimo) e i token DynamicResource; i dialoghi
         // leggono LayoutAdattivo.ModoCorrente all'apertura. Resized arriva prima del layout della finestra.
@@ -77,6 +79,10 @@ public partial class MainWindow : Window
             var dialog = MergeConflittoDialog.Crea(conflitti);
             return await dialog.ShowDialog<IReadOnlyDictionary<string, SceltaMerge>?>(this);
         };
+
+        // Risoluzione conflitti sul record reale: confronto campo per campo e scelta della versione intera (mai JSON).
+        ConflictResolverUi.MergeHandler = richiesta => RecordMergeWindow.MostraAsync(this, richiesta);
+        ConflictResolverUi.WholeVersionHandler = richiesta => WholeVersionWindow.MostraAsync(this, richiesta);
     }
 
     private void AggiornaLayout(Size dimensione)
@@ -248,6 +254,7 @@ public partial class MainWindow : Window
                 return;
             }
             ChiusuraDiagnostica.Registra("finestra: lock editor rilasciato, chiusura confermata");
+            await SincronizzaOneDrivePrimaDiUscireAsync();
             _chiusuraConfermata = true;
             Close(); // il secondo Closing dispone il ViewModel e lascia terminare il ciclo UI normalmente.
             return;
@@ -259,6 +266,7 @@ public partial class MainWindow : Window
         {
             if (await vm.PreparaUscitaDefinitivaAsync())
             {
+                await SincronizzaOneDrivePrimaDiUscireAsync();
                 _chiusuraConfermata = true;
                 Close();
             }
@@ -291,8 +299,67 @@ public partial class MainWindow : Window
                 PortaInPrimoPiano();
                 return false;
             }
+            await SincronizzaOneDrivePrimaDiUscireAsync();
         }
         _chiusuraConfermata = true;
         return true;
+    }
+
+    private Task? _sincUscita;
+
+    /// <summary>
+    /// Uscita definitiva: attende (max ~60 s) che OneDrive carichi le ultime modifiche, mostrando "sincronizzazione in corso".
+    /// Scaduto il tempo si chiude comunque, con un avviso: i file restanti sono ritentati al prossimo avvio. Non lancia mai.
+    /// Eseguita una sola volta per sessione di chiusura; nessuna finestra se non c'è nulla da attendere.
+    /// </summary>
+    private Task SincronizzaOneDrivePrimaDiUscireAsync() => _sincUscita ??= SincronizzaOneDriveCoreAsync();
+
+    private async Task SincronizzaOneDriveCoreAsync()
+    {
+        SincronizzazioneUscitaWindow? finestra = null;
+        try
+        {
+            if (DataContext is not MainViewModel vm || string.IsNullOrWhiteSpace(vm.RadiceCondivisaCorrente)) return;
+            var radice = vm.RadiceCondivisaCorrente;
+            using var cts = new CancellationTokenSource();
+            var progress = new Progress<AvanzamentoSyncOneDrive>(a => finestra?.Aggiorna(a));
+            // Impulso di uscita con le altre postazioni: scritto subito, cosi' il caricamento qui sotto copre anche lui; la conferma
+            // di ricezione si attende in parallelo (max 30 s) e, se manca, diventa un avviso, mai un blocco.
+            var handshake = SyncHandshake.UscitaAsync(TimeSpan.FromSeconds(30), cts.Token);
+            var attesa = OneDriveSync.Servizio.AttendiCaricamentoChiusuraAsync(radice, progress, cts.Token);
+            // Nessun lampeggio di finestra se tutto è già caricato: compare solo se l'attesa supera una breve soglia.
+            if (await Task.WhenAny(attesa, Task.Delay(500)) != attesa)
+            {
+                finestra = new SincronizzazioneUscitaWindow(cts);
+                finestra.Show();
+            }
+            var esito = await attesa;
+            var restanti = esito.Esito == EsitoSyncOneDrive.Annullata
+                ? OneDriveSync.Servizio.PendenteRegistrato(radice)?.NumeroFile ?? 0
+                : esito.DaCaricare;
+            var avviso = restanti > 0 && esito.Esito != EsitoSyncOneDrive.Completata
+                ? OneDriveSync.AvvisoChiusura(esito with { DaCaricare = restanti })
+                : null;
+            var conferma = await handshake;
+            if (avviso == null && conferma?.Stato == StatoHandshake.InAttesa)
+                avviso = string.Format(LocalizationService.Instance.Traduci("HandshakeUscitaNonConfermataFmt"), conferma.InAttesa);
+            if (finestra == null && avviso != null)
+            {
+                finestra = new SincronizzazioneUscitaWindow(cts);
+                finestra.Show();
+            }
+            if (finestra != null)
+            {
+                var chiusa = new TaskCompletionSource();
+                finestra.Closed += (_, _) => chiusa.TrySetResult();
+                finestra.Termina(avviso);
+                if (avviso != null) await chiusa.Task;
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashLogService.Registra("Sincronizzazione OneDrive prima dell'uscita", ex);
+            try { finestra?.ChiudiProgrammaticamente(); } catch (Exception) { }
+        }
     }
 }

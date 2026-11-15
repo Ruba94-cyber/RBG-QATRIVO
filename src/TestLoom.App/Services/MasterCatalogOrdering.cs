@@ -29,6 +29,18 @@ public static class MasterCatalogOrdering
             .ToList();
     }
 
+    /// <summary>Stesso ordine di <see cref="Ordina{T}"/> applicato a coppie (riga, dato associato), per mantenere allineati
+    /// i dati paralleli (es. il payload sorgente) dopo l'ordinamento.</summary>
+    internal static List<(T Item, TExtra Extra)> OrdinaCoppie<T, TExtra>(IEnumerable<(T Item, TExtra Extra)> righe) where T : MasterEntity
+    {
+        ArgumentNullException.ThrowIfNull(righe);
+        return righe
+            .OrderBy(r => OrdineEsplicito(r.Item) ?? 0)
+            .ThenBy(r => PhaseDMasterBusinessKeyService.Get(r.Item), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => MasterEntityIdentityService.GetRequired(r.Item))
+            .ToList();
+    }
+
     private static int? OrdineEsplicito(MasterEntity riga) => riga switch
     {
         TestTemplate template => template.Ordine,

@@ -112,7 +112,7 @@ public static class NonConformitaExportService
                 nc.DataApertura, nc.DataChiusura, nc.Scadenza, nc.DataFix, nc.CausaProbabile?.ToString() ?? "",
                 nc.CausaProbabileAltro ?? "", nc.MotivoChiusura, nc.Descrizione, nc.Azione,
                 testCollegato?.Id ?? nc.TestCaseId, string.Join(", ", proveCollegate),
-                string.Join(", ", nc.CollegamentiPolarion.Select(t => t.Codice)), string.Join(", ", nc.ChangeRequestIds),
+                string.Join(", ", NcEstaLinks.Effettivi(nc, testCollegato).Select(l => l.Codice)), string.Join(", ", nc.ChangeRequestIds),
                 nc.DaSegnalazioneRete ? "Sì" : "No", nc.EcuSegnalate.ToString(), string.Join(", ", nc.VeicoliSegnalati),
                 string.Join(", ", nc.FunzionalitaSegnalate), nc.StrumentoSegnalato,
                 string.Join(", ", nc.ValoriStrumentoSegnalato.Select(kv => $"{kv.Key}={kv.Value}")),

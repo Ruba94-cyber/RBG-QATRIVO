@@ -467,27 +467,50 @@ public class Esecuzione
     /// Conforme con deviazioni. Una devalidazione gia' eseguita non viene mai nascosta: l'evidenza registrata resta visibile.</summary>
     public void AggiornaDevalidazioniNascoste()
     {
-        var effettive = CondizioniEffettive;
+        // Percorso veloce: senza passi di devalidazione guasto non c'e' nulla da nascondere. Si azzerano solo i flag
+        // (setter idempotenti, nessuna allocazione) senza calcolare CondizioniEffettive ne' le chiavi.
+        var haDevalidazioni = false;
+        foreach (var c in Condizioni)
+            if (c.RiguardaDtc && c.DtcPasso == PassoDtc.Devalidazione) { haDevalidazioni = true; break; }
+        if (!haDevalidazioni)
+        {
+            foreach (var c in Condizioni)
+            {
+                c.DevalidazioneNonRichiesta = false;
+                c.DevalidazioneNascosta = false;
+                c.DevalidazioneInseribile = null;
+            }
+            return;
+        }
+
         static string Chiave(Condizione c) => (c.DtcRequisitoId ?? "").Trim() + "#" + (c.DtcVeicolo ?? "").Trim().ToUpperInvariant() + "#"
             + string.Join(",", c.Componente.Select(e => (e ?? "").Trim().ToUpperInvariant()).Where(e => e.Length > 0).OrderBy(e => e, StringComparer.Ordinal))
             + "#" + (c.Guasto ?? "").Trim().ToUpperInvariant();
+        // La chiave di ogni condizione guasto si calcola UNA sola volta per chiamata.
+        var chiavi = new Dictionary<Condizione, string>(ReferenceEqualityComparer.Instance);
+        string ChiaveDi(Condizione c)
+        {
+            if (!chiavi.TryGetValue(c, out var k)) chiavi[c] = k = Chiave(c);
+            return k;
+        }
+        var effettive = CondizioniEffettive;
         var validazioni = new Dictionary<string, Esito>();
         foreach (var c in effettive)
             if (c.RiguardaDtc && (c.DtcPasso ?? PassoDtc.Validazione) == PassoDtc.Validazione)
-                validazioni[Chiave(c)] = c.Esito;
+                validazioni[ChiaveDi(c)] = c.Esito;
         var inseribili = new Dictionary<string, Condizione>();
         foreach (var c in Condizioni)
         {
             var nonRichiesta = c.RiguardaDtc && c.DtcPasso == PassoDtc.Devalidazione && c.Esito == Esito.DaEseguire
-                && validazioni.TryGetValue(Chiave(c), out var esitoValidazione)
+                && validazioni.TryGetValue(ChiaveDi(c), out var esitoValidazione)
                 && esitoValidazione is not (Esito.Conforme or Esito.ConformeConDeviazioni);
             c.DevalidazioneNonRichiesta = nonRichiesta;
             c.DevalidazioneNascosta = nonRichiesta && !c.DevalidazioneForzata;
-            if (c.DevalidazioneNascosta) inseribili[Chiave(c)] = c;
+            if (c.DevalidazioneNascosta) inseribili[ChiaveDi(c)] = c;
         }
         foreach (var c in Condizioni)
             c.DevalidazioneInseribile = c.RiguardaDtc && (c.DtcPasso ?? PassoDtc.Validazione) == PassoDtc.Validazione
-                && inseribili.TryGetValue(Chiave(c), out var dev) ? dev : null;
+                && inseribili.TryGetValue(ChiaveDi(c), out var dev) ? dev : null;
     }
 
 }
@@ -546,6 +569,23 @@ public class Condizione : INotifyPropertyChanged
     /// Uid come radice; il comando Ripeti copia la radice dell'operazione scelta. In questo modo soltanto
     /// l'ultimo tentativo della stessa operazione determina esito e anomalie, senza confronti fragili sui testi.</summary>
     public Guid? OperazioneOrigineUid { get; set; }
+
+    /// <summary>Riconoscimento dell'esecuzione (conteggio per operatore): chi ha portato QUESTA operazione a uno stato
+    /// finale (Conforme/Non conforme/Conforme con variazioni). Additivo e mai scritto se null: il JSON legacy non lo ha
+    /// e il conteggio deduce l'operatore dalla REV in cui lo stato e' comparso (vedi
+    /// <see cref="TestLoom.App.Services.OperationalSemantics.EnumerateOperatorWork"/>). Le copie in una nuova REV lo
+    /// ereditano insieme a <see cref="EsecuzioneUid"/>, quindi un'operazione non toccata non viene ricontata; una vera
+    /// riesecuzione (anche con lo stesso esito) riceve un nuovo <see cref="EsecuzioneUid"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OperatoreEsecuzione { get; set; }
+
+    /// <summary>Data dell'esecuzione riconosciuta (vedi <see cref="OperatoreEsecuzione"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? DataEsecuzione { get; set; }
+
+    /// <summary>Identita dell'esecuzione riconosciuta: uguale in tutte le copie ereditate, nuova a ogni riesecuzione.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? EsecuzioneUid { get; set; }
 
     /// <summary>Codice guasto (anagrafica DtcRequisitoEcu) a cui si riferisce questa operazione (6.5.0, punto 7):
     /// opzionale e additivo, null/assente = operazione normale (comportamento invariato per ogni Test esistente).
@@ -870,7 +910,7 @@ public class Condizione : INotifyPropertyChanged
     public List<CampoStrumentoValore>? CampiVisual
     {
         get => _campiVisual;
-        set { _campiVisual = value; OnPropertyChanged(nameof(CampiVisual)); }
+        set { _campiVisual = value; OnPropertyChanged(nameof(CampiVisual)); OnPropertyChanged(nameof(HaCampiStrumentoCompilati)); }
     }
 
     private List<GruppoCampiStrumento>? _gruppiVisual;
@@ -881,8 +921,24 @@ public class Condizione : INotifyPropertyChanged
     public List<GruppoCampiStrumento>? GruppiVisual
     {
         get => _gruppiVisual;
-        set { _gruppiVisual = value; OnPropertyChanged(nameof(GruppiVisual)); }
+        set { _gruppiVisual = value; OnPropertyChanged(nameof(GruppiVisual)); OnPropertyChanged(nameof(HaCampiStrumentoCompilati)); }
     }
+
+    private bool _parametriAperti;
+
+    /// <summary>Stato di apertura del riquadro dei campi strumento di QUESTA operazione. Solo presentazione, mai salvata:
+    /// lo imposta il ViewModel (in sola lettura aperto se contiene almeno un campo compilato) e l'Expander lo scrive
+    /// quando l'utente lo apre/chiude a mano.</summary>
+    [JsonIgnore]
+    public bool ParametriAperti
+    {
+        get => _parametriAperti;
+        set { if (_parametriAperti == value) return; _parametriAperti = value; OnPropertyChanged(nameof(ParametriAperti)); }
+    }
+
+    /// <summary>Vero se almeno un campo strumento (diretto o di gruppo) di questa operazione ha un valore salvato.</summary>
+    [JsonIgnore]
+    public bool HaCampiStrumentoCompilati => CampoStrumentoValore.AlmenoUnoCompilato(CampiVisual, GruppiVisual);
 
     /// <summary>Segnalazione generata automaticamente al salvataggio quando questa reiterazione risulta Non
     /// Conforme/Con deviazioni (redesign 2026-08: prima il collegamento viveva su ProvaTest/VerificaTest,
@@ -1125,6 +1181,34 @@ public class CampoStrumentoValore : INotifyPropertyChanged, IEvidenziabile
         OpzioniVisualizzate = CalcolaOpzioniVisualizzate();
     }
 
+    /// <summary>Definizione di "campo compilato" per la sola lettura: esiste un valore SALVATO non vuoto
+    /// (stringa non nulla e non solo spazi). In lettura i default non vengono materializzati nel dizionario
+    /// (vedi materializzaDefault), quindi un valore uguale al default compare solo se e' stato salvato
+    /// esplicitamente; per le caselle di spunta anche un "false" salvato conta come compilato, mentre un campo mai
+    /// toccato (chiave assente) no.</summary>
+    [JsonIgnore]
+    public bool HaValore => !string.IsNullOrWhiteSpace(Valore);
+
+    public static bool AlmenoUnoCompilato(IEnumerable<CampoStrumentoValore>? diretti, IEnumerable<GruppoCampiStrumento>? gruppi) =>
+        diretti?.Any(c => c.HaValore) == true || gruppi?.Any(g => g.HaCampiCompilati) == true;
+
+    private bool _modificabile = true;
+
+    /// <summary>Falso quando il campo e' mostrato in sola lettura: il controllo si disabilita senza disabilitare il
+    /// contenitore, cosi' le intestazioni dei riquadri restano apribili/chiudibili. Solo presentazione.</summary>
+    [JsonIgnore]
+    public bool Modificabile
+    {
+        get => _campoOrigineDefault?.Modificabile ?? _modificabile;
+        set
+        {
+            if (_campoOrigineDefault != null) { _campoOrigineDefault.Modificabile = value; return; }
+            if (_modificabile == value) return;
+            _modificabile = value;
+            OnPropertyChanged(nameof(Modificabile));
+        }
+    }
+
     public string? Valore
     {
         get => _campoOrigineDefault != null
@@ -1139,6 +1223,7 @@ public class CampoStrumentoValore : INotifyPropertyChanged, IEvidenziabile
             }
             if (string.IsNullOrEmpty(value)) _valori.Remove(_chiave); else _valori[_chiave] = value;
             OnPropertyChanged(nameof(Valore));
+            OnPropertyChanged(nameof(HaValore));
             OnPropertyChanged(nameof(ValoreCheckbox));
             OnPropertyChanged(nameof(ValoreCheckboxVisual));
             OnPropertyChanged(nameof(EDefaultNonModificato));
@@ -1221,10 +1306,23 @@ public class RigaEvidenziata : INotifyPropertyChanged, IEvidenziabile
 
 /// <summary>Campi con lo stesso DefinizioneCampoStrumento.Gruppo, renderizzati insieme dentro un unico
 /// pannello a tendina collassato con questo titolo (Addendum redesign 2026-08, revisione feedback QA).</summary>
-public class GruppoCampiStrumento
+public class GruppoCampiStrumento : INotifyPropertyChanged
 {
+    public event PropertyChangedEventHandler? PropertyChanged;
     public string Nome { get; set; } = "";
     public List<CampoStrumentoValore> Campi { get; set; } = new();
+
+    /// <summary>Vero se almeno un campo del gruppo ha un valore salvato (vedi CampoStrumentoValore.HaValore).</summary>
+    public bool HaCampiCompilati => Campi.Any(c => c.HaValore);
+
+    private bool _aperto;
+    /// <summary>Stato di apertura del riquadro del gruppo: lo imposta il ViewModel, l'Expander lo scrive quando l'utente lo
+    /// apre/chiude. Solo presentazione.</summary>
+    public bool Aperto
+    {
+        get => _aperto;
+        set { if (_aperto == value) return; _aperto = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Aperto))); }
+    }
 }
 
 /// <summary>File allegato a un test case (immagini o zip), salvato in una cartella compagna su disco —

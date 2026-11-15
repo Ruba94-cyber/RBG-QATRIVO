@@ -365,8 +365,13 @@ public partial class GlobalSearchViewModel : ViewModelBase
                     : AppState.TestCaseVisibileConVeicoli(test, veicoliAmmessi);
                 if (!visibile) continue;
 
-                var esecuzione = test.Esecuzioni.FirstOrDefault(e => e.Iterazione == segnalazione.EsecuzioneIterazione);
-                var condizione = esecuzione?.CondizioniEffettive.FirstOrDefault(c => c.Uid == segnalazione.CondizioneUid);
+                // Identita' (CondizioneUid) con il numero REV come semplice suggerimento: robusto alla rinumerazione delle REV unite.
+                var risolta = AnomaliaWorkflowService.RisolviProva(test, new RiferimentoProva
+                {
+                    TestId = segnalazione.TestId, TestUid = test.Uid, EsecuzioneIterazione = segnalazione.EsecuzioneIterazione,
+                    CondizioneUid = segnalazione.CondizioneUid
+                });
+                var condizione = risolta?.Condizione;
                 var componente = condizione?.Componente.ToString() ?? "";
                 var matches = Match(q, test.Id, segnalazione.TestId, segnalazione.Uid.ToString("D"),
                     segnalazione.Uid.ToString("N"), segnalazione.Stato.ToString(),

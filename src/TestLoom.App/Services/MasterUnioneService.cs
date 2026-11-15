@@ -315,6 +315,8 @@ public static class MasterUnioneService
     /// (unione/divisione del catalogo componente che svuota la lista di un'ALTRA Funzionalita).</summary>
     private static void FondiProprietaSpecifiche<T>(T scartato, T corretto, List<string> avvisi) where T : MasterEntity
     {
+        if ((object)scartato is Requisito requisitoScartato && (object)corretto is Requisito requisitoCorretto)
+            FondiCollegamentoPolarion(requisitoScartato, requisitoCorretto, avvisi);
         switch ((object)scartato)
         {
             case Requisito rs when corretto is Requisito rc && RequisitoApplicabilita.ED4D(rs) && RequisitoApplicabilita.ED4D(rc):
@@ -355,6 +357,18 @@ public static class MasterUnioneService
         }
     }
 
+    /// <summary>Collegamento Ticketing del requisito: se la voce corretta non ne ha, eredita quello della scartata (mai perdere un
+    /// collegamento); se entrambe ne hanno uno diverso vince quello della voce corretta, segnalato come avviso.</summary>
+    private static void FondiCollegamentoPolarion(Requisito scartato, Requisito corretto, List<string> avvisi)
+    {
+        var daScartato = RequisitoPolarionRegole.Di(scartato);
+        if (daScartato is null) return;
+        var daCorretto = RequisitoPolarionRegole.Di(corretto);
+        if (daCorretto is null) RequisitoPolarionRegole.Imposta(corretto, daScartato);
+        else if (!daCorretto.Equals(daScartato))
+            avvisi.Add($"Requisito: collegamento Ticketing diverso tra le due voci unite ('{daScartato}' e '{daCorretto}') — mantenuto quello della voce corretta.");
+    }
+
     /// <summary>Copia (non unione: la destinazione è una voce nuova, vuota) le stesse proprietà "utili" di
     /// FondiProprietaSpecifiche, usata da Dividi per popolare le voci create dalla divisione.</summary>
     private static void CopiaProprietaSpecifiche<T>(T origine, T destinazione) where T : MasterEntity
@@ -364,6 +378,8 @@ public static class MasterUnioneService
             case Requisito ro when destinazione is Requisito rd:
                 RequisitoApplicabilita.ImpostaTipo(rd, RequisitoApplicabilita.TipoDi(ro));
                 RequisitoApplicabilita.ImpostaSottoveicoli(rd, RequisitoApplicabilita.SottoveicoliDi(ro));
+                rd.PolarionProgetto = ro.PolarionProgetto;
+                rd.PolarionWorkItemId = ro.PolarionWorkItemId;
                 rd.VeicoliEcuD4D = ro.VeicoliEcuD4D?.Select(x => new RequisitoVeicoloEcu { Veicolo = x.Veicolo, Componente = x.Componente }).ToList();
                 break;
             case Componente eo when destinazione is Componente ed:

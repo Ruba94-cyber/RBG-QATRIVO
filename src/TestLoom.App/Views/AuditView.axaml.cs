@@ -34,29 +34,20 @@ public partial class AuditView : UserControl
 {
     private const double LarghezzaColonnaRequisito = 150;
     private const double LarghezzaColonnaEcu = 92;
-    private const double LarghezzaRequisitoMinima = 120;
-    private const double LarghezzaRequisitoMassima = 480;
-    private const double LarghezzaEcuMinima = 64;
-    private const double LarghezzaEcuMassima = 320;
-    private const double AltezzaRigaMinima = 26;
-    private const double AltezzaRigaMassima = 240;
+    private const double LarghezzaRequisitoMinima = PreferenzeMatriceAudit.LarghezzaRequisitoMinima;
+    private const double LarghezzaRequisitoMassima = PreferenzeMatriceAudit.LarghezzaRequisitoMassima;
+    private const double LarghezzaEcuMinima = PreferenzeMatriceAudit.LarghezzaEcuMinima;
+    private const double LarghezzaEcuMassima = PreferenzeMatriceAudit.LarghezzaEcuMassima;
+    private const double AltezzaRigaMinima = PreferenzeMatriceAudit.AltezzaRigaMinima;
+    private const double AltezzaRigaMassima = PreferenzeMatriceAudit.AltezzaRigaMassima;
     private const double SpessoreAreaRidimensionamento = 7;
-    private const string ChiavePreferenzeMatrice = "Audit.Matrice.Layout";
+    private const string ChiavePreferenzeMatrice = PreferenzeMatriceAudit.Chiave;
     private const string TagColonnaRequisito = "AUDIT:COLONNA:REQUISITO";
     private const string TagRiga = "AUDIT:RIGA:";
     private const string TagContenutoRiga = "AUDIT:RIGA:CONTENUTO";
     private const string TagCellaEcu = "AUDIT:CELLA:componente:";
 
     private enum TipoOperazioneMatrice { LarghezzaRequisito, LarghezzaEcu, AltezzaRiga, RiordinoEcu }
-
-    private sealed class PreferenzeMatriceAudit
-    {
-        public int Versione { get; set; } = 1;
-        public double? LarghezzaRequisito { get; set; }
-        public Dictionary<string, double> LarghezzeEcu { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-        public List<string> OrdineEcu { get; set; } = new();
-        public Dictionary<string, double> AltezzeRighe { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    }
 
     private sealed record IdentitaManigliaMatrice(TipoOperazioneMatrice Tipo, string Chiave);
     private sealed record StatoManigliaMatrice(IPointer Puntatore, Control Superficie, IdentitaManigliaMatrice Identita,
@@ -178,9 +169,9 @@ public partial class AuditView : UserControl
     /// <summary>6.5.0: due sezioni SEPARATE, Standard e Extra, con il proprio titolo (e il proprio riepilogo). 6.6.1: nello stesso
     /// scorrimento, una sola ItemsControl virtualizzata per righe sotto un'intestazione componente fissa. Il filtro per tipo
     /// (vm.FiltroTipoRequisito) decide quali sezioni mostrare.</summary>
-    private void RicostruisciGriglia(AuditViewModel vm)
+    private void RicostruisciGriglia(AuditViewModel vm, bool ricaricaPreferenze = true)
     {
-        CaricaPreferenzeMatrice();
+        if (ricaricaPreferenze) CaricaPreferenzeMatrice();
         MatriceIntestazione.Children.Clear();
         MatriceRighe.ItemsSource = null;
         _colonneVisualizzate = Array.Empty<string>();
@@ -1124,43 +1115,64 @@ public partial class AuditView : UserControl
         flyout.ShowAt(anchor);
     }
 
-    private void CaricaPreferenzeMatrice()
+    /// <summary>Menu "Colonne" della matrice, stesso modello delle altre tabelle (TableLayoutPreferences.CreaMenu): una voce con
+    /// casella per ogni componente del sottoveicolo scelto (anche quelle nascoste), l'ultima colonna visibile non si puo' nascondere, e
+    /// "Ripristina disposizione" che torna a colonne, ordine, larghezze e altezze predefinite. Salva per operatore a ogni scelta.</summary>
+    internal List<object> CostruisciVociMenuColonne(AuditViewModel vm)
     {
-        var testo = ViewStateService.LeggiPerOperatore(ChiavePreferenzeMatrice);
-        if (string.IsNullOrWhiteSpace(testo))
+        var voci = new List<object>();
+        foreach (var componente in _preferenzeMatrice.OrdineCompleto(vm.EcuColonne))
         {
-            _preferenzeMatrice = new PreferenzeMatriceAudit();
-            return;
+            var nome = componente;
+            var voce = new MenuItem
+            {
+                Header = PolarionTicketTitle.SiglaEcu(nome) is { Length: > 0 } sigla && sigla != nome ? $"{nome} ({sigla})" : nome,
+                ToggleType = MenuItemToggleType.CheckBox,
+                IsChecked = !_preferenzeMatrice.EcuNascosta(nome),
+            };
+            AutomationProperties.SetAutomationId(voce, "Audit_Colonne_Voce_" + nome);
+            voce.Click += (_, _) =>
+            {
+                if (!_preferenzeMatrice.ImpostaVisibile(nome, voce.IsChecked, vm.EcuColonne)) { voce.IsChecked = true; return; }
+                SalvaPreferenzeMatrice();
+                RicostruisciGriglia(vm, ricaricaPreferenze: false);
+            };
+            voci.Add(voce);
         }
-
-        try
-        {
-            _preferenzeMatrice = JsonSerializer.Deserialize<PreferenzeMatriceAudit>(testo) ?? new PreferenzeMatriceAudit();
-        }
-        catch (JsonException)
-        {
-            _preferenzeMatrice = new PreferenzeMatriceAudit();
-        }
-
-        var larghezze = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (componente, larghezza) in _preferenzeMatrice.LarghezzeEcu ?? new())
-            if (!string.IsNullOrWhiteSpace(componente) && double.IsFinite(larghezza))
-                larghezze[componente] = Math.Clamp(larghezza, LarghezzaEcuMinima, LarghezzaEcuMassima);
-        _preferenzeMatrice.LarghezzeEcu = larghezze;
-
-        var altezze = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (requisitoId, altezza) in _preferenzeMatrice.AltezzeRighe ?? new())
-            if (!string.IsNullOrWhiteSpace(requisitoId) && double.IsFinite(altezza))
-                altezze[requisitoId] = Math.Clamp(altezza, AltezzaRigaMinima, AltezzaRigaMassima);
-        _preferenzeMatrice.AltezzeRighe = altezze;
-        _preferenzeMatrice.OrdineEcu = (_preferenzeMatrice.OrdineEcu ?? new())
-            .Where(componente => !string.IsNullOrWhiteSpace(componente)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        if (_preferenzeMatrice.LarghezzaRequisito is { } larghezzaRequisito)
-            _preferenzeMatrice.LarghezzaRequisito = double.IsFinite(larghezzaRequisito)
-                ? Math.Clamp(larghezzaRequisito, LarghezzaRequisitoMinima, LarghezzaRequisitoMassima)
-                : null;
-        _preferenzeMatrice.Versione = 1;
+        voci.Add(new Separator());
+        var ripristina = new MenuItem { Header = LocalizationService.Instance.Traduci("RipristinaDisposizioneTabella") };
+        AutomationProperties.SetAutomationId(ripristina, "Audit_Colonne_Ripristina_MenuItem");
+        ripristina.Click += (_, _) => RipristinaColonnePredefinite(vm);
+        voci.Add(ripristina);
+        return voci;
     }
+
+    /// <summary>Cancella la preferenza dell'operatore (colonne visibili, ordine, larghezze, altezze) e ridisegna la matrice.</summary>
+    internal void RipristinaColonnePredefinite(AuditViewModel vm)
+    {
+        _preferenzeMatrice.RipristinaPredefinite();
+        SalvaPreferenzeMatrice();
+        RicostruisciGriglia(vm, ricaricaPreferenze: false);
+    }
+
+    private void OnApriMenuColonne(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control ancora || DataContext is not AuditViewModel vm) return;
+        new MenuFlyout { ItemsSource = CostruisciVociMenuColonne(vm), Placement = PlacementMode.BottomEdgeAlignedRight }.ShowAt(ancora);
+    }
+
+    /// <summary>Click destro sull'intestazione della matrice: stesso elenco colonne, come nelle altre tabelle (le celle del corpo
+    /// hanno i propri menu).</summary>
+    private void OnContextRequestedMatrice(object? sender, ContextRequestedEventArgs e)
+    {
+        if (e.Source is Visual origine && origine.GetSelfAndVisualAncestors().OfType<Button>().Any()) return; // le celle hanno i propri menu
+        if (sender is not Control ancora || DataContext is not AuditViewModel vm || vm.MatriceVuota) return;
+        new MenuFlyout { ItemsSource = CostruisciVociMenuColonne(vm) }.ShowAt(ancora, showAtPointer: true);
+        e.Handled = true;
+    }
+
+    private void CaricaPreferenzeMatrice() =>
+        _preferenzeMatrice = PreferenzeMatriceAudit.Deserializza(ViewStateService.LeggiPerOperatore(ChiavePreferenzeMatrice));
 
     private double LarghezzaRequisitoCorrente => _preferenzeMatrice.LarghezzaRequisito is { } larghezza
         ? Math.Clamp(larghezza, LarghezzaRequisitoMinima, LarghezzaRequisitoMassima)
@@ -1187,20 +1199,8 @@ public partial class AuditView : UserControl
     private IReadOnlyList<string> OrdineEcu(AuditViewModel vm) =>
         vm.HaFiltroStatiMatrice ? _colonneVisualizzate : OrdineEcuComplete(vm);
 
-    private IReadOnlyList<string> OrdineEcuComplete(AuditViewModel vm)
-    {
-        var colonne = vm.EcuColonne;
-        if (colonne.Count < 2) return colonne;
-        var ordine = new List<string>(colonne.Count);
-        foreach (var ecuSalvata in _preferenzeMatrice.OrdineEcu)
-        {
-            var corrente = colonne.FirstOrDefault(componente => componente.Equals(ecuSalvata, StringComparison.OrdinalIgnoreCase));
-            if (corrente != null && !ordine.Contains(corrente, StringComparer.OrdinalIgnoreCase)) ordine.Add(corrente);
-        }
-        foreach (var componente in colonne)
-            if (!ordine.Contains(componente, StringComparer.OrdinalIgnoreCase)) ordine.Add(componente);
-        return ordine;
-    }
+    /// <summary>componente mostrate (ordine scelto dall'utente, senza quelle nascoste dal menu Colonne), prima del filtro stati.</summary>
+    private IReadOnlyList<string> OrdineEcuComplete(AuditViewModel vm) => _preferenzeMatrice.OrdineVisibile(vm.EcuColonne);
 
     private void ConfiguraIntestazione(Border intestazione, string tag, string? ecuRiordinabile)
     {
@@ -1427,7 +1427,7 @@ public partial class AuditView : UserControl
         var elemento = ordine[stato.IndiceIniziale];
         ordine.RemoveAt(stato.IndiceIniziale);
         ordine.Insert(destinazione, elemento);
-        _preferenzeMatrice.OrdineEcu = ordine;
+        _preferenzeMatrice.ImpostaOrdineVisibili(vm.EcuColonne, ordine);
         ApplicaOrdineColonne(vm, ordine);
         return true;
     }
@@ -1459,10 +1459,9 @@ public partial class AuditView : UserControl
 
     private void SalvaPreferenzeMatrice()
     {
-        _preferenzeMatrice.Versione = 1;
         try
         {
-            ViewStateService.ScriviPerOperatore(ChiavePreferenzeMatrice, JsonSerializer.Serialize(_preferenzeMatrice));
+            ViewStateService.ScriviPerOperatore(ChiavePreferenzeMatrice, _preferenzeMatrice.Serializza());
         }
         catch (Exception ex)
         {
@@ -1512,7 +1511,7 @@ public partial class AuditView : UserControl
         var destinazione = indice + direzione;
         if (indice < 0 || destinazione < 0 || destinazione >= ordine.Count) return false;
         (ordine[indice], ordine[destinazione]) = (ordine[destinazione], ordine[indice]);
-        _preferenzeMatrice.OrdineEcu = ordine;
+        _preferenzeMatrice.ImpostaOrdineVisibili(vm.EcuColonne, ordine);
         ApplicaOrdineColonne(vm, ordine);
         return true;
     }
@@ -1521,10 +1520,14 @@ public partial class AuditView : UserControl
     /// componente" quando visibile (Piano 6.4.0, punto 1: solo Master, solo se la colonna ha almeno una cella "!").
     /// Stesso Border/stile di IntestazioneCella per le altre intestazioni; qui il contenuto è uno StackPanel
     /// invece di un solo TextBlock quando il pulsante è presente.</summary>
-    private static Border IntestazioneEcuCella(AuditViewModel vm, string ecuNome)
+    private Border IntestazioneEcuCella(AuditViewModel vm, string ecuNome)
     {
+        // Stessi colori di IntestazioneCella (colonna «Requisito»): in tema scuro lo sfondo era chiaro fisso ma il testo
+        // ereditava il colore chiaro del tema (chiaro su chiaro, illeggibile).
+        var scuro = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
         var testo = new TextBlock
         {
+            Foreground = new SolidColorBrush(Color.Parse(scuro ? "#EDF2F5" : "#1E293B")),
             Text = PolarionTicketTitle.SiglaEcu(ecuNome) is { Length: > 0 } sigla ? sigla : ecuNome, FontWeight = FontWeight.SemiBold, FontSize = 11,
             TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
@@ -1575,8 +1578,8 @@ public partial class AuditView : UserControl
 
         return new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#F8FAFC")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#E2E8F0")),
+            Background = new SolidColorBrush(Color.Parse(scuro ? "#293540" : "#F8FAFC")),
+            BorderBrush = new SolidColorBrush(Color.Parse(scuro ? "#576B7C" : "#E2E8F0")),
             BorderThickness = new Thickness(0, 0, 1, 1),
             Padding = new Thickness(6, 4),
             Child = contenuto,

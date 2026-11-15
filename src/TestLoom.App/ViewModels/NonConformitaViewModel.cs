@@ -33,11 +33,11 @@ public partial class NcRiga : ViewModelBase
         AnomalieOrdinamentoConTestComparer.VeicoliAssociati(Nc, TestCase), typeof(string), null, System.Globalization.CultureInfo.CurrentCulture)!;
     public string VeicoliElencoTooltip => (string)VeicoliElencoConverter.Instance.Convert(
         AnomalieOrdinamentoConTestComparer.VeicoliAssociati(Nc, TestCase), typeof(string), null, System.Globalization.CultureInfo.CurrentCulture)!;
-    public string TicketTesto => Nc.CollegamentiPolarion.Count > 0
-        ? string.Join(", ", Nc.CollegamentiPolarion.Select(t => t.Codice))
-        : TestCase != null && TestCase.TicketCollegati.Count > 0
-            ? string.Join(", ", TestCase.TicketCollegati.Select(t => t.Riferimento)) : "—";
-    public bool HaTicketPolarionNc => Nc.CollegamentiPolarion.Count > 0;
+    /// <summary>TICKET della NC e del Test collegato (unione senza duplicati, vedi <see cref="NcEstaLinks"/>), tutti apribili dalla tabella.
+    /// Non in cache: la riga espone dati modificabili e il calcolo e' su pochi elementi.</summary>
+    public IReadOnlyList<EstaLinkEffettivo> LinkEstaEffettivi => NcEstaLinks.Effettivi(Nc, TestCase);
+    public string TicketTesto => LinkEstaEffettivi.Count > 0 ? string.Join(", ", LinkEstaEffettivi.Select(l => l.Codice)) : "—";
+    public bool HaTicketPolarionNc => LinkEstaEffettivi.Count > 0;
     public string MotiviAperturaTesto { get; init; } = "";
     public bool HaMotiviApertura => !string.IsNullOrWhiteSpace(MotiviAperturaTesto);
 
@@ -703,28 +703,33 @@ public partial class NonConformitaViewModel : ViewModelBase, IPaginaAggiornabile
         // L'elenco deriva dall'intero archivio (Distinct su 100k stringhe ~30ms): si ricalcola solo se i dati
         // sono cambiati dall'ultima lettura (contatore di mutazione del repository).
         var generazione = _state.NonConformita.GenerazioneDati;
+        var valoriCr = _state.ChangeRequests.TryValoriElenco();
+        var versioneCr = valoriCr == null ? -1 : _state.ChangeRequests.ElencoVersione;
         var cache = _assegnatariCache;
-        if (cache != null && cache.Generazione == generazione) return cache.Elenco;
+        if (cache != null && cache.Generazione == generazione && cache.VersioneCr == versioneCr && versioneCr >= 0 && cache.Operatore == _state.Config.OperatoreAttivo) return cache.Elenco;
         var ncOwners = _state.NonConformita.TryAssegnatariDistinti(out var daIndice)
             ? daIndice
             : _state.NonConformita.PeekAllReadOnly().Select(n => n.Owner).Where(o => !string.IsNullOrWhiteSpace(o));
-        var elenco = ncOwners.Concat(_state.ChangeRequests.PeekAllReadOnly().Select(cr => cr.Responsabile))
+        // Responsabili delle CR dalla proiezione di elenco (nessuna deserializzazione delle CR); ripiego sulla lettura storica.
+        var responsabiliCr = valoriCr != null ? valoriCr.Responsabili : _state.ChangeRequests.PeekAllReadOnly().Select(cr => cr.Responsabile);
+        var elenco = ncOwners.Concat(responsabiliCr)
             .Append(_state.Config.OperatoreAttivo).Where(o => !string.IsNullOrWhiteSpace(o))
             .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
-        _assegnatariCache = new AssegnatariCache(generazione, elenco);
+        _assegnatariCache = new AssegnatariCache(generazione, versioneCr, _state.Config.OperatoreAttivo, elenco);
         return elenco;
     }
 
     private void PopolaCreatoriCr()
     {
+        var valoriCr = _state.CartellaValida ? _state.ChangeRequests.TryValoriElenco() : null;
         var creatori = _state.CartellaValida
-            ? _state.ChangeRequests.PeekAllReadOnly().Select(cr => cr.CreatoDa).Append(_state.Config.OperatoreAttivo)
+            ? (valoriCr != null ? valoriCr.Creatori : _state.ChangeRequests.PeekAllReadOnly().Select(cr => cr.CreatoDa)).Append(_state.Config.OperatoreAttivo)
                 .Where(o => !string.IsNullOrWhiteSpace(o)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(o => o, StringComparer.OrdinalIgnoreCase)
             : Enumerable.Empty<string>();
         FiltroCreatoreCr.Ripopola(ConSelezionatiMancanti(FiltroCreatoreCr, creatori));
     }
 
-    private sealed record AssegnatariCache(long Generazione, IReadOnlyList<string> Elenco);
+    private sealed record AssegnatariCache(long Generazione, long VersioneCr, string Operatore, IReadOnlyList<string> Elenco);
     private volatile AssegnatariCache? _assegnatariCache;
 
     /// <summary>Come Enum.TryParse ma rifiuta valori numerici non definiti (es. "99") letti da una config obsoleta o manomessa.</summary>
@@ -795,7 +800,6 @@ public partial class NonConformitaViewModel : ViewModelBase, IPaginaAggiornabile
         // Anomalie/CR anche dopo il primo accorpamento, feedback utente 2026-09-24). Annidando qui, entrambe le
         // chiamate sotto vedono lo scope gia' aperto e riusano la stessa lettura.
         using var letturaMaster = MasterLetturaScope.Apri();
-        _assegnatariCache = null;
         RipopolaFiltri();
         Ricarica();
     }
@@ -816,15 +820,26 @@ public partial class NonConformitaViewModel : ViewModelBase, IPaginaAggiornabile
         _refreshInCorso++;
         try
         {
-            var cr = _state.CartellaValida ? _state.ChangeRequests.PeekAllReadOnly() : Array.Empty<ChangeRequest>();
-            var veicoliCr = cr.SelectMany(c => c.VeicoliImpattati).Where(v => !string.IsNullOrWhiteSpace(v)).ToList();
-            var ecuCr = cr.SelectMany(c => c.EcuImpattate).Where(e => !string.IsNullOrWhiteSpace(e)).ToList();
-            var funzionalitaCr = cr.SelectMany(c => c.FunzionalitaImpattate).Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
+            // Valori distinti dalla proiezione di elenco (nessuna deserializzazione delle CR); ripiego sulla lettura storica.
+            var valoriCr = _state.CartellaValida ? _state.ChangeRequests.TryValoriElenco() : null;
+            List<string> veicoliCr, ecuCr, funzionalitaCr;
+            if (valoriCr != null)
+            {
+                veicoliCr = valoriCr.Veicoli.ToList(); ecuCr = valoriCr.Componente.ToList(); funzionalitaCr = valoriCr.Funzionalita.ToList();
+            }
+            else
+            {
+                var cr = _state.CartellaValida ? _state.ChangeRequests.PeekAllReadOnly() : Array.Empty<ChangeRequest>();
+                veicoliCr = cr.SelectMany(c => c.VeicoliImpattati).Where(v => !string.IsNullOrWhiteSpace(v)).ToList();
+                ecuCr = cr.SelectMany(c => c.EcuImpattate).Where(e => !string.IsNullOrWhiteSpace(e)).ToList();
+                funzionalitaCr = cr.SelectMany(c => c.FunzionalitaImpattate).Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
+            }
+            var veicoliCrSet = new HashSet<string>(veicoliCr, StringComparer.OrdinalIgnoreCase);
             var veicoliMaster = _state.CartellaValida ? _state.Master.Veicoli.Load() : Enumerable.Empty<Veicolo>();
             var opzioniGamma = (_state.CartellaValida
                     ? _state.Master.Gamma.Load().Where(g => !g.Archiviata).Select(g => g.Nome)
                     : Enumerable.Empty<string>())
-                .Concat(veicoliMaster.Where(v => veicoliCr.Contains(v.Nome, StringComparer.OrdinalIgnoreCase)).Select(v => v.GammaNome));
+                .Concat(veicoliMaster.Where(v => veicoliCrSet.Contains(v.Nome)).Select(v => v.GammaNome));
             var opzioniVeicolo = veicoliMaster.Where(v => !v.Archiviata).Select(v => v.Nome).Concat(veicoliCr);
             var opzioniEcu = (_state.CartellaValida
                     ? _state.Master.Componente.Load().Where(e => !e.Archiviata).Select(e => e.Nome)
@@ -845,7 +860,6 @@ public partial class NonConformitaViewModel : ViewModelBase, IPaginaAggiornabile
             FiltroVeicolo.Ripopola(ConSelezionatiMancanti(FiltroVeicolo, UniciOrdinati(opzioniVeicolo)));
             FiltroEcu.Ripopola(ConSelezionatiMancanti(FiltroEcu, UniciOrdinati(opzioniEcu)));
             FiltroFunzionalita.Ripopola(ConSelezionatiMancanti(FiltroFunzionalita, UniciOrdinati(opzioniFunzionalita)));
-            _assegnatariCache = null;
             PopolaCreatoriCr();
         }
         finally { _refreshInCorso--; }
@@ -1169,13 +1183,33 @@ public partial class NonConformitaViewModel : ViewModelBase, IPaginaAggiornabile
         // quindi non serve la copia di GetAll per ogni CR.
         if (!InBackground)
         {
-            ApplicaChangeRequest(CalcolaPaginaChangeRequest(_state.ChangeRequests.PeekAllReadOnly(), filtro, gamma));
+            ApplicaChangeRequest(CalcolaPaginaCr(filtro, gamma, CancellationToken.None));
             return;
         }
+        // Una richiesta piu' recente (digitazione rapida nella ricerca, cambio filtro) annulla la scansione ancora in corso.
+        _ctsChangeRequest?.Cancel();
+        var cts = _ctsChangeRequest = new CancellationTokenSource();
         _aggiornamentoChangeRequest = AvviaCalcoloInBackground(generazione, _generazioneChangeRequest,
-            () => CalcolaPaginaChangeRequest(_state.ChangeRequests.PeekAllReadOnly(), filtro, gamma),
+            () => CalcolaPaginaCr(filtro, gamma, cts.Token),
             ApplicaChangeRequest, "Anomalie: change request");
     }
+
+    private CancellationTokenSource? _ctsChangeRequest;
+
+    /// <summary>Pagina di CR dalla proiezione di elenco in RAM (filtro, ordinamento e conteggio esatti, nessuna deserializzazione di
+    /// tutte le CR); se la proiezione non e' utilizzabile (indice degradato o non allineato) ricade sulla lettura storica, con lo
+    /// stesso risultato.</summary>
+    private RisultatoChangeRequest CalcolaPaginaCr(FiltroChangeRequest f, IReadOnlyDictionary<string, string>? gammaDiVeicolo, CancellationToken ct)
+    {
+        if (_state.ChangeRequests.TryQueryElenco(ConvertiFiltroCr(f, gammaDiVeicolo), f.Ordinamento ?? ChangeRequestOrdinamento.Predefinito,
+                f.PaginaRichiesta, RighePageSize, ct, out var r))
+            return new RisultatoChangeRequest(r.Totale, r.Pagina, r.Righe);
+        return CalcolaPaginaChangeRequest(_state.ChangeRequests.PeekAllReadOnly(), f, gammaDiVeicolo, ct);
+    }
+
+    internal static ChangeRequestElencoFiltro ConvertiFiltroCr(FiltroChangeRequest f, IReadOnlyDictionary<string, string>? gammaDiVeicolo) => new(
+        f.Stato, f.Testo, f.Ticket, f.Veicoli, f.Componente, f.Gamma, f.NessunaCr, f.Assegnatari, f.Funzionalita,
+        f.AperturaDa, f.AperturaA, f.ChiusuraDa, f.ChiusuraA, f.Creatori, gammaDiVeicolo);
 
     /// <summary>Filtri della Change Request letti sul thread UI, con le stesse regole di prima (testo e ticket ripuliti, filtro
     /// presente solo se attivo).</summary>
@@ -1298,6 +1332,7 @@ public partial class NonConformitaViewModel : ViewModelBase, IPaginaAggiornabile
             Exception? errore = null;
             GateCalcoloPerTest?.Invoke();
             try { risultato = calcolo(); }
+            catch (OperationCanceledException) { Interlocked.Increment(ref _calcoliScartati); return; }
             catch (Exception ex) { errore = ex; }
             await SuThreadUi(() =>
             {

@@ -502,19 +502,23 @@ public partial class ChangeRequestEditorViewModel : ViewModelBase, IScorciatoieP
     /// ChangeRequest.TicketCollegati esisteva già (usato solo dall'export Ticketing/report), ma l'editor CR non
     /// aveva alcuna UI per popolarlo: stesso schema già in uso per TestCase (TestCaseEditorViewModel.AggiungiTicket).</summary>
     [RelayCommand]
-    private void AggiungiTicket()
+    private void AggiungiTicket() => CommittaTicketPendente();
+
+    /// <summary>Collega il ticket TICKET digitato ma non ancora aggiunto. Campo vuoto = niente da fare (true).
+    /// Chiamato anche da Salva/SalvaRapida: prima il testo digitato senza premere "Aggiungi" veniva perso in
+    /// silenzio al salvataggio (nessun collegamento Ticketing creato).</summary>
+    private bool CommittaTicketPendente()
     {
-        if (string.IsNullOrWhiteSpace(NuovoTicketRiferimento)) return;
-        var riferimento = NuovoTicketRiferimento.Trim().ToUpperInvariant();
-        if (!System.Text.RegularExpressions.Regex.IsMatch(riferimento, "^TICKET-[A-Z0-9_-]+$"))
+        if (string.IsNullOrWhiteSpace(NuovoTicketRiferimento)) return true;
+        if (!PolarionTicketLinkService.TryNormalizzaCodice(NuovoTicketRiferimento, out var riferimento))
         {
             Errore = LocalizationService.Instance.Traduci("FormatoPolarionNonValido");
-            return;
+            return false;
         }
         if (!string.IsNullOrWhiteSpace(NuovoTicketUrl) && !Uri.TryCreate(NuovoTicketUrl.Trim(), UriKind.Absolute, out _))
         {
             Errore = LocalizationService.Instance.Traduci("LinkPolarionNonValido");
-            return;
+            return false;
         }
         var ticket = new TicketRif
         {
@@ -529,6 +533,7 @@ public partial class ChangeRequestEditorViewModel : ViewModelBase, IScorciatoieP
         NuovoTicketUrl = "";
         Errore = "";
         ModificheNonSalvate = true;
+        return true;
     }
 
     [RelayCommand]
@@ -932,6 +937,7 @@ public partial class ChangeRequestEditorViewModel : ViewModelBase, IScorciatoieP
     {
         Errore = "";
         Messaggio = "";
+        if (PuoModificare && !CommittaTicketPendente()) return;
         if (StatoSelezionato != ChangeRequest.Stato)
         {
             if (!StatiWorkflow.Contains(StatoSelezionato))
@@ -987,6 +993,7 @@ public partial class ChangeRequestEditorViewModel : ViewModelBase, IScorciatoieP
             Errore = T("CrEdTransizioneNonConsentita");
             return;
         }
+        if (!CommittaTicketPendente()) return;
         if (!AssicuraGiroCompletato()) return;
         if (!IsNew && !_rimozioniAllegati.HaPendenti && StessoContenutoCorrente())
         {

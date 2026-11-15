@@ -149,7 +149,13 @@
                                       SelectedItem="{Binding Ruolo, Mode=TwoWay}" HorizontalAlignment="Stretch"
                                       Margin="2" MinHeight="32"
                                       IsEnabled="{Binding #Root.((vm:OperatoriViewModel)DataContext).InModifica}"
-                                      AutomationProperties.AutomationId="Oper_Ruolo_Combo" />
+                                      AutomationProperties.AutomationId="Oper_Ruolo_Combo">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="models:RuoloOperatore">
+                                        <TextBlock Text="{Binding Converter={x:Static local:RuoloOperatoreLabelConverter.Instance}}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

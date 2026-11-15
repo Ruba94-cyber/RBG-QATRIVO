@@ -167,6 +167,9 @@ public partial class PolarionLifecycleViewModel : ViewModelBase, IDisposable
         public string ClosedLabel => L("Closed rilevati: ", "Closures observed: ", "Clôtures observées : ") + ClosedDetected;
     }
     public ObservableCollection<PolarionTimelineEntry> PolarionReportTimeline { get; } = new();
+    /// <summary>Commenti Ticketing (cache locale) del ticket TICKET selezionato.</summary>
+    public ObservableCollection<PolarionReportService.CommentEntry> PolarionReportComments { get; } = new();
+    public bool HaCommentiPolarion => PolarionReportComments.Count > 0;
     public ObservableCollection<PolarionMonthlyTrend> PolarionMonthlyTrends { get; } = new();
     private int _polarionTimelineGeneration;
     public string PolarionTimelineTitle { get; private set; } =
@@ -348,6 +351,10 @@ public partial class PolarionLifecycleViewModel : ViewModelBase, IDisposable
     {
         var generation = ++_polarionTimelineGeneration;
         PolarionReportTimeline.Clear();
+        PolarionReportComments.Clear();
+        if (selected is not null)
+            foreach (var c in selected.Comments) PolarionReportComments.Add(c);
+        OnPropertyChanged(nameof(HaCommentiPolarion));
         PolarionTimelineTitle = selected is null
             ? L("Seleziona un ticket TICKET per vedere la timeline",
                 "Select an TICKET to view its timeline", "Sélectionnez un TICKET pour afficher sa chronologie")
@@ -424,12 +431,8 @@ public partial class PolarionLifecycleViewModel : ViewModelBase, IDisposable
                 // Match the same fallback as the main NC grid and quick-edit dialog:
                 // when the NC has no TICKET of its own, use its linked TestCase TICKET references.
                 var test = string.IsNullOrWhiteSpace(nc.TestCaseId) ? null : _state.TestCases.GetById(nc.TestCaseId);
-                var direct = nc.CollegamentiPolarion
-                    .Select(link => (Id: link.Codice, Url: link.Url));
-                var candidates = nc.CollegamentiPolarion.Count > 0
-                    ? direct
-                    : (test?.TicketCollegati.Select(link => (Id: link.Riferimento, Url: link.Url))
-                        ?? Enumerable.Empty<(string Id, string Url)>());
+                // Same rule as the NC grid: NC's own TICKET plus those of its Test, without duplicates.
+                var candidates = NcEstaLinks.Effettivi(nc, test).Select(link => (Id: link.Codice, Url: link.Url));
                 var vehicles = nc.VeicoliSegnalati.Count > 0 ? nc.VeicoliSegnalati.ToList() :
                     test?.VeicoliEffettivi.ToList() ?? new List<string>();
                 foreach (var (reference, url) in candidates)

@@ -72,6 +72,8 @@
                             <Button AutomationProperties.AutomationId="Audit_PropagaVeicolo_Button"
                                     Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPropagaVeicoloBtn}"
                                     Classes="Secondary" Click="OnPropagaVeicolo" IsVisible="{Binding PuoPropagareVeicolo}" />
+                            <Button Classes="Secondary" Click="OnApriMenuColonne" AutomationProperties.AutomationId="Audit_Colonne_Button"
+                                    Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditColonneBtn}" />
                             <Button services:Spotlight.TargetId="audit-export" Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditEsportaExcel}" Classes="Primary" Click="OnEsportaExcel" IsEnabled="{Binding !EsportazioneInCorso}" AutomationProperties.AutomationId="Audit_EsportaExcel_Button" />
                             <Button Content="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=Annulla}" Classes="Secondary" Command="{Binding AnnullaEsportazioneCommand}" IsVisible="{Binding EsportazioneInCorso}" AutomationProperties.AutomationId="Audit_AnnullaEsportazione_Button" />
                         </StackPanel>
@@ -152,7 +154,7 @@
                                HorizontalAlignment="Center" Margin="0,16" IsVisible="{Binding MatriceVuota}" />
                     <Grid x:Name="MatriceHost" RowDefinitions="Auto,*" IsVisible="{Binding !MatriceVuota}">
                         <!-- Intestazione fissa: angolo e una colonna per componente. Scorre in orizzontale insieme al corpo (AuditView.axaml.cs). -->
-                        <Border Grid.Row="0" x:Name="MatriceIntestazioneBordo" ClipToBounds="True">
+                        <Border Grid.Row="0" x:Name="MatriceIntestazioneBordo" ClipToBounds="True" ContextRequested="OnContextRequestedMatrice">
                             <StackPanel x:Name="MatriceIntestazione" Orientation="Horizontal" />
                         </Border>
                         <!-- Unico ScrollViewer della pagina: scorre in verticale e in orizzontale. Le righe sono virtualizzate. -->

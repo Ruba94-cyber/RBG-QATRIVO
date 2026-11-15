@@ -75,6 +75,64 @@ public static class DelayedForkRecoveryService
         return new ForkRecoveryLoadResult(ordered, missing);
     }
 
+    /// <summary>
+    /// Una riga per ramo mancante (evento, data, postazione) con il motivo: file non ancora arrivato oppure presente ma non valido.
+    /// Serve all'operatore per sapere quale postazione deve sincronizzare, invece di un conteggio generico.
+    /// </summary>
+    public static string DescriviMancanti(DataPaths paths, JournalForkConflict fork, IEnumerable<TestJournalEvent> missing)
+    {
+        var dir = Path.Combine(paths.Root, "_ditm", "conflicts", fork.EntityUid.ToString("N"));
+        static string Breve(string s) => string.IsNullOrEmpty(s) ? "?" : s.Length <= 8 ? s : s[..8];
+        var righe = missing.Select(e =>
+        {
+            var chiave = File.Exists(Path.Combine(dir, e.EventId + ".json.gz")) ? "ForkRamoMancanteNonValidoFmt" : "ForkRamoMancanteAssenteFmt";
+            return string.Format(LocalizationService.Instance.Traduci(chiave), Breve(e.EventId),
+                e.TimestampUtc == default ? "?" : e.TimestampUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm"), Breve(e.DeviceId));
+        });
+        return string.Join(Environment.NewLine, righe);
+    }
+
+    /// <summary>Attesa minima prima di poter risolvere un conflitto con i soli rami disponibili.</summary>
+    public static readonly TimeSpan PartialResolutionMinimumWait = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// Tempo ancora da attendere prima che la risoluzione parziale sia consentita (null = consentita). Si conta dall'evento
+    /// mancante più recente: un ramo pubblicato da poco ha ancora tempo di arrivare da OneDrive.
+    /// </summary>
+    public static TimeSpan? AttesaResiduaRisoluzioneParziale(IEnumerable<TestJournalEvent> missing, DateTime nowUtc)
+    {
+        var ultimo = missing.Select(e => e.TimestampUtc).DefaultIfEmpty(default).Max();
+        if (ultimo == default) return null;
+        var residuo = ultimo.ToUniversalTime() + PartialResolutionMinimumWait - nowUtc.ToUniversalTime();
+        return residuo > TimeSpan.Zero ? residuo : null;
+    }
+
+    /// <summary>
+    /// Scrive nel recovery-bin il record dei rami che mancano (eventi completi, hash dei rami disponibili, operatore) PRIMA di
+    /// una risoluzione parziale: se il payload arriva dopo, resta identificabile e recuperabile. Create-only; se fallisce la
+    /// risoluzione non deve proseguire (l'eccezione risale al chiamante).
+    /// </summary>
+    public static string ArchiviaRamiMancanti(DataPaths paths, JournalForkConflict fork, ForkRecoveryLoadResult recovery,
+        string operatore, DateTime nowUtc)
+    {
+        var dir = Path.Combine(paths.RecoveryBinDir, "fork-mancanti", fork.EntityUid.ToString("N"));
+        Directory.CreateDirectory(dir);
+        var file = Path.Combine(dir, nowUtc.ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + "-" + Guid.NewGuid().ToString("N")[..8] + ".json");
+        var record = new
+        {
+            Tipo = "RisoluzioneParzialeForkTest",
+            RegistratoIlUtc = nowUtc.ToUniversalTime(),
+            Operatore = operatore,
+            fork.EntityUid,
+            fork.BaseRevision,
+            fork.BaseHash,
+            RamiMancanti = recovery.Missing,
+            HashRamiDisponibili = recovery.Available.Select(b => b.Event.NewHash).ToList(),
+        };
+        JsonIo.WriteAtomic(file, record, overwrite: false);
+        return file;
+    }
+
     public static int CleanupResolvedRecovery(DataPaths paths, JournalForkConflict fork)
     {
         // Anche la rimozione di un recovery è una mutazione condivisa. Un refresh o una risoluzione arrivati
@@ -148,7 +206,7 @@ public static class DelayedForkRecoveryService
                 {
                     var lastWriteUtc = File.GetLastWriteTimeUtc(file);
                     if (lastWriteUtc == default || lastWriteUtc > cutoffUtc) continue;
-                    File.Delete(file);
+                    ArchiviaRecoveryScaduto(paths, uid, file);
                     removed++;
                 }
                 catch (Exception ex)
@@ -161,6 +219,21 @@ public static class DelayedForkRecoveryService
             TryDeleteEmptyDirectory(dir);
         }
         return removed;
+    }
+
+    /// <summary>
+    /// Un payload di ramo arrivato in ritardo e ormai scaduto non si cancella: contiene lavoro di un operatore. Si sposta nel
+    /// recovery-bin (stesso volume, quindi atomico), dove resta nei backup e senza retention, ripristinabile a mano.
+    /// </summary>
+    private static void ArchiviaRecoveryScaduto(DataPaths paths, Guid uid, string file)
+    {
+        var dir = Path.Combine(paths.RecoveryBinDir, "fork-tardivi", uid.ToString("N"));
+        Directory.CreateDirectory(dir);
+        var destinazione = Path.Combine(dir, Path.GetFileName(file));
+        if (File.Exists(destinazione))
+            destinazione = Path.Combine(dir, Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(file)) +
+                                             "." + Guid.NewGuid().ToString("N")[..8] + ".json.gz");
+        File.Move(file, destinazione, overwrite: false);
     }
 
     private static TestCase? TryReadRecovery(string path)

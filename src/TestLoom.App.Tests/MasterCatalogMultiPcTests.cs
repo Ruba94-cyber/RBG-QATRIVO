@@ -675,6 +675,70 @@ public sealed class MasterCatalogMultiPcTests : IDisposable
     }
 
     [Fact]
+    public void PhaseD_Conflitto_VersioneScartata_ArchiviataNelRecoveryBinPrimaDellaPubblicazione()
+    {
+        var (a, _, uid) = CreaConflittoRequisiti();
+        var scelta = VersioneConcorrente<Requisito>(a, "requisiti", uid, r => r.Testo == ValoreModificato);
+        var scartata = new PhaseDMasterMaterializer(a.Cartella, a.Locale).LoadConflicts(a.Cartella, "requisiti")
+            .Single(x => x.EntityUid == uid).ConcurrentHeads.Single(m => m.PayloadSha256 != scelta.PayloadSha256);
+
+        PhaseDMasterConflictResolver.Risolvi(a.Paths, "requisiti", uid, IdVersione(scelta), "Mario", isMaster: true, localBaseDirectory: a.Locale);
+
+        var voce = Assert.Single(DomainRecoveryService.GetAll(a.Paths), r => r.Category == DomainRecoveryCategory.CatalogoMaster);
+        Assert.True(voce.VersioneScartata);
+        Assert.Equal(scartata.PayloadJson, System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(voce.PayloadBase64)));
+        Assert.Throws<InvalidOperationException>(() => DomainRecoveryService.Restore(a.Paths, voce.RecoveryId, "Mario"));
+    }
+
+    [Fact]
+    public void PhaseD_Conflitto_UnioneCampoPerCampo_UnaSolaTestaConPayloadUnitoETutteLeVersioniArchiviate()
+    {
+        var (a, b, uid) = CreaConflittoRequisiti();
+        var conflitto = Assert.Single(PhaseDMasterConflictResolver.Elenca(a.Cartella, a.Locale));
+        var versioni = PhaseDMasterConflictResolver.CaricaVersioni(a.Cartella, "requisiti", uid, a.Locale);
+        Assert.Equal(2, versioni.Count);
+        var visualizzata = versioni.Single(v => v.Visualizzata);
+        var altra = versioni.Single(v => !v.Visualizzata);
+        var prep = RecordMergeEngine.Prepare(RecordMergeKind.Generico, visualizzata.PayloadUtf8, altra.PayloadUtf8);
+        Assert.True(prep.Confrontabile);
+        // Testo dalla visualizzata, ApplicabileBanco dall'altra: i due campi toccati da PC-A e PC-B vengono uniti.
+        var scelte = new RecordMergeChoices();
+        scelte.Scelte["Testo"] = RecordFieldChoice.Mia;
+        scelte.Scelte["ApplicabileBanco"] = RecordFieldChoice.Loro;
+        foreach (var d in prep.Plan!.Differences.Where(x => !scelte.Scelte.ContainsKey(x.Name))) scelte.Scelte[d.Name] = RecordFieldChoice.Mia;
+        var unito = prep.Plan.Build(scelte, "Mario");
+
+        var esito = PhaseDMasterConflictResolver.RisolviConUnione(a.Paths, "requisiti", uid, unito.Bytes, "Mario", isMaster: true, localBaseDirectory: a.Locale);
+
+        Assert.Equal(PhaseDMasterMutationOperation.Upsert, esito.Operazione);
+        ReplicaOneDrive(a, b);
+        ReplicaOneDrive(b, a);
+        foreach (var pc in new[] { a, b })
+        {
+            Assert.Empty(PhaseDMasterConflictResolver.Elenca(pc.Cartella, pc.Locale));
+            var voce = Assert.Single(new MasterDataRepository<Requisito>(pc.Paths.RequisitiFile).Load(), r => Chiave(r) == RigaBase);
+            Assert.Equal(prep.Plan.Fields.Single(f => f.Name == "Testo").Mia!.ToString(), voce.Testo);
+            Assert.Equal(prep.Plan.Fields.Single(f => f.Name == "ApplicabileBanco").Loro!.GetValue<bool>(), voce.ApplicabileBanco);
+        }
+        Assert.Equal(2, DomainRecoveryService.GetAll(a.Paths).Count(r => r.Category == DomainRecoveryCategory.CatalogoMaster));
+        Assert.NotNull(conflitto);
+    }
+
+    [Fact]
+    public void PhaseD_Conflitto_UnioneNonMaster_Rifiutata_NulloPubblicatoNeArchiviato()
+    {
+        var (a, _, uid) = CreaConflittoRequisiti();
+        var versioni = PhaseDMasterConflictResolver.CaricaVersioni(a.Cartella, "requisiti", uid, a.Locale);
+        var mutazioniPrima = PhaseDMasterJournalService.ReadAllMutations(a.Cartella).Count;
+
+        Assert.Throws<UnauthorizedAccessException>(() => PhaseDMasterConflictResolver.RisolviConUnione(
+            a.Paths, "requisiti", uid, versioni[0].PayloadUtf8, "Luigi", isMaster: false, localBaseDirectory: a.Locale));
+
+        Assert.Equal(mutazioniPrima, PhaseDMasterJournalService.ReadAllMutations(a.Cartella).Count);
+        Assert.Empty(DomainRecoveryService.GetAll(a.Paths));
+    }
+
+    [Fact]
     public void PhaseD_Conflitto_NonMasterNonPuoRisolvere()
     {
         var (a, _, uid) = CreaConflittoRequisiti();

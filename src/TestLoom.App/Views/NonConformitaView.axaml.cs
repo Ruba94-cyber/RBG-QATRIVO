@@ -175,8 +175,17 @@ public partial class NonConformitaView : UserControl
     /// <summary>Apre il ticket Ticketing associato alla NC nel browser predefinito.</summary>
     private void OnApriTicketPolarion(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: TestLoom.App.Models.CollegamentoPolarion ticket }) return;
-        ApriTicketWeb(ticket.Url);
+        var (codice, url) = (sender as Button)?.Tag switch
+        {
+            EstaLinkEffettivo ticket => (ticket.Codice, ticket.Url),
+            TestLoom.App.Models.CollegamentoPolarion c => (c.Codice, c.Url),
+            _ => ((string?)null, ""),
+        };
+        if (codice == null) return;
+        // Il link non dipende piu' dall'URL salvato: i ticket digitati a mano ne sono privi e l'URL si ricava dal codice
+        // (stessa regola di PolarionQuickEditPanel). Costo: una lettura delle impostazioni solo al click, non per riga.
+        var paths = (DataContext as NonConformitaViewModel)?.PolarionPaths;
+        ApriTicketWeb(PolarionTicketLinkService.RisolviUrl(paths, codice, url));
     }
 
     private void OnApriTicketChangeRequest(object? sender, RoutedEventArgs e)
@@ -469,9 +478,7 @@ public partial class NonConformitaView : UserControl
             AggiungiCampoRapido(contenuto, loc.Traduci("OwnerLabel"), ownerBox);
             AggiungiCampoRapido(contenuto, loc.Scegli("Destinatario", "Recipient", "Destinataire"), destinatario);
             AggiungiCampoRapido(contenuto, loc.Traduci("ColDescrizioneBreve"), descrizione);
-            var estaLinks = v.Nc.CollegamentiPolarion.Select(x => (Id: x.Codice, Url: x.Url)).ToList();
-            if (estaLinks.Count == 0 && v.TestCollegato != null)
-                estaLinks.AddRange(v.TestCollegato.TicketCollegati.Select(x => (Id: x.Riferimento, Url: x.Url)));
+            var estaLinks = NcEstaLinks.Effettivi(v.Nc, v.TestCollegato).Select(x => (Id: x.Codice, Url: x.Url)).ToList();
             if (estaLinks.Count > 0)
                 contenuto.Children.Add(PolarionQuickEditPanel.Create(polarionPaths, estaLinks, window, polarionOperator, isCr: false, testloomClosed: v.Chiusa, operatorCanWrite: polarionState.PuoScrivere,
                     operatorCanWriteNow: () => polarionState.PuoScrivere && polarionState.OperatoreCorrente is not null &&

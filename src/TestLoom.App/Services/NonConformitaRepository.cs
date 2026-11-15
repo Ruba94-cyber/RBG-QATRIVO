@@ -91,6 +91,11 @@ public class NonConformitaRepository
         return true;
     }
 
+    // Assegnatari distinti memoizzati per generazione dei dati: l'interrogazione SQL (DISTINCT su tutte le NC, 150-400 ms a 100.000) si
+    // rifa' solo dopo una mutazione; il precarico la esegue una volta.
+    private long _assegnatariGen = -1;
+    private IReadOnlyList<string> _assegnatariMemo = Array.Empty<string>();
+
     /// <summary>Assegnatari distinti (non vuoti, ordinati) letti dall'indice; false se non utilizzabile.</summary>
     public bool TryAssegnatariDistinti(out IReadOnlyList<string> assegnatari)
     {
@@ -100,12 +105,15 @@ public class NonConformitaRepository
         {
             if (_localIndex == null || _indexGen != _gen || WorkflowWorkingCopyScope.Attivo) return false;
             generazione = _gen;
+            if (_assegnatariGen == generazione) { assegnatari = _assegnatariMemo; return true; }
         }
         if (_indexRecovery == null || !_indexRecovery.TryRead("assegnatari NC", () => _localIndex.AssegnatariDistinti(), out var lista))
             return false;
         lock (_gate)
         {
             if (_gen != generazione || _indexGen != _gen) return false;
+            _assegnatariMemo = lista;
+            _assegnatariGen = generazione;
         }
         assegnatari = lista;
         return true;
@@ -154,7 +162,7 @@ public class NonConformitaRepository
         {
             foreach (var item in elementi)
             {
-                _cache[item.Path] = (item.MtimeUtc, item.Nc);
+                CachePut(item.Path, item.MtimeUtc, item.Nc);
                 _hashByPath[item.Path] = item.ContentHash;
             }
             _snapshotCaricato = true;
@@ -169,6 +177,28 @@ public class NonConformitaRepository
             catch (IOException ex) { CrashLogService.Registra("Non Conformita: cache non caricata dai JSON (cartella condivisa non raggiungibile)", ex); }
         }
     }
+
+    /// <summary>Precarico per lo splash: le NC sono gia' in cache (caricate dal costruttore), qui si completano le mappe per Id/Uid e si
+    /// scaldano indice SQLite (prima pagina ordinata, conteggio) e lista degli assegnatari. Progresso in 3 passi.</summary>
+    public Task PrecaricaAsync(IProgress<(int fatti, int totale)>? progresso, CancellationToken ct) =>
+        Task.Run(() =>
+        {
+            progresso?.Report((0, 3));
+            lock (_gate) { _ = TrovaPerId(""); }
+            ct.ThrowIfCancellationRequested();
+            progresso?.Report((1, 3));
+            try
+            {
+                if (IndiceFiltriUtilizzabile)
+                    TryQueryIndicizzata(new AnomalieFiltroNc(), AnomalieOrdinamento.Predefinito, 0, 250, out _, out _);
+                ct.ThrowIfCancellationRequested();
+                progresso?.Report((2, 3));
+                TryAssegnatariDistinti(out _);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) { CrashLogService.Registra("Non Conformita: precarico dell'indice non riuscito (le letture proseguono dalla cache)", ex); }
+            progresso?.Report((3, 3));
+        }, ct);
 
     public IReadOnlyList<FileConProblemi> FileConProblemi { get { lock (_gate) return _fileConProblemi.ToList(); } }
 
@@ -239,6 +269,7 @@ public class NonConformitaRepository
             lock (_gate)
             {
                 _cache = new();
+                RicostruisciLookup();
                 _gen++;
                 _hashByPath = new(StringComparer.OrdinalIgnoreCase);
                 _fileConProblemi = _tolleranzaProblemi.AggiornaCompleto(Array.Empty<FileConProblemi>());
@@ -355,6 +386,7 @@ public class NonConformitaRepository
             if (cambiata) _gen++;
             generazioneSnapshot = _gen;
             _cache = nuovaCache;
+            RicostruisciLookup();
             _hashByPath = CalcolaHashParallelo(nuovaCache);
             _copieDiConflitto = copieDiConflittoOra;
             _fileConProblemi = _tolleranzaProblemi.AggiornaCompleto(problemi).Concat(duplicati).ToList();
@@ -571,17 +603,87 @@ public class NonConformitaRepository
         return ids;
     }
 
+
+    // ------------------------------------------------------------------ ricerca per chiave O(1)
+
+    // Id (senza distinguere le maiuscole) e Uid -> percorso della voce in cache. Mantenuti da CachePut/CacheRemove a ogni mutazione e
+    // ricostruiti per intero dove la cache viene sostituita. Con chiavi duplicate (copie di conflitto non ancora escluse) vince la
+    // prima voce inserita; se una voce mappata esce dalla cache con duplicati presenti, la mappa si ricostruisce al prossimo accesso.
+    private Dictionary<string, string> _percorsoPerId = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<Guid, string> _percorsoPerUid = new();
+    private bool _lookupDuplicati;
+    private bool _lookupDaRicostruire;
+
+    /// <summary>Inserisce o sostituisce una voce in cache aggiornando le mappe di ricerca. Chiamare solo sotto _gate.</summary>
+    private void CachePut(string path, DateTime mtime, NonConformita nc)
+    {
+        if (_cache.TryGetValue(path, out var vecchia)) RimuoviDaLookup(path, vecchia.Nc);
+        _cache[path] = (mtime, nc);
+        AggiungiALookup(path, nc);
+    }
+
+    /// <summary>Rimuove una voce dalla cache aggiornando le mappe di ricerca. Chiamare solo sotto _gate.</summary>
+    private void CacheRemove(string path)
+    {
+        if (_cache.Remove(path, out var vecchia)) RimuoviDaLookup(path, vecchia.Nc);
+    }
+
+    private void AggiungiALookup(string path, NonConformita nc)
+    {
+        var id = nc.Id ?? "";
+        if (!_percorsoPerId.TryAdd(id, path) && !string.Equals(_percorsoPerId[id], path, StringComparison.OrdinalIgnoreCase)) _lookupDuplicati = true;
+        if (!_percorsoPerUid.TryAdd(nc.Uid, path) && !string.Equals(_percorsoPerUid[nc.Uid], path, StringComparison.OrdinalIgnoreCase)) _lookupDuplicati = true;
+    }
+
+    private void RimuoviDaLookup(string path, NonConformita nc)
+    {
+        var id = nc.Id ?? "";
+        if (_percorsoPerId.TryGetValue(id, out var p) && string.Equals(p, path, StringComparison.OrdinalIgnoreCase))
+        {
+            _percorsoPerId.Remove(id);
+            if (_lookupDuplicati) _lookupDaRicostruire = true;
+        }
+        if (_percorsoPerUid.TryGetValue(nc.Uid, out var pu) && string.Equals(pu, path, StringComparison.OrdinalIgnoreCase))
+        {
+            _percorsoPerUid.Remove(nc.Uid);
+            if (_lookupDuplicati) _lookupDaRicostruire = true;
+        }
+    }
+
+    /// <summary>Ricostruisce le mappe dalla cache corrente (sostituzione della cache). Chiamare solo sotto _gate.</summary>
+    private void RicostruisciLookup()
+    {
+        _percorsoPerId = new Dictionary<string, string>(_cache.Count, StringComparer.OrdinalIgnoreCase);
+        _percorsoPerUid = new Dictionary<Guid, string>(_cache.Count);
+        _lookupDuplicati = false;
+        _lookupDaRicostruire = false;
+        foreach (var (path, voce) in _cache) AggiungiALookup(path, voce.Nc);
+    }
+
+    private NonConformita? TrovaPerId(string id)
+    {
+        if (_lookupDaRicostruire) RicostruisciLookup();
+        return _percorsoPerId.TryGetValue(id ?? "", out var path) && _cache.TryGetValue(path, out var voce) ? voce.Nc : null;
+    }
+
+    private NonConformita? TrovaPerUid(Guid uid)
+    {
+        if (_lookupDaRicostruire) RicostruisciLookup();
+        return _percorsoPerUid.TryGetValue(uid, out var path) && _cache.TryGetValue(path, out var voce) ? voce.Nc : null;
+    }
+
     public NonConformita? GetById(string id)
     {
         NonConformita? found;
-        lock (_gate) found = _cache.Values.Select(v => v.Nc).FirstOrDefault(n => string.Equals(n.Id, id, StringComparison.OrdinalIgnoreCase));
+        // Accesso per chiave O(1) (dizionario mantenuto a ogni mutazione della cache): niente scansione lineare dell'archivio.
+        lock (_gate) found = TrovaPerId(id);
         return WorkflowWorkingCopyScope.ApplyNonConformita(found);
     }
 
     public NonConformita? GetByUid(Guid uid)
     {
         NonConformita? found;
-        lock (_gate) found = _cache.Values.Select(v => v.Nc).FirstOrDefault(n => n.Uid == uid);
+        lock (_gate) found = TrovaPerUid(uid);
         return WorkflowWorkingCopyScope.ApplyNonConformita(found);
     }
 
@@ -624,7 +726,7 @@ public class NonConformitaRepository
             var path = _paths.NonConformitaFile(nc.Id);
             using var commitLock = DomainRecordCommitLock.Acquire("Non Conformità", nc.Id, path);
             VisibleConflictWriteGuard.EnsureNoVisibleFork(path, nc.Uid, null,
-                RecordJournal?.CopiaChiusaPer(DomainRecordJournalService.NonConformitaDomain, nc.Uid));
+                RecordJournal?.CopiaChiusaPer(DomainRecordJournalService.NonConformitaDomain, nc.Uid), _paths.Root);
             RecordJournal?.EnsureNotBlocked(DomainRecordJournalService.NonConformitaDomain, nc.Uid, nc.Id);
             NonConformita? corrente = null;
             if (File.Exists(path))
@@ -675,7 +777,7 @@ public class NonConformitaRepository
             var snapshot = nc.Clona();
             var mtime = File.GetLastWriteTimeUtc(path);
             var savedHash = EntityStateFingerprint.Compute(snapshot);
-            _cache[path] = (mtime, snapshot);
+            CachePut(path, mtime, snapshot);
             _hashByPath[path] = savedHash;
             ScriviIndiceIncrementale("upsert NC",
                 () => _localIndex?.Upsert(path, mtime, new FileInfo(path).Length, snapshot, savedHash));
@@ -698,7 +800,7 @@ public class NonConformitaRepository
             {
                 if (!File.Exists(path) || WorkflowTransactionVisibilityService.IsCommittedTombstone(_paths, path))
                 {
-                    _cache.Remove(path); _hashByPath.Remove(path);
+                    CacheRemove(path); _hashByPath.Remove(path);
                     ScriviIndiceIncrementale("remove NC (refresh)", () => _localIndex?.Remove(path));
                     continue;
                 }
@@ -706,7 +808,7 @@ public class NonConformitaRepository
                 if (nc == null) continue;
                 var mtime = File.GetLastWriteTimeUtc(path);
                 var hash = EntityStateFingerprint.Compute(nc);
-                _cache[path] = (mtime, nc);
+                CachePut(path, mtime, nc);
                 _hashByPath[path] = hash;
                 ScriviIndiceIncrementale("refresh NC",
                     () => _localIndex?.Upsert(path, mtime, new FileInfo(path).Length, nc, hash));
@@ -714,6 +816,7 @@ public class NonConformitaRepository
             // Le copie di conflitto (stesso Uid, nome non canonico) escono dalla cache come nella riconciliazione
             // completa: non devono restare ne' in memoria ne' nell'indice, anche se la Upsert sopra le ha gia' scritte.
             ClassificaDuplicatiUidEEscludiCopieDiConflitto(_cache, _paths, out _, out var copieOra);
+            RicostruisciLookup(); // la classificazione puo' aver escluso voci dalla cache
             _copieDiConflitto = copieOra;
             foreach (var path in toccati.Where(p => !_cache.ContainsKey(p)))
             {
@@ -783,7 +886,7 @@ public class NonConformitaRepository
             var path = _paths.NonConformitaFile(nc.Id);
             using var commitLock = DomainRecordCommitLock.Acquire("Non Conformità", nc.Id, path);
             VisibleConflictWriteGuard.EnsureNoVisibleFork(path, nc.Uid, null,
-                RecordJournal?.CopiaChiusaPer(DomainRecordJournalService.NonConformitaDomain, nc.Uid));
+                RecordJournal?.CopiaChiusaPer(DomainRecordJournalService.NonConformitaDomain, nc.Uid), _paths.Root);
             if (File.Exists(path))
             {
                 var corrente = JsonIo.TryRead<NonConformita>(path, out var errore)
@@ -814,7 +917,7 @@ public class NonConformitaRepository
                 }
                 if (journalPending != null) RecordJournal!.Publish(journalPending);
             }
-            _cache.Remove(path);
+            CacheRemove(path);
             _hashByPath.Remove(path);
             ScriviIndiceIncrementale("remove NC", () => _localIndex?.Remove(path));
             DiagnosticTraceService.Registra("NonConformita.Elimina", nc.Id);

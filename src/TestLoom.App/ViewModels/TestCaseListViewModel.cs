@@ -60,6 +60,47 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
     public FiltroMultiSelect FiltroSeverita { get; } = new();
     public FiltroMultiSelect FiltroPriorita { get; } = new();
     public FiltroMultiSelect FiltroStatoAnomalia { get; } = new();
+    /// <summary>Filtro per stato Ticketing dei requisiti collegati (un test passa se ALMENO UN suo requisito ha uno degli stati scelti).
+    /// Lavora sulla cache in memoria <see cref="RequisitoPolarionCache"/>: nessuna lettura di file per riga.</summary>
+    public FiltroMultiSelect FiltroStatoPolarionRequisito { get; } = new();
+    public string EtichettaFiltroStatoPolarionRequisito => LocalizationService.Instance.Scegli(
+        "Stato Ticketing requisito", "Requirement Ticketing status", "Statut Ticketing de l'exigence");
+    public DataPaths? PolarionPaths => _state.CartellaValida ? _state.Paths : null;
+    /// <summary>Cambia a ogni aggiornamento della cache Ticketing dei requisiti: ri-valuta i badge delle righe (MultiBinding).</summary>
+    [ObservableProperty] private int polarionRequisitiVersione;
+    private const string RequisitoSentinella = "__nessun_requisito_polarion__";
+
+    /// <summary>Chiamato dalla view quando e visibile (e annullato alla rimozione): evita sottoscrizioni statiche orfane.</summary>
+    public void CollegaCachePolarion()
+    {
+        RequisitoPolarionCache.Aggiornato -= OnCachePolarionAggiornata;
+        RequisitoPolarionCache.Aggiornato += OnCachePolarionAggiornata;
+        RequisitoPolarionCache.Richiedi(_state);
+    }
+    public void ScollegaCachePolarion() => RequisitoPolarionCache.Aggiornato -= OnCachePolarionAggiornata;
+
+    private void OnCachePolarionAggiornata()
+    {
+        PolarionRequisitiVersione++;
+        // Se il filtro per stato era attivo con la cache non ancora pronta, la query va rieseguita ora.
+        if (FiltroStatoPolarionRequisito.HaSelezione) Aggiorna();
+    }
+
+    internal List<string>? RequisitiConFiltroPolarion(List<string>? esistenti)
+    {
+        if (!FiltroStatoPolarionRequisito.HaSelezione) return esistenti;
+        var classi = ValoriEnum<PolarionStatoClasse>(FiltroStatoPolarionRequisito) ?? new List<PolarionStatoClasse>();
+        var ids = RequisitoPolarionCache.IdPerClassi(PolarionPaths, classi);
+        if (ids is null)
+        {
+            RequisitoPolarionCache.Richiedi(_state, forza: true);
+            return new List<string> { RequisitoSentinella };   // nessun risultato finche la cache non e pronta; l'evento rilancia la query
+        }
+        IEnumerable<string> risultato = ids;
+        if (esistenti != null) risultato = ids.Intersect(esistenti, StringComparer.Ordinal);
+        var elenco = risultato.ToList();
+        return elenco.Count == 0 ? new List<string> { RequisitoSentinella } : elenco;
+    }
 
     /// <summary>Filtri dei campi di sistema usabili come filtro (UsabileComeFiltro), come in Home e Report. La lista mostra solo i campi
     /// pertinenti ai Test del tipo scelto (o tutti, senza tipo); <see cref="_filtriCampiCustom"/> tiene un filtro per ogni campo eleggibile,
@@ -132,7 +173,8 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
     private IEnumerable<FiltroMultiSelect> FiltriMultiSelect => new[]
     {
         FiltroEcu, FiltroVeicolo, FiltroTemplate, FiltroEsito, FiltroAssegnatario, FiltroCreatoDa,
-        FiltroStatoLavoro, FiltroRequisito, FiltroFunzionalita, FiltroSeverita, FiltroPriorita, FiltroStatoAnomalia
+        FiltroStatoLavoro, FiltroRequisito, FiltroFunzionalita, FiltroSeverita, FiltroPriorita, FiltroStatoAnomalia,
+        FiltroStatoPolarionRequisito
     };
 
     public bool HaFiltriAttivi => !string.IsNullOrWhiteSpace(FiltroTesto) || FiltriMultiSelect.Any(f => f.HaSelezione) ||
@@ -244,6 +286,7 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
             ["Severita"] = Serializza(FiltroSeverita),
             ["Priorita"] = Serializza(FiltroPriorita),
             ["StatoAnomalia"] = Serializza(FiltroStatoAnomalia),
+            ["StatoPolarionRequisito"] = Serializza(FiltroStatoPolarionRequisito),
             ["DataDa"] = FiltroDataDa?.ToString("O"),
             ["DataA"] = FiltroDataA?.ToString("O"),
             ["SoloSenzaEcu"] = FiltroSoloSenzaEcu ? "1" : null,
@@ -281,6 +324,7 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
             ApplicaSelezione(FiltroSeverita, v.GetValueOrDefault("Severita"));
             ApplicaSelezione(FiltroPriorita, v.GetValueOrDefault("Priorita"));
             ApplicaSelezione(FiltroStatoAnomalia, v.GetValueOrDefault("StatoAnomalia"));
+            ApplicaSelezione(FiltroStatoPolarionRequisito, v.GetValueOrDefault("StatoPolarionRequisito"));
             FiltroDataDa = DateTimeOffset.TryParse(v.GetValueOrDefault("DataDa"), out var dd) ? dd : null;
             FiltroDataA = DateTimeOffset.TryParse(v.GetValueOrDefault("DataA"), out var da) ? da : null;
             FiltroDataDaNonValida = false;
@@ -573,6 +617,7 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
         FiltroSeverita.Ripopola(Enum.GetValues<SeveritaAnomalia>().Select(e => (e.ToString(), e.Label())));
         FiltroPriorita.Ripopola(Enum.GetValues<PrioritaOperativa>().Select(e => (e.ToString(), e.Label())));
         FiltroStatoAnomalia.Ripopola(Enum.GetValues<StatoAnomalia>().Select(e => (e.ToString(), e.Label())));
+        FiltroStatoPolarionRequisito.Ripopola(Enum.GetValues<PolarionStatoClasse>().Select(e => (e.ToString(), Views.RequisitoPolarionUi.EtichettaClasse(e))));
 
         if (_state.CartellaValida)
         {
@@ -590,7 +635,7 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
                 ImpostaValoriFiltri(catalogo.Componente, catalogo.Veicoli, catalogo.Assegnatari,
                     catalogo.Creatori, catalogo.Requisiti, catalogo.Funzionalita);
             }
-            TemplatesDisponibili = _state.Master.TestTemplate.Load().Where(t => !t.Archiviata && !t.IsChangeRequest).ToList();
+            TemplatesDisponibili = _state.Master.TestTemplate.LoadSnapshot().Where(t => !t.Archiviata && !t.IsChangeRequest).ToList();
             OnPropertyChanged(nameof(TemplatesDisponibili));
 
             FiltroEcu.Ripopola(ConSelezionatiMancanti(FiltroEcu, EcuDisponibili));
@@ -1026,7 +1071,7 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
             return;
         }
 
-        var templatiCr = _state.Master.TestTemplate.Load().Where(t => t.IsChangeRequest).Select(t => t.Uid).ToHashSet();
+        var templatiCr = _state.Master.TestTemplate.LoadSnapshot().Where(t => t.IsChangeRequest).Select(t => t.Uid).ToHashSet();
 
         // Tutti i filtri lavorano su SQLite e idratano soltanto la pagina richiesta. Stato anomalia e Ticketing dipendono
         // dalle NC: l'insieme di Test che li soddisfa e' calcolato con la stessa associazione della pagina Anomalie e
@@ -1051,7 +1096,7 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
             Assignees = Valori(FiltroAssegnatario),
             Creators = Valori(FiltroCreatoDa),
             WorkStates = ValoriEnum<StatoLavoroTest>(FiltroStatoLavoro),
-            Requirements = Valori(FiltroRequisito),
+            Requirements = RequisitiConFiltroPolarion(Valori(FiltroRequisito)),
             Functionalities = Valori(FiltroFunzionalita),
             Severities = ValoriEnum<SeveritaAnomalia>(FiltroSeverita),
             Priorities = ValoriEnum<PrioritaOperativa>(FiltroPriorita),
@@ -1113,7 +1158,7 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
                 query = query.Where(tc => tc.HaPolarionVisual == (FiltroHaPolarion == FiltroPolarioneOpzione.ConPolarion));
             var statiLavoroSel = ValoriEnum<StatoLavoroTest>(FiltroStatoLavoro);
             if (statiLavoroSel != null) query = query.Where(tc => statiLavoroSel.Contains(tc.StatoLavoro));
-            var requisitiSel = Valori(FiltroRequisito);
+            var requisitiSel = RequisitiConFiltroPolarion(Valori(FiltroRequisito));
             if (requisitiSel != null) query = query.Where(tc => tc.RequisitoId.Any(r => requisitiSel.Contains(r)));
             var funzionalitaSel = Valori(FiltroFunzionalita);
             if (funzionalitaSel != null) query = query.Where(tc => tc.Funzionalita.Any(f => funzionalitaSel.Contains(f)));
@@ -1219,7 +1264,7 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
         // RuoloEffettivo (piano 6.4.2, §4b): mai il Ruolo grezzo per decidere lo scoping per Gamma.
         if (op == null || op.RuoloEffettivo != RuoloOperatore.Standard || op.GammeAssegnate.Count == 0) return null;
         var gamme = op.GammeAssegnate.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return _state.Master.Veicoli.Load().Where(v => gamme.Contains(v.GammaNome)).Select(v => v.Nome).ToList();
+        return _state.Master.Veicoli.LoadSnapshot().Where(v => gamme.Contains(v.GammaNome)).Select(v => v.Nome).ToList();
     }
 
     private void NotificaPaginazione()
@@ -1350,7 +1395,7 @@ public partial class TestCaseListViewModel : ViewModelBase, IPaginaAggiornabile,
     private async Task AssegnaSelezionatiCoreAsync()
     {
         if (!PuoAssegnareInMassa || Selezionati.Count == 0) return;
-        var voci = _state.Master.Operatori.Load().Where(o => !o.Disattivo)
+        var voci = _state.Master.Operatori.LoadSnapshot().Where(o => !o.Disattivo)
             .Select(o => new VoceSelezionabile { Valore = o.Nome, TestoPrincipale = o.Nome, TestoRicerca = o.Nome }).ToList();
         var scelto = await SelezionaDialogService.Scegli(LocalizationService.Instance.Traduci("AssegnaSelezionatiTitolo"), voci);
         if (scelto == null) return;

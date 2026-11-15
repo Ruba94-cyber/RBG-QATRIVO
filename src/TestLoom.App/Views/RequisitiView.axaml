@@ -244,6 +244,18 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Ticketing" Width="Auto" MinWidth="96">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="models:Requisito">
+                            <Button HorizontalAlignment="Left" HorizontalContentAlignment="Left" Padding="6,2" Foreground="White" MaxWidth="140"
+                                    Tag="{Binding}" Click="OnPolarionRequisito" AutomationProperties.AutomationId="Requis_Ticketing_Button">
+                                <Button.Background><MultiBinding Converter="{x:Static local:RequisitoPolarionBadgeConverter.Instance}" ConverterParameter="pennello"><Binding Path="." /><Binding Path="#Root.((vm:RequisitiViewModel)DataContext).PolarionPaths" /><Binding Path="#Root.((vm:RequisitiViewModel)DataContext).PolarionVersione" /><Binding Path="#Root.((vm:RequisitiViewModel)DataContext).InModifica" /></MultiBinding></Button.Background>
+                                <Button.Content><MultiBinding Converter="{x:Static local:RequisitoPolarionBadgeConverter.Instance}" ConverterParameter="testo"><Binding Path="." /><Binding Path="#Root.((vm:RequisitiViewModel)DataContext).PolarionPaths" /><Binding Path="#Root.((vm:RequisitiViewModel)DataContext).PolarionVersione" /><Binding Path="#Root.((vm:RequisitiViewModel)DataContext).InModifica" /></MultiBinding></Button.Content>
+                                <ToolTip.Tip><MultiBinding Converter="{x:Static local:RequisitoPolarionBadgeConverter.Instance}" ConverterParameter="tooltip"><Binding Path="." /><Binding Path="#Root.((vm:RequisitiViewModel)DataContext).PolarionPaths" /><Binding Path="#Root.((vm:RequisitiViewModel)DataContext).PolarionVersione" /><Binding Path="#Root.((vm:RequisitiViewModel)DataContext).InModifica" /></MultiBinding></ToolTip.Tip>
+                            </Button>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridCheckBoxColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColBanco}" Binding="{Binding ApplicabileBanco}" Width="64" />
                 <DataGridCheckBoxColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColVeicolo}" Binding="{Binding ApplicabileVeicolo}" Width="80" />
                 <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColUltimaModifica}" Binding="{Binding UltimaModifica, Mode=OneWay, StringFormat={}{0:dd/MM/yy HH:mm}}" Width="150" IsReadOnly="True" />

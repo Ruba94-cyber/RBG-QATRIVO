@@ -32,6 +32,16 @@ public sealed class ChangeRequestRepository
     // primo avvio) o ricostruzione in corso. In quel caso i lettori usano i JSON autorevoli, mai un indice vuoto o parziale.
     private volatile bool _indicePendente;
 
+    // Proiezione di elenco in RAM delle CR attive (filtri, ordinamento, ricerca, conteggi senza deserializzare i JSON). Costruita dal
+    // precaricamento (o al primo uso) e aggiornata a ogni Save/Elimina/riconciliazione: vedi ChangeRequestElenco.
+    private readonly ChangeRequestElenco _elenco = new();
+    private readonly SemaphoreSlim _sincronizzazioneElenco = new(1, 1);
+    private volatile bool _elencoCostruito;
+    private int _riallineamentoElencoProgrammato;
+    private long _ultimaVerificaElenco;
+    /// <summary>Intervallo minimo fra due verifiche di coerenza proiezione/indice (0 = a ogni interrogazione).</summary>
+    internal long IntervalloVerificaElencoMs { get; set; } = 2000;
+
     public string LocalIndexDatabasePath => _localIndex.DatabasePath;
     public LocalIndexRecoveryCoordinator IndexRecovery => _indexRecovery;
     public bool HasPersistentSnapshot => _hasCompletedScan && _indexRecovery.IsUsable && !_indicePendente;
@@ -95,6 +105,7 @@ public sealed class ChangeRequestRepository
     {
         try
         {
+            _elencoCostruito = false;
             _localIndex.ReinizializzaDopoQuarantena();
             return true;
         }
@@ -122,6 +133,8 @@ public sealed class ChangeRequestRepository
     private LocalIndexRebuildOutcome RicostruisciIndiceDaJson()
     {
         _indicePendente = true; // il database torna vuoto: finche' la riconciliazione non e' completa si legge dai JSON
+        _elencoCostruito = false;
+        _elenco.Azzera();
         _localIndex.ReinizializzaDopoQuarantena();
         lock (_refreshGate) return RefreshIndexCore(ricostruzione: true);
     }
@@ -278,7 +291,10 @@ public sealed class ChangeRequestRepository
         // Fuori dal loop sopra: rimuove le copie di conflitto dall'indice SOLO dopo aver letto tutti i gruppi
         // (GetDuplicateUids/GetByPath sopra devono ancora vederle mentre le si classifica).
         foreach (var path in pathDaEscludereDaIndice)
+        {
             _indexRecovery.TryWrite("escludi copia di conflitto CR", () => _localIndex.Remove(LocalEntityKind, path));
+            _elenco.Rimuovi(path);
+        }
 
         // Path tracciati in tolleranza che in questo giro non sono più stati enumerati (file rimosso/spostato
         // fuori dalla cartella condivisa): confermati risolti, altrimenti resterebbero segnalati per sempre.
@@ -317,10 +333,160 @@ public sealed class ChangeRequestRepository
                 CrashLogService.Registra("Change Request: marcatore della ricerca per testo non scritto, ricerca sul JSON", ex);
             }
         }
+        // Proiezione di elenco: riallineata all'indice appena riconciliato (sync da altri PC, copie di conflitto, file modificati
+        // fuori dall'app). Costo O(N) solo sugli stamp; i JSON si rileggono per le sole righe cambiate.
+        if (_elencoCostruito && !ricostruzione) RiallineaElencoSenzaEccezioni();
         return problemi.Count == 0
             ? LocalIndexRebuildOutcome.Riuscita(0)
             : LocalIndexRebuildOutcome.Incompleta($"{problemi.Count} file CR non verificabili.");
     }
+
+    // ------------------------------------------------------------------ proiezione di elenco
+
+    /// <summary>Numero di CR attive nella proiezione di elenco (0 se non ancora costruita).</summary>
+    public int ElencoConteggio => _elencoCostruito ? _elenco.Count : 0;
+
+    /// <summary>Stima della RAM occupata dalla proiezione di elenco (righe + ordinamenti), in byte.</summary>
+    public long ElencoStimaByte => _elenco.StimaByte();
+
+    /// <summary>Parte di <see cref="ElencoStimaByte"/> dovuta al testo delle descrizioni (dipende dai dati), in byte.</summary>
+    public long ElencoStimaDescrizioniByte => _elenco.StimaDescrizioniByte();
+
+    /// <summary>Versione della proiezione: cambia a ogni mutazione (permette di riusare risultati derivati).</summary>
+    public long ElencoVersione => _elenco.Versione;
+
+    /// <summary>Vero se la proiezione di elenco e' stata costruita ed e' in uso.</summary>
+    public bool ElencoPronto => _elencoCostruito;
+
+    /// <summary>Precarico della proiezione di elenco (splash): legge dall'indice locale solo le CR cambiate rispetto alla
+    /// proiezione (tutte, al primo avvio), le deserializza in parallelo, costruisce gli ordinamenti. Progresso (righe lette, righe da
+    /// leggere). Non lancia: se l'indice non e' utilizzabile la pagina ricade sulla lettura storica.</summary>
+    public Task PrecaricaAsync(IProgress<(int fatti, int totale)>? progresso, CancellationToken ct) =>
+        Task.Run(() =>
+        {
+            try { SincronizzaElenco(progresso, ct); }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) { CrashLogService.Registra("Change Request: precarico della proiezione di elenco non riuscito (letture dai JSON)", ex); }
+        }, ct);
+
+    private void RiallineaElencoSenzaEccezioni()
+    {
+        try { SincronizzaElenco(null, CancellationToken.None); }
+        catch (Exception ex) { CrashLogService.Registra("Change Request: riallineamento della proiezione di elenco non riuscito", ex); }
+    }
+
+    /// <summary>Riallinea la proiezione all'indice locale (differenza di stamp, rilettura dei soli record cambiati). Idempotente e
+    /// serializzata. False se l'indice non e' utilizzabile (la proiezione resta com'e' e non viene usata).</summary>
+    internal bool SincronizzaElenco(IProgress<(int fatti, int totale)>? progresso, CancellationToken ct)
+    {
+        if (_indicePendente) return false;
+        _sincronizzazioneElenco.Wait(ct);
+        try
+        {
+            using var _ = _elenco.IniziaSincronizzazione(out var sequenzaInizio);
+            if (!LeggiDaIndice("stamp CR attive (proiezione di elenco)", () => _localIndex.CaricaStampPerArchiviazione(LocalEntityKind, archiviata: false), out var stamp))
+                return false;
+            var (daLeggere, daRimuovere) = _elenco.Differenze(stamp);
+            progresso?.Report((0, daLeggere.Count));
+            var righe = new List<RigaElencoCr>(daLeggere.Count);
+            const int Lotto = 256;
+            var lotti = new List<List<string>>();
+            for (var i = 0; i < daLeggere.Count; i += Lotto) lotti.Add(daLeggere.GetRange(i, Math.Min(Lotto, daLeggere.Count - i)));
+            var fatti = 0;
+            var gate = new object();
+            Exception? errore = null;
+            Parallel.ForEach(lotti, new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = Math.Max(1, Math.Min(6, Environment.ProcessorCount)) }, lotto =>
+            {
+                if (Volatile.Read(ref errore) != null) return;
+                try
+                {
+                    var letti = _localIndex.LeggiJsonPerPercorsi(LocalEntityKind, lotto);
+                    var locali = new List<RigaElencoCr>(letti.Count);
+                    foreach (var (path, mtime, len, json) in letti)
+                    {
+                        var cr = System.Text.Json.JsonSerializer.Deserialize<ChangeRequest>(json, JsonIo.Options)
+                            ?? throw new InvalidDataException("Entity-index locale: payload JSON nullo/non deserializzabile.");
+                        locali.Add(_elenco.Crea(cr, path, mtime, len));
+                    }
+                    lock (gate) righe.AddRange(locali);
+                    progresso?.Report((Interlocked.Add(ref fatti, lotto.Count), daLeggere.Count));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException) { Interlocked.CompareExchange(ref errore, ex, null); }
+            });
+            if (errore != null) throw errore;
+            ct.ThrowIfCancellationRequested();
+            _elenco.ApplicaSincronizzazione(righe, daRimuovere, sequenzaInizio);
+            _elenco.PreparaOrdinamenti(ct);
+            _elencoCostruito = true;
+            return true;
+        }
+        finally { _sincronizzazioneElenco.Release(); }
+    }
+
+    private void AggiornaElencoDopoSalvataggio(string path, ChangeRequest snapshot, long mtimeTicks, long lunghezza)
+    {
+        if (snapshot.Archiviata) _elenco.Rimuovi(path);
+        else _elenco.Upsert(_elenco.Crea(snapshot, path, mtimeTicks, lunghezza));
+    }
+
+    /// <summary>Costruisce la proiezione al primo uso (se il precarico non l'ha fatto) e verifica che sia allineata all'indice: stesso
+    /// numero di CR attive. Se non lo e' (modifica fuori banda), programma il riallineamento in background e restituisce false: il
+    /// chiamante usa la lettura storica, sempre corretta.</summary>
+    private bool ElencoUtilizzabile(CancellationToken ct)
+    {
+        if (_indicePendente || _indexRecovery.Salute == LocalIndexHealth.Unavailable) return false;
+        if (!_elencoCostruito)
+        {
+            try { if (!SincronizzaElenco(null, ct)) return false; }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) { CrashLogService.Registra("Change Request: costruzione della proiezione di elenco non riuscita (letture dai JSON)", ex); return false; }
+        }
+        // Verifica di coerenza con l'indice (stesso numero di CR attive): le mutazioni di questo processo aggiornano la proiezione di
+        // persona, quindi serve solo a intercettare scritture dell'indice fuori banda (altra istanza). Il COUNT costa ~50 ms a 100.000
+        // righe: si ripete al massimo ogni IntervalloVerificaElencoMs, e subito dopo ogni riallineamento riuscito.
+        var adesso = Environment.TickCount64;
+        if (IntervalloVerificaElencoMs > 0 && adesso - Interlocked.Read(ref _ultimaVerificaElenco) < IntervalloVerificaElencoMs) return true;
+        if (!LeggiDaIndice("conteggio CR attive (verifica proiezione)", () => _localIndex.Count(LocalEntityKind, archived: false), out var nIndice)) return false;
+        if (nIndice == _elenco.Count) { Interlocked.Exchange(ref _ultimaVerificaElenco, adesso); return true; }
+        Interlocked.Exchange(ref _ultimaVerificaElenco, 0);
+        if (Interlocked.CompareExchange(ref _riallineamentoElencoProgrammato, 1, 0) == 0)
+            _ = Task.Run(() => { try { RiallineaElencoSenzaEccezioni(); } finally { Volatile.Write(ref _riallineamentoElencoProgrammato, 0); } });
+        return false;
+    }
+
+    /// <summary>Interroga la proiezione di elenco: filtro, ordinamento, pagina e totale esatti; le righe della pagina sono CR complete
+    /// lette dall'indice per UID (sola lettura, nessuna fotografia anti-overwrite: per aprirle in modifica usare GetById).
+    /// False (nessun risultato) se la proiezione non e' utilizzabile: il chiamante ricade sulla lettura storica.</summary>
+    public bool TryQueryElenco(ChangeRequestElencoFiltro filtro, ChangeRequestOrdinamento ordinamento, long pagina, int dimensionePagina,
+        CancellationToken ct, out ChangeRequestElencoRisultato risultato)
+    {
+        risultato = null!;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        if (!ElencoUtilizzabile(ct)) return false;
+        var tVerifica = sw.Elapsed.TotalMilliseconds;
+        var p = _elenco.Interroga(filtro, ordinamento, pagina, dimensionePagina, ct);
+        var tInterroga = sw.Elapsed.TotalMilliseconds - tVerifica;
+        var uids = p.Righe.Select(r => r.Uid).ToList();
+        if (!LeggiDaIndice("pagina CR (righe complete)", () => _localIndex.GetByUids<ChangeRequest>(LocalEntityKind, uids), out var records)) return false;
+        var perUid = records.GroupBy(r => r.Entity.Uid).ToDictionary(g => g.Key, g => g.ToList());
+        var righe = new List<ChangeRequest>(p.Righe.Count);
+        foreach (var riga in p.Righe)
+        {
+            if (!perUid.TryGetValue(riga.Uid, out var candidati)) return false;
+            var record = candidati.FirstOrDefault(c => string.Equals(Path.GetFileName(c.Path), riga.Nome, StringComparison.OrdinalIgnoreCase)) ?? candidati[0];
+            righe.Add(record.Entity);
+        }
+        risultato = new ChangeRequestElencoRisultato(p.Totale, p.Pagina, righe);
+        UltimeFasiElencoMs = (tVerifica, tInterroga, sw.Elapsed.TotalMilliseconds - tVerifica - tInterroga);
+        return true;
+    }
+
+    /// <summary>Diagnostica (solo benchmark): durata in ms dell'ultima interrogazione per fase (verifica allineamento, filtro/ordinamento, lettura righe pagina).</summary>
+    internal (double Verifica, double Interroga, double Pagina) UltimeFasiElencoMs;
+
+    /// <summary>Valori distinti (veicoli, componente, funzionalita', responsabili, creatori) delle CR attive, dalla proiezione. Null se non utilizzabile.</summary>
+    public ChangeRequestElencoValori? TryValoriElenco(CancellationToken ct = default) =>
+        ElencoUtilizzabile(ct) ? _elenco.Distinti() : null;
 
     /// <summary>
     /// API legacy: materializza solo su richiesta del caller. Il repository non conserva piu' questa lista in
@@ -708,7 +874,7 @@ public sealed class ChangeRequestRepository
             // Lock cross-processo: confronti e WriteAtomic dentro la stessa finestra.
             using var commitLock = DomainRecordCommitLock.Acquire("Change Request", cr.Id, path);
             VisibleConflictWriteGuard.EnsureNoVisibleFork(path, cr.Uid, null,
-                RecordJournal?.CopiaChiusaPer(DomainRecordJournalService.ChangeRequestDomain, cr.Uid));
+                RecordJournal?.CopiaChiusaPer(DomainRecordJournalService.ChangeRequestDomain, cr.Uid), _paths.Root);
             RecordJournal?.EnsureNotBlocked(DomainRecordJournalService.ChangeRequestDomain, cr.Uid, cr.Id);
             ChangeRequest? current = null;
             if (File.Exists(path))
@@ -759,6 +925,7 @@ public sealed class ChangeRequestRepository
                 LocalEntityKind, path, info.LastWriteTimeUtc, info.Length, snapshot,
                 x => x.Id, x => x.Uid, archived: snapshot.Archiviata, modified: snapshot.UltimaModifica, ricerca: RicercaTesto(snapshot)));
             _hashByPath[path] = EntityStateFingerprint.Compute(snapshot);
+            AggiornaElencoDopoSalvataggio(path, snapshot, info.LastWriteTimeUtc.Ticks, info.Length);
             DiagnosticTraceService.Registra("ChangeRequest.Save", $"{cr.Id} revisione={cr.RevisioneDati}");
         }
     }
@@ -811,7 +978,7 @@ public sealed class ChangeRequestRepository
             // Lock cross-processo: confronti e WriteAtomic dentro la stessa finestra.
             using var commitLock = DomainRecordCommitLock.Acquire("Change Request", cr.Id, path);
             VisibleConflictWriteGuard.EnsureNoVisibleFork(path, cr.Uid, null,
-                RecordJournal?.CopiaChiusaPer(DomainRecordJournalService.ChangeRequestDomain, cr.Uid));
+                RecordJournal?.CopiaChiusaPer(DomainRecordJournalService.ChangeRequestDomain, cr.Uid), _paths.Root);
             if (File.Exists(path))
             {
                 var current = JsonIo.TryRead<ChangeRequest>(path, out var error)
@@ -843,6 +1010,7 @@ public sealed class ChangeRequestRepository
                 if (journalPending != null) RecordJournal!.Publish(journalPending);
             }
             _indexRecovery.TryWrite("remove CR", () => _localIndex.Remove(LocalEntityKind, path));
+            _elenco.Rimuovi(path);
             _hashByPath.Remove(path);
             DiagnosticTraceService.Registra("ChangeRequest.EliminaDefinitivamente", cr.Id);
         }
@@ -850,3 +1018,6 @@ public sealed class ChangeRequestRepository
 }
 
 public sealed record ChangeRequestArchiveSlice(IReadOnlyList<ChangeRequest> Items, long TotalCount);
+
+/// <summary>Pagina di elenco CR calcolata dalla proiezione: totale filtrato esatto, pagina effettiva e CR complete della pagina.</summary>
+public sealed record ChangeRequestElencoRisultato(long Totale, long Pagina, IReadOnlyList<ChangeRequest> Righe);

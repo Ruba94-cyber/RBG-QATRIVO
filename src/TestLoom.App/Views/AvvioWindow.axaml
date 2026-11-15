@@ -9,7 +9,7 @@
         x:DataType="vm:AvvioViewModel"
         Icon="/Assets/rbg-qatrivo.ico"
         Title="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AvvioTitolo}"
-        Width="460" Height="220" CanResize="True"
+        Width="460" Height="250" CanResize="True"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="True"
         AutomationProperties.AutomationId="AvvioWindow"
@@ -21,7 +21,15 @@
 
     <Border Background="{DynamicResource SplashBackgroundBrush}" Padding="28">
         <StackPanel Spacing="14" VerticalAlignment="Center">
-            <TextBlock Text="RBG - QATRIVO" Foreground="{DynamicResource TextOnDarkBrush}" FontSize="20" FontWeight="Bold" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Image Source="/Assets/rbg-qatrivo-icon-256.png" Width="44" Height="44"
+                       VerticalAlignment="Center" AutomationProperties.AutomationId="Avvio_Logo_Image" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="RBG - QATRIVO" Foreground="{DynamicResource TextOnDarkBrush}" FontSize="20" FontWeight="Bold" />
+                    <TextBlock Text="{x:Static vm:AvvioViewModel.VersioneApplicazione}" Foreground="{DynamicResource TextOnDarkMutedBrush}" FontSize="12"
+                               AutomationProperties.AutomationId="Avvio_Versione_Text" />
+                </StackPanel>
+            </StackPanel>
 
             <TextBlock Text="{Binding Messaggio}" Foreground="{DynamicResource TextOnDarkSoftBrush}" FontSize="14"
                        TextWrapping="Wrap"

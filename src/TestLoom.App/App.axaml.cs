@@ -91,6 +91,10 @@ public partial class App : Application
             // non avviare qui altro lavoro sincrono sul thread UI.
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
+            // Prima di aprire il workspace: verifica/forza la sincronizzazione OneDrive (barra di avanzamento sulla schermata di avvio,
+            // timeout). Se non riesce il workspace si apre in sola lettura (OneDriveSyncGate) con avviso e pulsante "Riprova".
+            await VerificaOneDriveAvvioAsync(configOverride, avvioViewModel);
+
             var lavoroTask = PreparaAvvioAsync(configOverride, progress);
             var (state, mainViewModel) = await lavoroTask;
 
@@ -206,6 +210,35 @@ public partial class App : Application
         {
             // Lo Shutdown dell'avvio fallito e' garantito da questo finally, anche se la pulizia lancia un'eccezione.
             if (!avviata) ChiudiAvvioFallito(desktop, shutdownModeTemporaneo, avvio);
+        }
+    }
+
+    /// <summary>
+    /// Verifica e forza la sincronizzazione OneDrive della cartella dati all'avvio, mostrando l'avanzamento nella schermata di
+    /// avvio. Tutto il lavoro su disco gira in background (OneDriveSyncService); non lancia mai: un errore qui non deve impedire l'avvio.
+    /// </summary>
+    private static async Task VerificaOneDriveAvvioAsync(string? configOverride, AvvioViewModel avvioViewModel)
+    {
+        try
+        {
+            var config = new AppConfigService(configOverride).Load();
+            if (string.IsNullOrWhiteSpace(config.CartellaCondivisa)) return;
+            // Testi nella lingua dell'utente fin dalla schermata di avvio; stessa modalità cartella che userà AppState.
+            LocalizationService.Instance.Lingua = config.Lingua;
+            ModalitaCondivisioneService.ImpostaOverrideRadice(config.CartellaCondivisa, config.ModalitaCartellaCondivisa);
+            var progress = new Progress<AvanzamentoSyncOneDrive>(a => avvioViewModel.Aggiorna(new BootstrapProgress
+            {
+                Fase = FaseBootstrap.VerificaWorkspace,
+                Messaggio = OneDriveSync.TestoAvanzamento(a),
+                Elaborati = a.Totale > 0 ? a.Elaborati : null,
+                Totale = a.Totale > 0 ? a.Totale : null,
+                Trascorso = a.Trascorso,
+            }));
+            await OneDriveSync.VerificaEApplicaAsync(config.CartellaCondivisa, progress);
+        }
+        catch (Exception ex)
+        {
+            CrashLogService.Registra("Verifica OneDrive all'avvio", ex);
         }
     }
 
@@ -405,39 +438,8 @@ public partial class App : Application
             _ = Task.Run(() => PerformanceDiagnosticsService.Record(cartellaPrestazioni,
                 "avvio.precache_pagina", tempo, detail: esito));
 
-            // Il lavoro di dati/VM e' stato fatto fuori dal thread UI. Avalonia
-            // impone invece che le View siano CREATE sul dispatcher: farlo in un
-            // piccolo slot a priorita' Background, DOPO il primo render, prepara
-            // la vera View riutilizzabile del ViewLocator senza mostrarla o
-            // costruire finestre temporanee. Nessun Measure/Arrange sul primo
-            // frame e nessun doppio VM quando l'utente apre quella pagina.
-            if (vm != null && (puoContinuare == null || puoContinuare()))
-            {
-                await Task.Delay(120);
-                if (puoContinuare == null || puoContinuare())
-                {
-                    try
-                    {
-                        await Dispatcher.UIThread.InvokeAsync(() =>
-                        {
-                            // Un utente puo' aprire la pagina fra la verifica
-                            // PuoScaldare() e questo slot di dispatcher. Non
-                            // sostituire una View gia' montata, ne' costruire
-                            // un duplicato se un'altra navigazione l'ha usata.
-                            if (ReferenceEquals(mainViewModel.CurrentPage, vm) ||
-                                mainViewModel.SelectedNavItem?.Id == navId ||
-                                mainViewModel.HaModificheNonSalvate())
-                                return;
-                            var locator = Application.Current?.DataTemplates.OfType<ViewLocator>().FirstOrDefault();
-                            locator?.PreparaInCacheSeAssente(vm);
-                        }, DispatcherPriority.Background);
-                    }
-                    catch (Exception ex)
-                    {
-                        CrashLogService.Registra($"Precache View '{navId}'", ex);
-                    }
-                }
-            }
+            // Le View NON si costruiscono qui: richiedono il thread UI e, dopo la finestra, scattano proprio
+            // mentre l'operatore inizia a lavorare. Si creano alla prima visita reale (il VM e' gia' caldo).
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
             // Pre-costruzione della View "Test" (piano 6.4.0, punto 2): a VM già caldo, il costo residuo alla

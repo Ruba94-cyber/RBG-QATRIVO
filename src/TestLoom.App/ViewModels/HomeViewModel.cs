@@ -819,17 +819,17 @@ public partial class HomeViewModel : ViewModelBase, IPaginaAggiornabile, IScorci
         AvviaGiro(recenti: false);
     }
 
-    /// <summary>Regola utente (2026-10, punto 1): conta il lavoro reale, cioe' ogni operazione realmente eseguita
-    /// (Esito.EEseguito; per componente coinvolta) in ogni REV, non 1 per REV; N.A./Da eseguire/Da rivedere no. Le celle
-    /// ereditate in una nuova REV partono Da eseguire, quindi contano solo se rieseguite. Le REV con Origine Rete (chiusura da rete) non sono
-    /// attribuite a nessun operatore. Equivalente a raw_attempt_count &gt; 0 AND origine &lt;&gt; Rete nel read-model SQL.</summary>
+    /// <summary>Regola utente: ogni operazione si conta UNA volta, per l'operatore che la porta a uno stato finale
+    /// (Conforme, Non conforme, Conforme con variazioni; per componente coinvolta). Pianificate/Da eseguire/N.A. e REV con
+    /// Origine Rete non contano; le copie non toccate in una nuova REV non si ricontano, una vera riesecuzione si'
+    /// (vedi <see cref="OperationalSemantics.EnumerateOperatorWork"/>). Il read-model SQL somma lo stesso valore in
+    /// test_revision.unit_count.</summary>
     internal static Dictionary<string, long> ContaEsecuzioniPerOperatore(IEnumerable<TestCase> testCases)
     {
         var conteggi = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         foreach (var tc in testCases)
-            foreach (var e in tc.Esecuzioni)
-                if (!string.IsNullOrEmpty(e.Operatore) && OperationalSemantics.EsecuzioneAttribuibileAOperatore(e))
-                    conteggi[e.Operatore] = conteggi.GetValueOrDefault(e.Operatore) + OperationalSemantics.CountWorkUnits(tc, e);
+            foreach (var (_, operatore, units) in OperationalSemantics.EnumerateOperatorWork(tc))
+                conteggi[operatore] = conteggi.GetValueOrDefault(operatore) + units;
         return conteggi;
     }
 

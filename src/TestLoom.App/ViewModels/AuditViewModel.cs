@@ -916,7 +916,8 @@ public partial class AuditViewModel : ViewModelBase, IPaginaAggiornabile
             _state.TestCases.FileConProblemi.Count > 0 ||
             _state.TestCases.PercorsiConProblemiTracciati.Count > 0 ||
             _state.TestCases.DuplicatiId.Count > 0 ||
-            _state.TestCases.CopieDiConflitto.Count > 0)
+            _state.TestCases.CopieDiConflitto.Count > 0 ||
+            ConflictCopyQuarantineService.HasAnyOpen(_state.Paths.Root, DomainRecoveryCategory.TestCase))
             throw new InvalidDataException("La fotografia dei Test non è completa o contiene file/duplicati irrisolti.");
         return _state.TestCases.GetAll();
     }

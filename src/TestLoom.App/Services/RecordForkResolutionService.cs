@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using TestLoom.App.Models;
 
 namespace TestLoom.App.Services;
@@ -12,6 +13,99 @@ namespace TestLoom.App.Services;
 public static class RecordForkResolutionService
 {
     public sealed record Outcome(string Message, string? ChosenHash);
+
+    private static (DomainRecoveryCategory Categoria, string? Percorso) Localizza(AppState state, RecordFork fork) => fork.Domain switch
+    {
+        DomainRecordJournalService.NonConformitaDomain => (DomainRecoveryCategory.NonConformita,
+            ConflictResolutionService.PercorsoCanonico(state, DomainRecoveryCategory.NonConformita, fork.EntityUid)),
+        DomainRecordJournalService.ChangeRequestDomain => (DomainRecoveryCategory.ChangeRequest,
+            ConflictResolutionService.PercorsoCanonico(state, DomainRecoveryCategory.ChangeRequest, fork.EntityUid)),
+        DomainRecordJournalService.SegnalazioneDomain => (DomainRecoveryCategory.Segnalazione,
+            ConflictResolutionService.PercorsoCanonico(state, DomainRecoveryCategory.Segnalazione, fork.EntityUid)),
+        _ => throw new InvalidOperationException($"Dominio non supportato: {fork.Domain}")
+    };
+
+    /// <summary>
+    /// Risoluzione guidata di un fork NC/CR/Segnalazione sul RECORD REALE: la versione corrente e i rami in conflitto vengono
+    /// confrontati campo per campo (o, se non confrontabili, scelti per intero in sola lettura). Le versioni originali vanno
+    /// nel recovery-bin prima del salvataggio; il fork si chiude solo dopo il salvataggio riuscito. Un ramo di eliminazione
+    /// non e' unibile: resta il comando "Usa questa versione" (<see cref="ApplyBranch"/>).
+    /// </summary>
+    public static async Task<Outcome?> RisolviConEditorAsync(AppState state, RecordFork fork)
+    {
+        var journal = Journal(state);
+        if (fork.Branches.Any(b => b.IsDelete))
+            throw new InvalidOperationException("Uno dei rami è un'eliminazione e non può essere unita campo per campo: usa \"Usa questa versione\" sul ramo scelto.");
+        var (categoria, percorso) = Localizza(state, fork);
+        if (percorso == null || !File.Exists(percorso))
+            throw new IOException("Il record corrente non è disponibile localmente: aggiorna l'elenco e riprova.");
+        var operatore = state.Config.OperatoreAttivo;
+        WorkspaceWritePolicy.EnsureCanWrite(state.Paths, "Risoluzione di un conflitto fra postazioni");
+
+        var mine = JsonIo.ReadAllBytesShared(percorso);
+        var rami = new List<(RecordForkBranch Ramo, byte[] Bytes)>();
+        foreach (var b in fork.Branches.OrderBy(x => x.Utc).GroupBy(x => x.NewHash ?? x.EventId).Select(g => g.First()))
+        {
+            var json = journal.TryReadBranchPayload(fork, b)
+                ?? throw new InvalidOperationException(
+                    "La versione di un ramo non è ancora disponibile: la postazione che l'ha prodotta deve aprire TestLoom " +
+                    "dopo la sincronizzazione per pubblicarla. Nessuna modifica è stata fatta.");
+            rami.Add((b, System.Text.Encoding.UTF8.GetBytes(json)));
+        }
+
+        var titolo = $"{ConflictResolutionService.EtichettaTipo(categoria)} {fork.EntityId}";
+        var percorsoUi = await ConflictResolutionService.EseguiPercorsoAsync(ConflictResolutionService.KindOf(categoria), titolo, mine,
+            rami.Select(r => (r.Bytes, "Versione di " + (string.IsNullOrWhiteSpace(r.Ramo.Operator) ? r.Ramo.DeviceId : r.Ramo.Operator),
+                $"Salvata il {r.Ramo.Utc.ToLocalTime():dd/MM/yyyy HH:mm} da {r.Ramo.DeviceId}")).ToList(), operatore);
+        if (percorsoUi == null) return null;
+
+        var hashRami = fork.Branches.Select(b => b.NewHash).OfType<string>().ToList();
+        return await Task.Run(() =>
+        {
+            using var scope = journal.BeginResolution(fork.Domain, fork.EntityUid, hashRami);
+            foreach (var (_, bytes) in rami)
+                DomainRecoveryService.ArchivePayload(state.Paths, percorso, categoria, bytes, operatore,
+                    percorsoUi.Changed ? "ramo in conflitto: scartato o incorporato nella risoluzione" : "ramo in conflitto scartato (tenuta la versione corrente)");
+            if (percorsoUi.Changed)
+                DomainRecoveryService.ArchivePayload(state.Paths, percorso, categoria, mine, operatore, "versione corrente prima della risoluzione del conflitto");
+
+            string? hashScelto;
+            string? avviso = null;
+            if (percorsoUi.Changed)
+            {
+                avviso = ConflictResolutionService.SalvaVersioneRisolta(state, categoria, fork.EntityUid, percorso,
+                    percorsoUi.FinalBytes!, percorsoUi.Model, ModelloLeggibile(mine, categoria), ConflictResolutionService.RevisioneDi(mine), operatore);
+                hashScelto = percorsoUi.Model != null ? EntityStateFingerprint.Compute(percorsoUi.Model) : null;
+            }
+            else hashScelto = CurrentHash(state, fork);
+
+            journal.MarkResolved(fork, hashScelto, operatore);
+            try
+            {
+                var hashSet = new HashSet<string>(hashRami, StringComparer.OrdinalIgnoreCase);
+                VisibleConflictWriteGuard.ArchiviaCopieRisolte(state.Paths, percorso, fork.EntityUid,
+                    copia => DomainRecordJournalService.HashDiCopia(fork.Domain, copia) is { } h && hashSet.Contains(h),
+                    categoria, operatore);
+            }
+            catch (Exception ex) { CrashLogService.Registra("Risoluzione fork: archiviazione copie dei rami", ex); }
+            state.RegistraAudit("RisoluzioneConflittoRecord", fork.EntityId,
+                $"domain={fork.Domain}; uid={fork.EntityUid:N}; scelta={(percorsoUi.Changed ? "unione/versione-intera" : "corrente")}");
+            return new Outcome((percorsoUi.Changed
+                ? "Conflitto risolto: la versione scelta è stata salvata. Le versioni originali sono nel cestino di recupero."
+                : "Conflitto chiuso mantenendo la versione corrente. Le altre versioni sono nel cestino di recupero.") +
+                (avviso == null ? "" : " " + avviso), hashScelto);
+        });
+    }
+
+    private static bool ModelloLeggibile(byte[] bytes, DomainRecoveryCategory c)
+    {
+        try
+        {
+            var t = RecordMergeEngine.ModelType(ConflictResolutionService.KindOf(c));
+            return t != null && JsonNode.Parse(bytes) is JsonObject o && o.Deserialize(t, JsonIo.Options) != null;
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException) { return false; }
+    }
 
     /// <summary>Il JSON autorevole attuale è quello corretto: chiude il fork senza modificare il record.</summary>
     public static Outcome KeepCurrent(AppState state, RecordFork fork, string operatorName)

@@ -77,4 +77,33 @@ public class DtcDevalidazioneRegolaTests
         Assert.True(dev.DevalidazioneNonRichiesta);   // non blocca "Concluso"
         Assert.Null(val.DevalidazioneInseribile);
     }
+
+    [Fact]
+    public void SenzaDevalidazioni_PercorsoVeloce_AzzeraIFlagResidui()
+    {
+        var val = Op(PassoDtc.Validazione, Esito.NonConforme);
+        var dev = Op(PassoDtc.Devalidazione, Esito.DaEseguire);
+        var rev = new Esecuzione { Condizioni = new() { val, dev } };
+        rev.AggiornaDevalidazioniNascoste();
+        Assert.True(dev.DevalidazioneNascosta);
+        rev.Condizioni.Remove(dev);   // la devalidazione sparisce: niente flag stantii sulla validazione
+        rev.AggiornaDevalidazioniNascoste();
+        Assert.Null(val.DevalidazioneInseribile);
+        Assert.False(val.DevalidazioneNascosta);
+        // condizione non-guasto: nessun effetto
+        var altra = new Condizione { Esito = Esito.DaEseguire };
+        rev.Condizioni.Add(altra);
+        rev.AggiornaDevalidazioniNascoste();
+        Assert.False(altra.DevalidazioneNascosta);
+    }
+
+    [Fact]
+    public void ChiaveEquivalente_StessoDtcConEcuInOrdineDiversoECaseDiverso_AbbinaValidazioneEDevalidazione()
+    {
+        var val = new Condizione { Guasto = "p0001", DtcPasso = PassoDtc.Validazione, Esito = Esito.NonConforme, DtcRequisitoId = " REQ-1 ", Componente = new EcuSelection(new[] { "B", "a" }) };
+        var dev = new Condizione { Guasto = "P0001", DtcPasso = PassoDtc.Devalidazione, Esito = Esito.DaEseguire, DtcRequisitoId = "REQ-1", Componente = new EcuSelection(new[] { "A", "b" }) };
+        var rev = new Esecuzione { Condizioni = new() { val, dev } };
+        rev.AggiornaDevalidazioniNascoste();
+        Assert.True(dev.DevalidazioneNascosta);
+    }
 }

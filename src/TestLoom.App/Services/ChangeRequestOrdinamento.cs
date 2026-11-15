@@ -49,9 +49,9 @@ public static class ChangeRequestOrdinamentoComparer
         _ => 0,
     };
 
-    private static string PrimoVeicolo(ChangeRequest cr) => VeicoliOrdinati(cr).FirstOrDefault() ?? "";
+    internal static string PrimoVeicolo(ChangeRequest cr) => VeicoliOrdinati(cr).FirstOrDefault() ?? "";
 
-    private static string PrimoTicket(ChangeRequest cr) =>
+    internal static string PrimoTicket(ChangeRequest cr) =>
         cr.TicketCollegati.Select(t => t.Riferimento ?? "").Where(t => t.Length > 0).OrderBy(t => t, StringComparer.CurrentCultureIgnoreCase).FirstOrDefault() ?? "";
 
     private static int ConfrontaNoCase(string a, string b) => string.Compare(a, b, StringComparison.CurrentCultureIgnoreCase);

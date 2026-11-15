@@ -1128,6 +1128,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         TestoStatoCondivisione = stato.Stato == Models.StatoCondivisione.SolaLettura
             ? string.Format(LocalizationService.Instance.Traduci("SolaLetturaPrefixFmt"), stato.Messaggio)
             : string.Format(LocalizationService.Instance.Traduci("CartellaNonDisponibilePrefixFmt"), stato.Messaggio);
+        AggiornaStatoOneDrive();
     }
 
     /// <summary>
@@ -1142,6 +1143,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _sondaRadiceInCorso = true;
         try
         {
+            // OneDrive deve essere presente e sincronizzare ANCHE durante la sessione: altrimenti sola lettura (come per l'avvio).
+            var radiceOneDrive = _state.Config.CartellaCondivisa;
+            var statoOneDriveCambiato = await Task.Run(() => OneDriveSync.ControlloContinuo(radiceOneDrive));
+            if (statoOneDriveCambiato && !OneDriveSyncGate.Attivo(radiceOneDrive) && !AggiornamentoInCorso)
+            {
+                // Tornato a sincronizzare: rilettura dei dati prima di riabilitare le scritture (come dopo "Riprova").
+                await AggiornaOra();
+            }
             var passo = await Task.Run(() => _state.SondaRadiceCondivisa(_monitorRadice, forza: false));
             if (passo.Ricalcola && !AggiornamentoInCorso)
             {
