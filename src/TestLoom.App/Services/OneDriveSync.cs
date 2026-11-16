@@ -48,9 +48,13 @@ public static class OneDriveSync
 
     private static string? _registroRadice;
 
+    /// <summary>Scritture di dati fatte in questa sessione sotto la cartella OneDrive (0 = nulla da inviare in chiusura).</summary>
+    public static int ScrittureInSessione => _registro?.ScrittureRilevanti ?? 0;
+
     private static OneDriveMonitorContinuo? _monitor;
     private static string? _monitorRadice;
     private static bool _bloccatoDalMonitor;
+    private static bool _caricamentoFermoTracciato;
     private static readonly object _gateMonitor = new();
 
     /// <summary>
@@ -79,6 +83,15 @@ public static class OneDriveSync
                 if (!risultato.Sicuro)
                 {
                     if (attivo) return false; // gia' bloccato (avvio o monitor): nulla da aggiungere
+                    if (risultato.Esito == EsitoMonitorOneDrive.CaricamentoFermo)
+                    {
+                        // Caricamenti lenti/bloccati (file aperti, rete, pausa) non rendono i dati letti obsoleti: l'app resta
+                        // operativa e il problema e' solo tracciato. Il blocco resta per il client assente.
+                        if (!_caricamentoFermoTracciato)
+                            DiagnosticTraceService.Registra("OneDrive.Monitor", $"caricamenti fermi: {risultato.FileFermi} file (nessun blocco)");
+                        _caricamentoFermoTracciato = true;
+                        return false;
+                    }
                     OneDriveSyncGate.Blocca(radice, MotivoMonitor(risultato));
                     _bloccatoDalMonitor = true;
                     return true;
@@ -89,6 +102,7 @@ public static class OneDriveSync
                     _bloccatoDalMonitor = false;
                     return true;
                 }
+                _caricamentoFermoTracciato = false;
                 if (!attivo) _bloccatoDalMonitor = false;
                 return false;
             }
@@ -102,6 +116,7 @@ public static class OneDriveSync
 
     public static string MotivoMonitor(RisultatoMonitorOneDrive r) => r.Esito == EsitoMonitorOneDrive.ClientNonAttivo
         ? T("OneDriveSolaLetturaClientTesto")
+        : r.Esito == EsitoMonitorOneDrive.Offline ? T("OneDriveSolaLetturaOfflineTesto")
         : string.Format(T("OneDriveSolaLetturaCaricamentoFermoFmt"), r.FileFermi);
 
     /// <summary>Solo test: sostituisce (o azzera) il monitor, per usare orologio e soglie controllati.</summary>
@@ -124,9 +139,11 @@ public static class OneDriveSync
         {
             case EsitoSyncOneDrive.Timeout:
             case EsitoSyncOneDrive.ClientNonAttivo:
+            case EsitoSyncOneDrive.Offline:
                 OneDriveSyncGate.Blocca(radice, MotivoSolaLettura(risultato));
                 break;
             case EsitoSyncOneDrive.Completata:
+            case EsitoSyncOneDrive.CaricamentoInCorso:
             case EsitoSyncOneDrive.NonApplicabile:
                 OneDriveSyncGate.Sblocca(radice);
                 break;
@@ -155,9 +172,10 @@ public static class OneDriveSync
     /// <summary>Testo del banner di sola lettura dopo un avvio non riuscito.</summary>
     public static string MotivoSolaLettura(RisultatoSyncOneDrive r) => r.Esito == EsitoSyncOneDrive.ClientNonAttivo
         ? T("OneDriveSolaLetturaClientTesto")
+        : r.Esito == EsitoSyncOneDrive.Offline ? T("OneDriveSolaLetturaOfflineTesto")
         : string.Format(T("OneDriveSolaLetturaTimeoutFmt"), r.DaScaricare, r.DaCaricare);
 
     /// <summary>Avviso finale di chiusura quando restano file da caricare.</summary>
     public static string AvvisoChiusura(RisultatoSyncOneDrive r) =>
-        string.Format(T("OneDriveUscitaAvvisoFmt"), r.DaCaricare);
+        string.Format(T(r.Esito == EsitoSyncOneDrive.Offline ? "OneDriveUscitaOfflineFmt" : "OneDriveUscitaAvvisoFmt"), r.DaCaricare);
 }

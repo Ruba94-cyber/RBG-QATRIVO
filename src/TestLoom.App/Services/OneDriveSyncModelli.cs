@@ -42,6 +42,15 @@ public interface IOneDriveAccesso
 
     /// <summary>Forza il download del contenuto di un file solo online (lettura che attiva il richiamo di Cloud Files).</summary>
     void Scarica(string percorso, CancellationToken ct);
+
+    /// <summary>
+    /// Sollecita OneDrive a rivalutare un file in coda (evento di modifica del file system, senza cambiare contenuto né data di
+    /// scrittura). Best-effort, non lancia. Predefinito: nessuna azione (fake dei test).
+    /// </summary>
+    void Sollecita(string percorso) { }
+
+    /// <summary>Vero se la connessione a Internet (servizi Microsoft) risponde. Predefinito: vero (fake dei test).</summary>
+    bool InternetOnline() => true;
 }
 
 /// <summary>Persistenza LOCALE (fuori dalla cartella condivisa) dei file rimasti da caricare alla chiusura.</summary>
@@ -71,6 +80,14 @@ public enum EsitoSyncOneDrive
     Timeout,
     /// <summary>Il client OneDrive non è in esecuzione e non è stato possibile avviarlo.</summary>
     ClientNonAttivo,
+    /// <summary>Il client c'è ma il PC non ha connessione Internet: nulla può essere inviato né ricevuto.</summary>
+    Offline,
+    /// <summary>
+    /// Solo all'avvio: client attivo, nessun file da scaricare (i dati letti sono aggiornati) ma restano file locali da caricare
+    /// oltre il tempo di attesa. Scrivere è sicuro (la copia locale è la più recente; i conflitti li gestiscono le guardie di
+    /// fork), quindi NON è un blocco: l'app resta operativa e il pendente resta registrato per la chiusura.
+    /// </summary>
+    CaricamentoInCorso,
     /// <summary>Operazione annullata dall'utente (es. "Chiudi senza attendere").</summary>
     Annullata,
     /// <summary>Errore imprevisto durante la verifica: non blocca mai l'app, ma l'avvio resta prudente.</summary>
@@ -80,7 +97,7 @@ public enum EsitoSyncOneDrive
 public sealed record RisultatoSyncOneDrive(EsitoSyncOneDrive Esito, int DaScaricare, int DaCaricare, string? Dettaglio = null)
 {
     /// <summary>Vero se è sicuro scrivere sui dati: allineati oppure non gestiti da OneDrive.</summary>
-    public bool Sicuro => Esito is EsitoSyncOneDrive.Completata or EsitoSyncOneDrive.NonApplicabile;
+    public bool Sicuro => Esito is EsitoSyncOneDrive.Completata or EsitoSyncOneDrive.NonApplicabile or EsitoSyncOneDrive.CaricamentoInCorso;
 }
 
 public enum FaseSyncOneDrive { Verifica, AvvioClient, Scaricamento, AttesaCaricamento }
@@ -92,7 +109,7 @@ public sealed record AvanzamentoSyncOneDrive(FaseSyncOneDrive Fase, int Elaborat
 public sealed class OneDriveSyncOptions
 {
     public TimeSpan TimeoutAvvio { get; init; } = TimeSpan.FromSeconds(45);
-    public TimeSpan TimeoutChiusura { get; init; } = TimeSpan.FromSeconds(60);
+    public TimeSpan TimeoutChiusura { get; init; } = TimeSpan.FromSeconds(20);
     public TimeSpan IntervalloVerifica { get; init; } = TimeSpan.FromSeconds(2);
     /// <summary>Attesa massima, all'avvio, perché il client appena lanciato risulti in esecuzione.</summary>
     public TimeSpan AttesaAvvioClient { get; init; } = TimeSpan.FromSeconds(10);

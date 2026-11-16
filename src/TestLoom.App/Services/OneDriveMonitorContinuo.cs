@@ -6,6 +6,8 @@ public enum EsitoMonitorOneDrive
     Ok,
     /// <summary>Il client OneDrive non è in esecuzione da oltre la soglia.</summary>
     ClientNonAttivo,
+    /// <summary>Il PC non ha Internet da oltre la soglia.</summary>
+    Offline,
     /// <summary>Uno o più file sono "in attesa di caricamento" da oltre la soglia: il client non sta sincronizzando (pausa, errore, rete).</summary>
     CaricamentoFermo,
 }
@@ -37,6 +39,7 @@ public sealed class OneDriveMonitorContinuo
     private readonly Func<DateTime> _oraUtc;
     private readonly Dictionary<string, DateTime> _inAttesaDal = new(StringComparer.OrdinalIgnoreCase);
     private DateTime? _clientAssenteDal;
+    private DateTime? _offlineDal;
 
     public OneDriveMonitorContinuo(IOneDriveAccesso accesso, OneDriveMonitorOptions? opzioni = null, Func<DateTime>? oraUtc = null)
     {
@@ -59,6 +62,15 @@ public sealed class OneDriveMonitorContinuo
                 return new RisultatoMonitorOneDrive(EsitoMonitorOneDrive.Ok, 0);
             }
             _clientAssenteDal = null;
+
+            if (!_accesso.InternetOnline())
+            {
+                _offlineDal ??= ora;
+                if (ora - _offlineDal.Value >= _opzioni.SogliaClientAssente)
+                    return new RisultatoMonitorOneDrive(EsitoMonitorOneDrive.Offline, 0);
+                return new RisultatoMonitorOneDrive(EsitoMonitorOneDrive.Ok, 0);
+            }
+            _offlineDal = null;
 
             var scansione = _accesso.Scansiona(radice, Array.Empty<string>(), ct);
             var inAttesa = scansione.DaAllineare

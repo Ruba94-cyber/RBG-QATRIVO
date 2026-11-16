@@ -96,7 +96,12 @@ public sealed class OneDriveSyncService
             // 1) Client OneDrive attivo. Senza client nessun file arriva o parte: all'avvio è un blocco, alla chiusura vale "non caricato".
             clientAttivo = await AssicuraClientAsync(progress, Trascorso, scadenza, ct).ConfigureAwait(false);
 
+            // Senza Internet nulla puo' essere inviato o ricevuto: all'avvio e' un blocco esplicito, subito (non dopo 45 s).
+            if (avvio && clientAttivo && !SicuroDa(_accesso.InternetOnline, true))
+                return new RisultatoSyncOneDrive(EsitoSyncOneDrive.Offline, 0, 0);
+
             var totale = 0;
+            var sollecitati = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             while (true)
             {
                 ct.ThrowIfCancellationRequested();
@@ -121,6 +126,21 @@ public sealed class OneDriveSyncService
                     return new RisultatoSyncOneDrive(EsitoSyncOneDrive.Completata, 0, 0);
                 }
 
+                // Sollecito una tantum per file: se OneDrive non ha preso in carico una modifica, la notifica lo spinge a farlo.
+                foreach (var f in daCaricare)
+                    if (sollecitati.Add(f.Percorso)) SicuroDa(() => { _accesso.Sollecita(f.Percorso); return true; }, false);
+
+                // Avvio: i soli caricamenti in coda non vanno attesi (la coda di OneDrive puo' contenere file grandi di altri
+                // e i dati letti sono comunque aggiornati): si prosegue subito, il pendente resta registrato per la chiusura.
+                if (avvio && clientAttivo && daScaricare.Count == 0)
+                {
+                    PersistiPendente(radice, daCaricare);
+                    DiagnosticTraceService.Registra("OneDrive.Pendenti",
+                        string.Join(" | ", daCaricare.Take(10).Select(f => Path.GetRelativePath(radice, f.Percorso) + DettaglioPendente(f.Percorso))));
+                    DiagnosticTraceService.Registra("OneDrive.Avvio", $"nessun file da scaricare; {daCaricare.Count} in coda di caricamento: si prosegue");
+                    return new RisultatoSyncOneDrive(EsitoSyncOneDrive.CaricamentoInCorso, 0, daCaricare.Count);
+                }
+
                 if (_oraUtc() >= scadenza) break;
 
                 // Avvio: richiama i file solo online (parallelismo limitato). Alla chiusura non si scarica nulla: si attende solo l'upload.
@@ -141,7 +161,19 @@ public sealed class OneDriveSyncService
 
         // Tempo scaduto.
         if (!avvio) PersistiPendente(radice, ultimiDaCaricare);
-        var esito = clientAttivo ? EsitoSyncOneDrive.Timeout : EsitoSyncOneDrive.ClientNonAttivo;
+        if (ultimiDaCaricare.Count > 0)
+            DiagnosticTraceService.Registra("OneDrive.Pendenti",
+                string.Join(" | ", ultimiDaCaricare.Take(10).Select(f => Path.GetRelativePath(radice, f.Percorso) + DettaglioPendente(f.Percorso))));
+        // All'avvio i soli caricamenti in sospeso non rendono i dati obsoleti: niente blocco in sola lettura.
+        if (avvio && clientAttivo && ultimaDaScaricare == 0 && ultimiDaCaricare.Count > 0)
+        {
+            PersistiPendente(radice, ultimiDaCaricare);
+            DiagnosticTraceService.Registra("OneDrive.Avvio", $"caricamenti in sospeso senza blocco: {ultimiDaCaricare.Count} file");
+            return new RisultatoSyncOneDrive(EsitoSyncOneDrive.CaricamentoInCorso, 0, ultimiDaCaricare.Count);
+        }
+        var esito = !clientAttivo ? EsitoSyncOneDrive.ClientNonAttivo
+            : !SicuroDa(_accesso.InternetOnline, true) ? EsitoSyncOneDrive.Offline
+            : EsitoSyncOneDrive.Timeout;
         return new RisultatoSyncOneDrive(esito, ultimaDaScaricare, ultimiDaCaricare.Count);
     }
 
@@ -220,6 +252,7 @@ public sealed class OneDriveSyncService
         if (nome.StartsWith("~$", StringComparison.Ordinal) || nome.StartsWith(".testloom-write-probe", StringComparison.OrdinalIgnoreCase) ||
             nome.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) || EraTemporaneoDiScrittura(nome))
             return false;
+        if (InHandshake(radice, file.Percorso)) return false; // riscritto di continuo; la consegna la prova l'handshake stesso
         if (file.Stato == StatoFileCloud.SoloOnline && InAllegati(radice, file.Percorso)) return false;
         return avvio || file.Stato == StatoFileCloud.InAttesaCaricamento;
     }
@@ -232,6 +265,23 @@ public sealed class OneDriveSyncService
         for (var k = i + 4; k < nome.Length; k++)
             if (!Uri.IsHexDigit(nome[k])) return false;
         return true;
+    }
+
+    private static string DettaglioPendente(string percorso)
+    {
+        try
+        {
+            var i = new FileInfo(percorso);
+            return $" [attr=0x{(uint)i.Attributes:X}; scritto={i.LastWriteTimeUtc:yyyy-MM-dd HH:mm}Z]";
+        }
+        catch (Exception) { return ""; }
+    }
+
+    private static bool InHandshake(string radice, string percorso)
+    {
+        var parti = Path.GetRelativePath(radice, percorso).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return parti.Length >= 3 && parti[0].Equals("_ditm", StringComparison.OrdinalIgnoreCase) &&
+               parti[1].Equals("sync-handshake", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool InAllegati(string radice, string percorso)

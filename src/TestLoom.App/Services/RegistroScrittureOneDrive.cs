@@ -17,6 +17,10 @@ public sealed class RegistroScrittureOneDrive : IDisposable
     private readonly List<string> _nuovi = new();
     private Timer? _timer;
     private bool _eliminato;
+    private int _scritture;
+
+    /// <summary>Scritture di dati rilevanti fatte da TestLoom in questa sessione (esclusi lock e file di pianificazione automatica).</summary>
+    public int ScrittureRilevanti => Volatile.Read(ref _scritture);
 
     public RegistroScrittureOneDrive(string radice, IOneDrivePendenteStore store, int massimoPercorsi = 200,
         TimeSpan? ritardoScrittura = null, Func<DateTime>? oraUtc = null)
@@ -40,6 +44,9 @@ public sealed class RegistroScrittureOneDrive : IDisposable
                 nome.StartsWith(".testloom-write-probe", StringComparison.OrdinalIgnoreCase) ||
                 nome.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
                 OneDriveSyncService.EraTemporaneoDiScrittura(nome)) return;
+            if (!nome.EndsWith(".lock", StringComparison.OrdinalIgnoreCase) &&
+                !nome.Equals("sync-schedule.json", StringComparison.OrdinalIgnoreCase))
+                Interlocked.Increment(ref _scritture);
             lock (_gate)
             {
                 if (_eliminato) return;

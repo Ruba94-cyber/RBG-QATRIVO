@@ -321,6 +321,12 @@ public partial class MainWindow : Window
         {
             if (DataContext is not MainViewModel vm || string.IsNullOrWhiteSpace(vm.RadiceCondivisaCorrente)) return;
             var radice = vm.RadiceCondivisaCorrente;
+            // Nessun dato scritto in questa sessione: non c'e' nulla da inviare, quindi nessuna attesa in chiusura.
+            if (OneDriveSync.ScrittureInSessione == 0)
+            {
+                DiagnosticTraceService.Registra("OneDrive.Chiusura", "nessuna scrittura in sessione: chiusura senza attesa");
+                return;
+            }
             using var cts = new CancellationTokenSource();
             var progress = new Progress<AvanzamentoSyncOneDrive>(a => finestra?.Aggiorna(a));
             // Impulso di uscita con le altre postazioni: scritto subito, cosi' il caricamento qui sotto copre anche lui; la conferma
@@ -328,7 +334,7 @@ public partial class MainWindow : Window
             var handshake = SyncHandshake.UscitaAsync(TimeSpan.FromSeconds(30), cts.Token);
             var attesa = OneDriveSync.Servizio.AttendiCaricamentoChiusuraAsync(radice, progress, cts.Token);
             // Nessun lampeggio di finestra se tutto è già caricato: compare solo se l'attesa supera una breve soglia.
-            if (await Task.WhenAny(attesa, Task.Delay(500)) != attesa)
+            if (await Task.WhenAny(attesa, Task.Delay(3000)) != attesa)
             {
                 finestra = new SincronizzazioneUscitaWindow(cts);
                 finestra.Show();
@@ -337,12 +343,16 @@ public partial class MainWindow : Window
             var restanti = esito.Esito == EsitoSyncOneDrive.Annullata
                 ? OneDriveSync.Servizio.PendenteRegistrato(radice)?.NumeroFile ?? 0
                 : esito.DaCaricare;
-            var avviso = restanti > 0 && esito.Esito != EsitoSyncOneDrive.Completata
-                ? OneDriveSync.AvvisoChiusura(esito with { DaCaricare = restanti })
-                : null;
+            // Avviso (finestra da chiudere a mano) SOLO se serve un'azione: OneDrive non e' in esecuzione o manca Internet e restano file da inviare.
+            // Con il client attivo i file sono salvati e l'invio prosegue da solo anche dopo la chiusura di TestLoom: solo traccia.
+            string? avviso = null;
+            if (restanti > 0 && esito.Esito is EsitoSyncOneDrive.ClientNonAttivo or EsitoSyncOneDrive.Offline)
+                avviso = OneDriveSync.AvvisoChiusura(esito with { DaCaricare = restanti });
+            else if (restanti > 0 && esito.Esito != EsitoSyncOneDrive.Completata)
+                DiagnosticTraceService.Registra("OneDrive.Chiusura", $"{restanti} file ancora in coda, client attivo: invio in background");
             var conferma = await handshake;
-            if (avviso == null && conferma?.Stato == StatoHandshake.InAttesa)
-                avviso = string.Format(LocalizationService.Instance.Traduci("HandshakeUscitaNonConfermataFmt"), conferma.InAttesa);
+            if (conferma?.Stato == StatoHandshake.InAttesa)
+                DiagnosticTraceService.Registra("OneDrive.Chiusura", $"conferma handshake mancante da {conferma.InAttesa} postazioni");
             if (finestra == null && avviso != null)
             {
                 finestra = new SincronizzazioneUscitaWindow(cts);

@@ -36,6 +36,11 @@ internal sealed class FinoOneDriveAccesso : IOneDriveAccesso
         return new ScansioneCloud(File.Count + 5, File.Where(f => f.Stato != StatoFileCloud.Locale).ToList());
     }
 
+    public bool Internet { get; set; } = true;
+    public bool InternetOnline() => Internet;
+    public List<string> Sollecitati { get; } = new();
+    public void Sollecita(string percorso) => Sollecitati.Add(percorso);
+
     public void Scarica(string percorso, CancellationToken ct)
     {
         if (ScaricaFallisce) throw new IOException("richiamo non riuscito");
@@ -140,6 +145,39 @@ public sealed class OneDriveSyncServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Avvio_SenzaInternet_EsitoOffline_NonSicuro()
+    {
+        _od.Internet = false;
+        var r = await Servizio().VerificaEForzaAvvioAsync(_radice);
+        Assert.Equal(EsitoSyncOneDrive.Offline, r.Esito);
+        Assert.False(r.Sicuro);
+    }
+
+    [Fact]
+    public async Task FileInCoda_VengonoSollecitatiUnaSolaVolta()
+    {
+        _od.File.Add(new FileCloud(P("a.json"), StatoFileCloud.InAttesaCaricamento, 10));
+
+        await Servizio().VerificaEForzaAvvioAsync(_radice);
+
+        Assert.Equal(new[] { P("a.json") }, _od.Sollecitati);
+    }
+
+    [Fact]
+    public async Task Avvio_SoloCaricamentiInSospeso_NonBloccaLaScrittura()
+    {
+        _od.File.Add(new FileCloud(P("a.json"), StatoFileCloud.InAttesaCaricamento, 10));
+        _od.File.Add(new FileCloud(P("b.json"), StatoFileCloud.InAttesaCaricamento, 10));
+
+        var r = await Servizio().VerificaEForzaAvvioAsync(_radice);
+
+        Assert.Equal(EsitoSyncOneDrive.CaricamentoInCorso, r.Esito);
+        Assert.Equal(0, r.DaScaricare);
+        Assert.Equal(2, r.DaCaricare);
+        Assert.True(r.Sicuro);
+    }
+
+    [Fact]
     public async Task Avvio_RichiamoCheFallisce_ScadeAlTimeoutVirtuale_ConConteggi()
     {
         _od.ScaricaFallisce = true;
@@ -159,13 +197,15 @@ public sealed class OneDriveSyncServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Avvio_CaricamentoLocaleInSospeso_AttendeChePartaPoiCompleta()
+    public async Task Avvio_CaricamentoLocaleInSospeso_NonAttende_ProseguaSubito()
     {
         _od.File.Add(new FileCloud(P("a.json"), StatoFileCloud.InAttesaCaricamento, 10));
         _od.CaricatiDopoScansioni = 3;
+        var inizio = _ora;
         var r = await Servizio().VerificaEForzaAvvioAsync(_radice);
-        Assert.Equal(EsitoSyncOneDrive.Completata, r.Esito);
-        Assert.Equal(4, _od.Scansioni);
+        Assert.Equal(EsitoSyncOneDrive.CaricamentoInCorso, r.Esito);
+        Assert.Equal(1, _od.Scansioni);
+        Assert.True(_ora - inizio < TimeSpan.FromSeconds(1));
     }
 
     [Fact]
@@ -194,7 +234,7 @@ public sealed class OneDriveSyncServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Chiusura_TimeoutSessanta_PersistePendente_ChiudeConAvviso()
+    public async Task Chiusura_TimeoutVenti_PersistePendente_ChiudeConAvviso()
     {
         _od.File.Add(new FileCloud(P(@"testcases\BCM\testcase_9.json"), StatoFileCloud.InAttesaCaricamento, 10));
         _od.File.Add(new FileCloud(P("requisiti.json"), StatoFileCloud.InAttesaCaricamento, 10));
@@ -204,7 +244,7 @@ public sealed class OneDriveSyncServiceTests : IDisposable
 
         Assert.Equal(EsitoSyncOneDrive.Timeout, r.Esito);
         Assert.Equal(2, r.DaCaricare);
-        Assert.InRange((_ora - inizio).TotalSeconds, 60, 65);
+        Assert.InRange((_ora - inizio).TotalSeconds, 20, 25);
         Assert.NotNull(_store.Valore);
         Assert.Equal(2, _store.Valore!.NumeroFile);
         Assert.Contains(@"testcases\BCM\testcase_9.json", _store.Valore.Percorsi);

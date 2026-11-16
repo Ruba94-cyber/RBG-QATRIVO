@@ -9,6 +9,8 @@ public sealed class OneDriveMonitorContinuoTests : IDisposable
     private sealed class AccessoFinto : IOneDriveAccesso
     {
         public bool Client = true;
+        public bool Internet = true;
+        public bool InternetOnline() => Internet;
         public bool DentroOneDrive = true;
         public List<FileCloud> DaAllineare = new();
         public Exception? ErroreScansione;
@@ -135,6 +137,30 @@ public sealed class OneDriveMonitorContinuoTests : IDisposable
 
         _accesso.Client = true;
         Assert.True(OneDriveSync.ControlloContinuo(Radice));             // torna a sincronizzare: sblocco
+        Assert.False(OneDriveSyncGate.Attivo(Radice));
+    }
+
+    [Fact]
+    public void ControlloContinuo_SenzaInternet_MettePoiToglieLaSolaLettura()
+    {
+        _accesso.Internet = false;
+        Assert.False(OneDriveSync.ControlloContinuo(Radice));            // tolleranza iniziale
+        _ora += TimeSpan.FromSeconds(61);
+        Assert.True(OneDriveSync.ControlloContinuo(Radice));
+        Assert.True(OneDriveSyncGate.Attivo(Radice));
+        Assert.Contains("Internet", OneDriveSyncGate.Motivo(Radice));
+        _accesso.Internet = true;
+        Assert.True(OneDriveSync.ControlloContinuo(Radice));
+        Assert.False(OneDriveSyncGate.Attivo(Radice));
+    }
+
+    [Fact]
+    public void ControlloContinuo_CaricamentoFermo_NonMetteInSolaLettura()
+    {
+        _accesso.DaAllineare.Add(InAttesa("T-1.json"));
+        Assert.False(OneDriveSync.ControlloContinuo(Radice));
+        _ora += TimeSpan.FromMinutes(11);
+        Assert.False(OneDriveSync.ControlloContinuo(Radice));
         Assert.False(OneDriveSyncGate.Attivo(Radice));
     }
 

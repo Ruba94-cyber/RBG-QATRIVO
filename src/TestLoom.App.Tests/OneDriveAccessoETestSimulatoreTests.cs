@@ -107,6 +107,33 @@ public sealed class OneDriveAccessoETestSimulatoreTests : IDisposable
     }
 
     [Fact]
+    public void AccessoWindows_PendenteVecchioNonSegnaposto_NonEPiuInAttesa_ILRecenteSi()
+    {
+        var d = Path.Combine(_base, "d");
+        Directory.CreateDirectory(d);
+        var vecchio = Path.Combine(d, "vecchio.json");
+        var recente = Path.Combine(d, "recente.json");
+        File.WriteAllText(vecchio, "{}");
+        File.WriteAllText(recente, "{}");
+        File.SetLastWriteTimeUtc(vecchio, DateTime.UtcNow - TimeSpan.FromDays(3));
+        File.SetLastWriteTimeUtc(recente, DateTime.UtcNow - TimeSpan.FromHours(5));
+
+        var s = new OneDriveAccessoWindows().Scansiona(d, new[] { "vecchio.json", "recente.json" }, CancellationToken.None);
+
+        var unico = Assert.Single(s.DaAllineare);
+        Assert.EndsWith("recente.json", unico.Percorso);
+    }
+
+    [Fact]
+    public void Rilevante_FileDiHandshake_NonConta()
+    {
+        var r = Path.Combine(_base, "d");
+        var f = new FileCloud(Path.Combine(r, "_ditm", "sync-handshake", "abc.json"), StatoFileCloud.InAttesaCaricamento, 1);
+        Assert.False(OneDriveSyncService.Rilevante(r, f, avvio: true));
+        Assert.True(OneDriveSyncService.Rilevante(r, f with { Percorso = Path.Combine(r, "testcases", "x.json") }, avvio: true));
+    }
+
+    [Fact]
     public void AccessoWindows_Scansione_Annullabile_ERadiceInesistenteNonLancia()
     {
         var acc = new OneDriveAccessoWindows();

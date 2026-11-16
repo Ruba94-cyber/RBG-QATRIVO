@@ -39,6 +39,13 @@ public sealed class OneDriveAccessoWindows : IOneDriveAccesso
     /// <summary>Un file regolare modificato da meno di questo tempo, in una radice Files On-Demand, è considerato non ancora caricato.</summary>
     private static readonly TimeSpan FinestraNuoviFile = TimeSpan.FromMinutes(30);
 
+    /// <summary>
+    /// Un file noto come pendente dalla chiusura precedente ma NON segnaposto conta ancora come "da caricare" solo se scritto da
+    /// meno di questo tempo: oltre, OneDrive ha avuto giorni per prenderlo in carico e lo stato non e' piu' dimostrabile
+    /// (falso positivo permanente). I segnaposto restano giudicati dal flag di sincronizzazione, senza limite di eta'.
+    /// </summary>
+    internal static readonly TimeSpan FinestraSospetti = TimeSpan.FromHours(48);
+
     private static readonly string[] VariabiliRadici = { "OneDrive", "OneDriveCommercial", "OneDriveConsumer" };
 
     public bool EDentroOneDrive(string percorso)
@@ -109,6 +116,7 @@ public sealed class OneDriveAccessoWindows : IOneDriveAccesso
         var totale = 0;
         var visiSegnaposto = false;
         var limiteRecente = DateTime.UtcNow - FinestraNuoviFile;
+        var limiteSospetti = DateTime.UtcNow - FinestraSospetti;
 
         var pila = new Stack<string>();
         pila.Push(Path.GetFullPath(radice).TrimEnd('\\'));
@@ -150,7 +158,7 @@ public sealed class OneDriveAccessoWindows : IOneDriveAccesso
                 {
                     var ticks = ((long)(uint)dati.ftLastWriteTime.dwHighDateTime << 32) | (uint)dati.ftLastWriteTime.dwLowDateTime;
                     var ultimaScrittura = DateTime.FromFileTimeUtc(ticks);
-                    if (sospetti.Contains(completo) || ultimaScrittura >= limiteRecente)
+                    if ((sospetti.Contains(completo) && ultimaScrittura >= limiteSospetti) || ultimaScrittura >= limiteRecente)
                         candidatiNuovi.Add(new FileCloud(completo, StatoFileCloud.InAttesaCaricamento, dimensione));
                 }
             }
@@ -169,6 +177,39 @@ public sealed class OneDriveAccessoWindows : IOneDriveAccesso
         using var stream = new FileStream(percorso, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 64 * 1024, FileOptions.SequentialScan);
         var buffer = new byte[64 * 1024];
         while (stream.Read(buffer, 0, buffer.Length) > 0) ct.ThrowIfCancellationRequested();
+    }
+
+    public bool InternetOnline()
+    {
+        try
+        {
+            if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()) return false;
+            // Prova reale: connessione TCP al servizio di accesso Microsoft (usato da OneDrive), con timeout breve.
+            foreach (var host in new[] { "login.microsoftonline.com", "onedrive.live.com" })
+            {
+                try
+                {
+                    using var client = new System.Net.Sockets.TcpClient();
+                    if (client.ConnectAsync(host, 443).Wait(TimeSpan.FromSeconds(3)) && client.Connected) return true;
+                }
+                catch (Exception) { }
+            }
+            return false;
+        }
+        catch (Exception) { return true; } // errore del controllo: non e' prova di assenza di rete
+    }
+
+    public void Sollecita(string percorso)
+    {
+        try
+        {
+            // Alterna l'attributo "archivio" e lo ripristina: genera una notifica di modifica per il client OneDrive
+            // senza toccare contenuto, data di scrittura o dimensione (quindi nessun effetto su indici e revisioni).
+            var originale = File.GetAttributes(percorso);
+            File.SetAttributes(percorso, originale ^ FileAttributes.Archive);
+            File.SetAttributes(percorso, originale);
+        }
+        catch (Exception) { /* file aperto da altri o non accessibile: nessun effetto */ }
     }
 
     private static bool InSync(uint attributi, uint tag)
