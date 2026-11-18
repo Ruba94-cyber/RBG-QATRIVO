@@ -10,8 +10,12 @@ public sealed class ExportConfigurazione
     public string Nome { get; set; } = "";
     public List<string> Sezioni { get; set; } = new();
     public Dictionary<string, List<string>> Colonne { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    /// <summary>Solo per l'export Test: ignora volontariamente i filtri correnti.</summary>
+    /// <summary>Esporta l'intero storico ignorando i filtri della pagina (Test oppure NC/CR).</summary>
     public bool IgnoraFiltri { get; set; }
+    /// <summary>NC/CR: fotografia operativa delle pratiche non chiuse per un unico veicolo;
+    /// non cambia i filtri persistenti della pagina. Mutualmente esclusiva da IgnoraFiltri.</summary>
+    public bool SoloAperteVeicolo { get; set; }
+    public string? VeicoloRapido { get; set; }
     public string? PivotFonte { get; set; }
     public string? PivotRighe { get; set; }
     public string? PivotColonne { get; set; }
@@ -30,7 +34,8 @@ public sealed class ExportConfigurazione
 
     public ExportConfigurazione Clona() => new()
     {
-        Nome = Nome, IgnoraFiltri = IgnoraFiltri, Sezioni = Sezioni.ToList(),
+        Nome = Nome, IgnoraFiltri = IgnoraFiltri, SoloAperteVeicolo = SoloAperteVeicolo,
+        VeicoloRapido = VeicoloRapido, Sezioni = Sezioni.ToList(),
         PivotFonte = PivotFonte, PivotRighe = PivotRighe, PivotColonne = PivotColonne, PivotPercentuale = PivotPercentuale,
         PivotMetrica = PivotMetrica, PivotCampoValore = PivotCampoValore,
         PivotMostraNumeri = PivotMostraNumeri, PivotMostraPercentuali = PivotMostraPercentuali,

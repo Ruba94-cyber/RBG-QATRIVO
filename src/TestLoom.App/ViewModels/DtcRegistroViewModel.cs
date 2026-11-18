@@ -60,6 +60,9 @@ public partial class DtcRegistroViewModel : ViewModelBase, IPaginaAggiornabile, 
     public bool PuoPaginaPrecedente => PaginaCorrente > 1;
     public bool PuoPaginaSuccessiva => PaginaCorrente < PagineTotali;
     public bool MostraPaginazione => TotaleRisultati > DimensionePagina;
+    /// <summary>Vero a caricamento finito senza righe: la vista mostra un testo al posto della tabella vuota.</summary>
+    public bool NessunRisultato => TotaleRisultati == 0 && !Caricamento;
+
     public bool PuoEsportare => TotaleRisultati > 0 && !Caricamento && !EsportazioneInCorso;
     public bool PuoAssociareRequisito => _state.PuoScrivere && !AssociazioneInCorso && RigaCorrenteSelezionata();
     public bool MostraAvvisoRevisioneStorica => _state.PuoScrivere && RigaSenzaRequisitoSelezionata()
@@ -122,7 +125,7 @@ public partial class DtcRegistroViewModel : ViewModelBase, IPaginaAggiornabile, 
         OnPropertyChanged(nameof(PuoPaginaSuccessiva));
         OnPropertyChanged(nameof(MostraPaginazione));
         OnPropertyChanged(nameof(TestoTotale));
-        OnPropertyChanged(nameof(PuoEsportare));
+        OnPropertyChanged(nameof(PuoEsportare)); OnPropertyChanged(nameof(NessunRisultato));
     }
     partial void OnPaginaCorrenteChanged(int value)
     {
@@ -130,7 +133,7 @@ public partial class DtcRegistroViewModel : ViewModelBase, IPaginaAggiornabile, 
         OnPropertyChanged(nameof(PuoPaginaSuccessiva));
         _ = CaricaPaginaAsync();
     }
-    partial void OnCaricamentoChanged(bool value) => OnPropertyChanged(nameof(PuoEsportare));
+    partial void OnCaricamentoChanged(bool value) { OnPropertyChanged(nameof(PuoEsportare)); OnPropertyChanged(nameof(NessunRisultato)); }
     partial void OnEsportazioneInCorsoChanged(bool value) => OnPropertyChanged(nameof(PuoEsportare));
 
     private void CambiaFiltro()

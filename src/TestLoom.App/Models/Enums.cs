@@ -456,3 +456,12 @@ public static partial class EnumDisplay
         _ => r.ToString()
     };
 }
+
+/// <summary>A cosa si riferisce una Funzionalità: a una o più componente (comportamento storico), solo al veicolo o solo all'UnitLogger.
+/// Serializzato come stringa; il valore predefinito Componente lascia invariati i dati esistenti.</summary>
+public enum AmbitoFunzionalita
+{
+    Componente,
+    Veicolo,
+    UnitLogger
+}

@@ -98,4 +98,138 @@ public sealed class AnomalieCrExportVisteTests
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }
+    [Fact]
+    public async Task ExportSeparati_StoricoCompletoIncludeArchiviateENonEreditanoStatoAperto()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "TestLoom_StoricoCompleto_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            using var state = TestStateFactory.Create();
+            state.InizializzaCartella(root);
+            state.NonConformita.Save(new NonConformita
+            {
+                Id = "NC-APERTA", DataApertura = new DateTime(2025, 1, 1)
+            });
+            state.NonConformita.Save(new NonConformita
+            {
+                Id = "NC-ARCHIVIATA", DataApertura = new DateTime(2024, 1, 1),
+                Archiviata = true
+            });
+            state.ChangeRequests.Save(new ChangeRequest
+            {
+                Id = "CR-APERTA", Titolo = "Aperta", DataCreazione = new DateTime(2025, 1, 1)
+            });
+            state.ChangeRequests.Save(new ChangeRequest
+            {
+                Id = "CR-ARCHIVIATA", Titolo = "Archiviata", DataCreazione = new DateTime(2024, 1, 1),
+                Archiviata = true
+            });
+
+            var vm = new NonConformitaViewModel(state, _ => { });
+            Assert.Equal(StatoNonConformita.Aperta, vm.FiltroStato);
+            var ncDescrittore = vm.CreaDescrittoreExport("nc");
+            var crDescrittore = vm.CreaDescrittoreExport("cr");
+            Assert.DoesNotContain(ncDescrittore.Sezioni, s => s.Id == AnomalieSezioniExport.VistaCr || s.Id == AnomalieSezioniExport.DatiCr);
+            Assert.DoesNotContain(crDescrittore.Sezioni, s => s.Id == AnomalieSezioniExport.VistaNc || s.Id == AnomalieSezioniExport.DatiNc);
+
+            var opzioniNc = new ExportConfigurazione { Sezioni = [AnomalieSezioniExport.DatiNc], IgnoraFiltri = true };
+            var ncPath = Path.Combine(root, "nc.xlsx");
+            await vm.EsportaExcelVerso(ncPath, opzioniNc);
+            using (var workbook = new XLWorkbook(ncPath))
+            {
+                Assert.Single(workbook.Worksheets);
+                var foglio = workbook.Worksheet("Non Conformità");
+                var ids = foglio.Column(1).CellsUsed().Select(c => c.GetString()).ToList();
+                Assert.Contains("NC-APERTA", ids);
+                Assert.Contains("NC-ARCHIVIATA", ids);
+            }
+
+            var opzioniCr = new ExportConfigurazione { Sezioni = [AnomalieSezioniExport.DatiCr], IgnoraFiltri = true };
+            var crPath = Path.Combine(root, "cr.xlsx");
+            await vm.EsportaExcelVerso(crPath, opzioniCr);
+            using (var workbook = new XLWorkbook(crPath))
+            {
+                Assert.Single(workbook.Worksheets);
+                var foglio = workbook.Worksheet("Change Request");
+                var ids = foglio.Column(4).CellsUsed().Select(c => c.GetString()).ToList();
+                Assert.Contains("CR-APERTA", ids);
+                Assert.Contains("CR-ARCHIVIATA", ids);
+            }
+            Assert.Equal(StatoNonConformita.Aperta, vm.FiltroStato); // non cambia i filtri della pagina
+        }
+        finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    [Fact]
+    public async Task ExportOperativo_PerVeicolo_IncludeSoloNcAperteECrNonConcluseSenzaCambiareLaVista()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "TestLoom_ExportVeicolo_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            using var state = TestStateFactory.Create();
+            state.InizializzaCartella(root);
+            state.NonConformita.Save(new NonConformita
+            {
+                Id = "NC-DAILY", StatoWorkflow = StatoAnomalia.Confermata, VeicoliSegnalati = ["Daily"]
+            });
+            state.NonConformita.Save(new NonConformita
+            {
+                Id = "NC-CHIUSA", StatoWorkflow = StatoAnomalia.Conclusa, VeicoliSegnalati = ["Daily"]
+            });
+            state.NonConformita.Save(new NonConformita
+            {
+                Id = "NC-BUS", StatoWorkflow = StatoAnomalia.Confermata, VeicoliSegnalati = ["Bus"]
+            });
+            foreach (var (id, stato, veicolo) in new[]
+            {
+                ("CR-DAILY-APERTA", StatoChangeRequest.Aperta, "Daily"),
+                ("CR-DAILY-VALIDATA", StatoChangeRequest.Validata, "Daily"),
+                ("CR-DAILY-CHIUSA", StatoChangeRequest.Chiusa, "Daily"),
+                ("CR-DAILY-ANNULLATA", StatoChangeRequest.Annullata, "Daily"),
+                ("CR-BUS", StatoChangeRequest.Aperta, "Bus")
+            })
+                state.ChangeRequests.Save(new ChangeRequest { Id = id, Titolo = id, Stato = stato, VeicoliImpattati = [veicolo] });
+
+            var vm = new NonConformitaViewModel(state, _ => { });
+            vm.FiltroStato = StatoNonConformita.Chiusa;
+            vm.FiltroStatoCr = StatoChangeRequest.Chiusa;
+
+            var ncPath = Path.Combine(root, "operativo-nc.xlsx");
+            await vm.EsportaExcelVerso(ncPath, new ExportConfigurazione
+            {
+                Sezioni = [AnomalieSezioniExport.DatiNc], SoloAperteVeicolo = true, VeicoloRapido = "Daily"
+            });
+            using (var wb = new XLWorkbook(ncPath))
+            {
+                var ws = wb.Worksheet("Non Conformità");
+                var ids = ws.RowsUsed().Skip(1).SelectMany(row => row.CellsUsed())
+                    .Select(cell => cell.GetString()).ToList();
+                Assert.Contains("NC-DAILY", ids);
+                Assert.DoesNotContain("NC-CHIUSA", ids);
+                Assert.DoesNotContain("NC-BUS", ids);
+            }
+
+            var crPath = Path.Combine(root, "operativo-cr.xlsx");
+            await vm.EsportaExcelVerso(crPath, new ExportConfigurazione
+            {
+                Sezioni = [AnomalieSezioniExport.DatiCr], SoloAperteVeicolo = true, VeicoloRapido = "Daily"
+            });
+            using (var wb = new XLWorkbook(crPath))
+            {
+                var ws = wb.Worksheet("Change Request");
+                var ids = ws.Column(4).CellsUsed().Select(cell => cell.GetString()).ToList();
+                Assert.Contains("CR-DAILY-APERTA", ids);
+                Assert.Contains("CR-DAILY-VALIDATA", ids);
+                Assert.DoesNotContain("CR-DAILY-CHIUSA", ids);
+                Assert.DoesNotContain("CR-DAILY-ANNULLATA", ids);
+                Assert.DoesNotContain("CR-BUS", ids);
+            }
+            Assert.Equal(StatoNonConformita.Chiusa, vm.FiltroStato);
+            Assert.Equal(StatoChangeRequest.Chiusa, vm.FiltroStatoCr);
+        }
+        finally { try { Directory.Delete(root, recursive: true); } catch { } }
+    }
+
 }

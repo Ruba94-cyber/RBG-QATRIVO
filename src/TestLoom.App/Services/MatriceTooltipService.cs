@@ -51,7 +51,11 @@ public static class MatriceTooltipService
 
     public static string TooltipCella(CellaMatriceReport cella)
     {
+        // Il testo della cella va incluso per intero: le celle della matrice hanno altezza
+        // limitata e la vecchia tooltip spiegava solo lo stato, non il valore tagliato.
         var righe = new List<string>();
+        if (!string.IsNullOrWhiteSpace(cella.TestoVisualizzato))
+            righe.Add(cella.TestoVisualizzato);
         var modalita = cella.ModalitaTempo ?? (cella.ModalitaStato
             ? ModalitaCellaMatrice.Stato
             : cella.MostraConteggioTest ? ModalitaCellaMatrice.TestPercentuale : ModalitaCellaMatrice.Percentuale);
@@ -71,6 +75,18 @@ public static class MatriceTooltipService
         if (cella.Manuali > 0) righe.Add(LocalizationService.Instance.Traduci("MatriceTooltipManuale"));
         if (cella.ManualiSuperati > 0) righe.Add(LocalizationService.Instance.Traduci("MatriceTooltipManualeSuperato"));
         if (!string.IsNullOrWhiteSpace(cella.TooltipManuale)) righe.Add(cella.TooltipManuale);
+        if (cella.DettagliDeviazioni.Count > 0)
+        {
+            righe.Add(LocalizationService.Instance.Scegli("Deviazioni dell'ultimo stato:",
+                "Deviations in latest state:", "Écarts du dernier état :"));
+            righe.AddRange(cella.DettagliDeviazioni);
+        }
+        if (cella.HaPropagazioniDaDecidere)
+            righe.Add(LocalizationService.Instance.Scegli(
+                "! — Stato disponibile su un altro veicolo: la propagazione richiede una decisione esplicita del Master.",
+                "! — State available on another vehicle: propagation requires an explicit Master decision.",
+                "! — État disponible sur un autre véhicule : la propagation exige une décision explicite du Master."));
+        if (cella.HaRegressioni) righe.AddRange(cella.AvvisiRegressione);
         return string.Join(Environment.NewLine, righe.Distinct(StringComparer.Ordinal));
     }
 

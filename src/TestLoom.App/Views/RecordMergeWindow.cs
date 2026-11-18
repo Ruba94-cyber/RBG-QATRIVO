@@ -85,7 +85,7 @@ public sealed class RecordMergeWindow : Window
 
         var corpo = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,12,*") };
         corpo.Children.Add(sinistra);
-        var separatore = new Border { Width = 1, Background = Brushes.Gray, Opacity = 0.35, HorizontalAlignment = HorizontalAlignment.Center };
+        var separatore = new Border { Width = 1, Background = UiTema.Separatore, Opacity = 0.35, HorizontalAlignment = HorizontalAlignment.Center };
         Grid.SetColumn(separatore, 1); corpo.Children.Add(separatore);
         var destraBordo = new Border { Child = destra, Padding = new Thickness(4) };
         Grid.SetColumn(destraBordo, 2);

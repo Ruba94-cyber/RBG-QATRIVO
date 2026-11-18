@@ -1672,6 +1672,32 @@ public partial class NonConformitaViewModel : ViewModelBase, IPaginaAggiornabile
             new ExportFontePivot("cr", loc.Traduci("ExpSezAnomalieVistaCr"), AnomalieCrExportVisteService.ColonneEsportabiliVistaCr())]);
     }
 
+    /// <summary>Due esportazioni indipendenti: selezioni, sezioni e configurazioni NC/CR separate.
+    /// La modalità storica (IgnoraFiltri) non altera i filtri della tabella.</summary>
+    internal ExportDescrittore CreaDescrittoreExport(string tipo)
+    {
+        var nc = string.Equals(tipo, "nc", StringComparison.OrdinalIgnoreCase);
+        if (!nc && !string.Equals(tipo, "cr", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentOutOfRangeException(nameof(tipo));
+        var originale = CreaDescrittoreExport();
+        var escludi = nc
+            ? new[] { AnomalieSezioniExport.VistaCr, AnomalieSezioniExport.DatiCr }
+            : new[] { AnomalieSezioniExport.VistaNc, AnomalieSezioniExport.DatiNc };
+        return originale with
+        {
+            Pagina = nc ? "anomalie-nc" : "anomalie-cr",
+            Titolo = nc ? "Esporta NC" : "Esporta Change Request",
+            Sezioni = originale.Sezioni.Where(s => !escludi.Contains(s.Id)).ToList(),
+            Filtri = originale.Filtri?.Where(f => nc
+                ? f.Id is not ("statocr" or "creatorecr")
+                : f.Id is not ("statonc" or "statoanomalia" or "priorita" or "gravita"
+                    or "durataminima" or "unitadurata")).ToList(),
+            FontiPivot = originale.FontiPivot?.Where(f => nc
+                ? f.Id.StartsWith("nc", StringComparison.OrdinalIgnoreCase)
+                : f.Id.StartsWith("cr", StringComparison.OrdinalIgnoreCase)).ToList()
+        };
+    }
+
     /// <summary>Stato applicativo per il dialogo di export (salvataggio delle configurazioni per operatore).</summary>
     internal AppState StatoPerExport => _state;
 
@@ -1687,9 +1713,43 @@ public partial class NonConformitaViewModel : ViewModelBase, IPaginaAggiornabile
         var gammaDiVeicolo = FiltroGamma.Selezionati.Count > 0 ? LeggiGammaDiVeicolo() : null;
         var richiesta = CostruisciRichiesta(gammaDiVeicolo) with { Pagina = 1, DimensionePagina = int.MaxValue };
         var filtroCr = CatturaFiltroChangeRequest() with { PaginaRichiesta = 1 };
-        // Testi dei filtri e operatore letti qui, sul thread UI: il foglio Info li riporta senza leggere lo stato della vista dal worker.
-        var riepilogoFiltriNc = RiepilogoFiltri;
-        var riepilogoFiltriCr = RiepilogoFiltriCr;
+        // Le modalità operativa e storica usano filtri indipendenti dalla vista, senza
+        // alterare le selezioni dell'operatore o ereditare un vecchio stato nascosto.
+        var veicoloRapido = scelta?.SoloAperteVeicolo == true ? scelta.VeicoloRapido?.Trim() : null;
+        if (scelta?.SoloAperteVeicolo == true && string.IsNullOrWhiteSpace(veicoloRapido))
+            throw new ArgumentException("Selezionare un veicolo per l'esportazione rapida.", nameof(scelta));
+        if (scelta?.IgnoraFiltri == true)
+        {
+            richiesta = richiesta with { Nc = new AnomalieFiltroNc { IncludiArchiviate = true }, Ambito = new AnomalieFiltroAmbito() };
+            filtroCr = filtroCr with
+            {
+                Stato = null, Testo = null, Ticket = null, Veicoli = null, Componente = null, Gamma = null,
+                NessunaCr = false, Assegnatari = null, Funzionalita = null,
+                AperturaDa = null, AperturaA = null, ChiusuraDa = null, ChiusuraA = null, Creatori = null
+            };
+        }
+        else if (veicoloRapido != null)
+        {
+            var veicoli = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { veicoloRapido };
+            richiesta = richiesta with
+            {
+                Nc = new AnomalieFiltroNc { Stato = StatoNonConformita.Aperta },
+                Ambito = new AnomalieFiltroAmbito { Veicoli = veicoli }
+            };
+            filtroCr = filtroCr with
+            {
+                Stato = null, Testo = null, Ticket = null, Veicoli = [veicoloRapido], Componente = null, Gamma = null,
+                NessunaCr = false, Assegnatari = null, Funzionalita = null,
+                AperturaDa = null, AperturaA = null, ChiusuraDa = null, ChiusuraA = null, Creatori = null
+            };
+        }
+        // Info e stati sono fotografati sul thread UI, mai riletti dal worker.
+        var riepilogoFiltriNc = veicoloRapido != null
+            ? $"NC aperte per veicolo: {veicoloRapido}"
+            : scelta?.IgnoraFiltri == true ? "Storico completo (senza filtri, incluse archiviate)" : RiepilogoFiltri;
+        var riepilogoFiltriCr = veicoloRapido != null
+            ? $"CR non chiuse e non annullate per veicolo: {veicoloRapido}"
+            : scelta?.IgnoraFiltri == true ? "Storico completo (senza filtri, incluse archiviate)" : RiepilogoFiltriCr;
         var operatoreExport = _state.Config.OperatoreAttivo;
         EsportazioneInCorso = true;
         Messaggio = LocalizationService.Instance.Traduci("GenerazioneReportInCorso");
@@ -1701,8 +1761,11 @@ public partial class NonConformitaViewModel : ViewModelBase, IPaginaAggiornabile
                 var risultato = AnomalieQueryService.Esegui(_state.NonConformita,
                     id => _state.TestCases.GetById(id), richiesta, consentiIndice: false,
                     ct: ct, trovaUid: _state.TestCases.GetByUid);
-                var changeRequests = _state.ChangeRequests.PeekAllReadOnly();
+                var changeRequests = _state.ChangeRequests.PeekAllReadOnly(includeArchiviate: scelta?.IgnoraFiltri == true);
                 var elencoCr = CalcolaChangeRequestsFiltrate(changeRequests, filtroCr, gammaDiVeicolo, ct);
+                if (veicoloRapido != null)
+                    elencoCr = elencoCr.Where(cr =>
+                        cr.Stato is not (StatoChangeRequest.Chiusa or StatoChangeRequest.Annullata)).ToList();
                 using var workbook = new ClosedXML.Excel.XLWorkbook();
                 bool Ha(string id) => scelta == null || scelta.HaSezione(id);
                 if (Ha(AnomalieSezioniExport.DatiNc))
@@ -1725,7 +1788,9 @@ public partial class NonConformitaViewModel : ViewModelBase, IPaginaAggiornabile
                         scelta?.ColonneDi(AnomalieSezioniExport.VistaNc), scelta?.ColonneDi(AnomalieSezioniExport.VistaCr)));
                 if (scelta?.HaSezione("pivot") == true)
                 {
-                    var fonte = scelta.PivotFonte ?? "nc-dati";
+                    var fonte = scelta.PivotFonte
+                        ?? (scelta.HaSezione(AnomalieSezioniExport.DatiCr)
+                            && !scelta.HaSezione(AnomalieSezioniExport.DatiNc) ? "cr-dati" : "nc-dati");
                     var perVeicolo = fonte == "nc-veicolo";
                     var (campi, righe) = fonte switch
                     {

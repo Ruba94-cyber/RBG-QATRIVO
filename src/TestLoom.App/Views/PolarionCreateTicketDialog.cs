@@ -100,7 +100,7 @@ internal static class PolarionCreateTicketDialog
                     "La ricevuta locale di creazione TICKET non è leggibile. La creazione rimane bloccata finché la ricevuta non viene verificata e ripristinata.",
                     "The local TICKET creation receipt is unreadable. Creation is blocked until the receipt is reconciled and repaired.",
                     "Le reçu local de création TICKET est illisible. La création reste bloquée jusqu'à sa vérification et sa réparation."),
-                Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap
+                Foreground = UiTema.Errore, TextWrapping = TextWrapping.Wrap
             });
         if (pendingReceipt is not null)
             layout.Children.Add(new TextBlock
@@ -384,7 +384,7 @@ internal static class PolarionCreateTicketDialog
                     : L("Impossibile aprire Ticketing. Se esiste una bozza pendente, riconciliala prima di riprovare.",
                         "Could not open Ticketing. If a draft is pending, reconcile it before trying again.",
                         "Impossible d'ouvrir Ticketing. Si un brouillon est en attente, rapprochez-le avant de réessayer.");
-                status.Foreground = Brushes.Firebrick;
+                status.Foreground = UiTema.Errore;
                 // Validation failures before receipt creation can be corrected
                 // in the same dialog. Never allow another Prepare if a marker
                 // was already persisted and the browser may have opened.
@@ -428,7 +428,7 @@ internal static class PolarionCreateTicketDialog
                     ex.GetType().Name +
                     L("). Nessun nuovo ticket è stato creato.", "). No new ticket was created.",
                         "). Aucun nouveau ticket n'a été créé.");
-                status.Foreground = Brushes.Firebrick;
+                status.Foreground = UiTema.Errore;
             }
             finally { verify.IsEnabled = true; }
         };
@@ -460,7 +460,7 @@ internal static class PolarionCreateTicketDialog
                 status.Text = L("Impossibile annullare ora (", "Cannot discard now (", "Impossible d'annuler maintenant (") +
                     ex.GetType().Name + L("). Riprova o verifica con l'ID del ticket.", "). Retry or verify with the ticket ID.",
                         "). Réessayez ou vérifiez avec l'ID du ticket.");
-                status.Foreground = Brushes.Firebrick;
+                status.Foreground = UiTema.Errore;
                 discard.IsEnabled = true;
             }
         };

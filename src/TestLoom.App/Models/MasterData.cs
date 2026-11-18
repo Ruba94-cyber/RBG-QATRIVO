@@ -456,6 +456,10 @@ public class Funzionalita : MasterEntity
     /// un JSON scritto a mano).</summary>
     public bool TutteLeEcu { get; set; } = true;
 
+    /// <summary>Ambito della funzionalità. Componente (default, dati esistenti): vale per componente come sopra. Veicolo/UnitLogger: non
+    /// dipende dai componenti del Test, quindi resta sempre proponibile nell'elenco funzionalità anche con Componenti scelti.</summary>
+    public AmbitoFunzionalita Ambito { get; set; } = AmbitoFunzionalita.Componente;
+
     /// <summary>componente a cui questa funzionalità è associata quando TutteLeEcu è false (feedback utente
     /// 2026-09-23: "le funzionalità... devono poter essere assegnate a una o più componente, in modo da non dover
     /// scorrere troppo all'interno del test"). Ignorato quando TutteLeEcu è true. Indipendente da Categorie: le

@@ -870,7 +870,14 @@ public class CellaStatoPennelloConverter : IValueConverter
         if (cella.NonApplicabile)
             return new SolidColorBrush(Color.Parse(testo ? "#334155" : "#E2E8F0"));
         var (sfondo, colore) = cella.ModalitaStato ? ColoriStato(cella.CodiceStato) : ("", "");
-        if (testo) return colore.Length == 0 ? AvaloniaProperty.UnsetValue : new SolidColorBrush(Color.Parse(colore));
+        // UnsetValue sul TextBlock della matrice non eredita il colore del tema in tutte le
+        // versioni di Avalonia: in Dark il fallback può essere nero su nero (Stato %).
+        if (testo)
+        {
+            if (colore.Length > 0) return new SolidColorBrush(Color.Parse(colore));
+            var scuro = Application.Current?.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+            return new SolidColorBrush(Color.Parse(scuro ? "#EDF2F5" : "#1E293B"));
+        }
         return sfondo.Length == 0 ? Brushes.Transparent : new SolidColorBrush(Color.Parse(sfondo));
     }
 

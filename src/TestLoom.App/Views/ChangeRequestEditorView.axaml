@@ -27,7 +27,7 @@
         </StackPanel>
       </StackPanel></Border>
       <Border x:Name="DatiCr" Classes="Card" IsEnabled="{Binding PuoModificare}"><StackPanel Spacing="10"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdSezDati}" Classes="SectionTitle"/>
-        <WrapPanel Classes="ColonneEditor" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=2}">
+        <WrapPanel Classes="ColonneEditor" LineSpacing="14" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=2}">
           <StackPanel Spacing="6">
             <ComboBox ItemsSource="{Binding TemplateCr}" SelectedItem="{Binding TemplateSelezionato}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdTipoCrPlaceholder}" IsVisible="{Binding TemplateCr, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}" AutomationProperties.AutomationId="Cr_Template_Combo"><ComboBox.ItemTemplate><DataTemplate x:DataType="models:TestTemplate"><TextBlock Text="{Binding Nome}"/></DataTemplate></ComboBox.ItemTemplate></ComboBox>
             <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Content="{Binding TemplateSelezionatoTesto}" Command="{Binding ScegliTemplateCrCommand}" IsVisible="{Binding TemplateCr, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}" AutomationProperties.AutomationId="Cr_Template_Scegli_Button"/>
@@ -46,7 +46,7 @@
             <TextBlock Text="{Binding CreatoDa, StringFormat='Creato da: {0}'}" Classes="Muted" FontSize="12" IsVisible="{Binding CreatoDa, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"/>
           </StackPanel>
         </WrapPanel>
-        <TextBox Text="{Binding Titolo}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdTitoloPlaceholder}" AutomationProperties.AutomationId="Cr_Titolo_TextBox"/>
+        <StackPanel Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdTitoloLabel}" Classes="Muted"/><TextBox Text="{Binding Titolo}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdTitoloPlaceholder}" AutomationProperties.AutomationId="Cr_Titolo_TextBox"/></StackPanel>
         <StackPanel Spacing="3">
           <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDescrizioneBreve}" Classes="Muted" />
           <TextBox Text="{Binding DescrizioneBreve}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=CrEdDescrizioneBrevePlaceholder}" AutomationProperties.AutomationId="Cr_DescrizioneBreve_TextBox"/>

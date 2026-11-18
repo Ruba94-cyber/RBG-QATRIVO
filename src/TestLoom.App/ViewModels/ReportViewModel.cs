@@ -275,8 +275,8 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
     public HashSet<string> GruppiCompressiMatrice { get; private set; } = new(StringComparer.Ordinal);
 
     /// <summary>Misure predefinite per colonne e righe senza una preferenza specifica, in pixel. La finestra resta limitata a 50 righe x 12 colonne.</summary>
-    public const double LarghezzaCellaMatricePredefinita = 145;
-    public const double AltezzaRigaMatricePredefinita = 46;
+    public const double LarghezzaCellaMatricePredefinita = 200;
+    public const double AltezzaRigaMatricePredefinita = 64;
     public const double AltezzaViewportMatricePredefinita = 560;
     public const double LarghezzaCellaMatriceMinima = 72;
     public const double LarghezzaCellaMatriceMassima = 360;
@@ -368,6 +368,10 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
     private double _altezzaViewportMatrice;
     private bool _aggiornamentoOffsetMatriceInterno;
     private ReportMatriceService.MatricePreparata? _matricePreparata;
+    public bool AvvisoNonTestatoNonCalcolabile => _matricePreparata != null
+        && !_matricePreparata.UniversoNonTestatoAttivo
+        && ModalitaMatrice != ModalitaCellaMatrice.TestPercentuale;
+    public bool AvvisoFiltroStatiAttivo => FiltroStatiMatrice.HaSelezione;
     private int _totaleRigheMatrice;
     private int _totaleColonneMatrice;
     private int _righeUltimaFinestraMatrice = 10;
@@ -1469,8 +1473,10 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
     private void GeneraMatrice()
     {
         NotificaFiltriAttiviCambiati();
+        OnPropertyChanged(nameof(AvvisoFiltroStatiAttivo));
         if (_inizializzazioneMatrice) return;
         _matricePreparata = null;
+        OnPropertyChanged(nameof(AvvisoNonTestatoNonCalcolabile));
         // Cambio assi/filtri: la finestra precedente potrebbe non esistere piu' nel nuovo risultato.
         ReimpostaPosizioneMatrice();
         _matriceDaRigenerare = true;
@@ -1514,6 +1520,7 @@ public partial class ReportViewModel : ViewModelBase, IPaginaAggiornabile, IDisp
 
     private void ApplicaMatrice(bool dimensioniAggiornate = false, bool scorrimento = false)
     {
+        OnPropertyChanged(nameof(AvvisoNonTestatoNonCalcolabile));
         if (CampiXMatrice.Count + CampiYMatrice.Count == 0 || _matricePreparata == null) return;
         if (!dimensioniAggiornate) AggiornaDimensioniFinestraMatrice(aggiornaCoda: !scorrimento);
         _matricePreparata.ImpostaStatiNascostiPresentazione(_statiNascostiPresentazione);

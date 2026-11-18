@@ -298,21 +298,63 @@ public partial class ReportViewModel
     public bool SalvaCorrezioneStato(IEnumerable<CorrezioneRigaStato> scelte, string nota, out string? errore)
     {
         var lista = scelte.ToList();
-        var operatore = _state.Config.OperatoreAttivo;
-        var repo = _state.Master.StatiFunzionalitaEcuVeicolo;
         errore = null;
-        foreach (var gruppo in lista.Where(s => s.EsitoManuale.HasValue).GroupBy(s => (s.Funzionalita, s.Componente, Esito: s.EsitoManuale!.Value)))
+        if (!_state.EMaster) { errore = StatoFunzionaleManualeService.ErrorePermessoNegato; return false; }
+        if (lista.Count == 0 || string.IsNullOrWhiteSpace(nota))
         {
-            if (!StatoFunzionaleManualeService.ImpostaManuale(repo, gruppo.Key.Funzionalita, gruppo.Key.Componente,
-                    gruppo.Select(s => s.Veicolo), gruppo.Key.Esito, nota, operatore, _state.EMaster, out errore))
-                return false;
+            errore = StatoFunzionaleManualeService.ErroreNotaOppureVeicoli;
+            return false;
         }
-        foreach (var gruppo in lista.Where(s => s.Propaga && s.Fonte != null).GroupBy(s => (s.Funzionalita, s.Componente, Fonte: s.Fonte!)))
+        if (lista.Any(s => string.IsNullOrWhiteSpace(s.Funzionalita)
+                || string.IsNullOrWhiteSpace(s.Componente) || string.IsNullOrWhiteSpace(s.Veicolo)
+                || (s.Propaga == s.EsitoManuale.HasValue)))
         {
-            if (!StatoFunzionaleManualeService.Propaga(repo, gruppo.Key.Funzionalita, gruppo.Key.Componente,
-                    gruppo.Select(s => (s.Veicolo, gruppo.Key.Fonte)), nota, operatore, _state.EMaster, out errore))
-                return false;
+            errore = "Ogni combinazione deve avere un solo esito manuale o una fonte di propagazione valida.";
+            return false;
         }
+        if (lista.GroupBy(s => (s.Funzionalita.ToUpperInvariant(), s.Componente.ToUpperInvariant(), s.Veicolo.ToUpperInvariant()))
+                .Any(g => g.Count() > 1))
+        {
+            errore = "La stessa combinazione componente, funzionalità e veicolo è stata selezionata più volte.";
+            return false;
+        }
+
+        // La fonte proposta al momento dell'apertura potrebbe essere stata superata
+        // da un nuovo Test su un'altra postazione. Non propagare mai una fonte obsoleta.
+        var richiestePropagazione = lista.Where(s => s.Propaga).ToList();
+        if (richiestePropagazione.Count > 0)
+        {
+            var combinazioni = richiestePropagazione.Select(s => new CombinazioneCellaMatrice(
+                s.Funzionalita, s.Componente, s.Veicolo, StatoCombinazioneMatrice.DaDecidere,
+                false, false, true)).ToArray();
+            var indiceCorrente = IndiceFontiStatoPropagato.Crea(
+                _state.TestCases.GetAll(), _state.Master.Componente.Load(),
+                _state.Master.StatiFunzionalitaEcuVeicolo.Load(), combinazioni);
+            foreach (var scelta in richiestePropagazione)
+            {
+                var ora = indiceCorrente.FonteDi(scelta.Funzionalita, scelta.Componente, scelta.Veicolo);
+                var proposta = scelta.Fonte;
+                if (ora == null || proposta == null
+                    || !string.Equals(ora.VeicoloSorgente, proposta.VeicoloSorgente, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(ora.TestIdSorgente, proposta.TestIdSorgente, StringComparison.OrdinalIgnoreCase)
+                    || ora.EsitoSorgente != proposta.EsitoSorgente)
+                {
+                    errore = "La fonte della propagazione è cambiata. Riapri il pannello e verifica l'ultimo stato prima di decidere.";
+                    return false;
+                }
+            }
+        }
+
+        // UNA sola append Phase D: le mutazioni di tutte le combinazioni sono validate
+        // e pubblicate insieme. Le append Phase D non partecipano alle before-image
+        // di WorkflowTransactionService: un involucro esterno non sarebbe atomico.
+        var decisioni = lista.Select(s => new DecisioneStatoFunzionale(
+            s.Funzionalita, s.Componente, s.Veicolo, s.EsitoManuale,
+            s.Propaga ? s.Fonte : null)).ToList();
+        if (!StatoFunzionaleManualeService.ApplicaDecisioni(
+                _state.Master.StatiFunzionalitaEcuVeicolo, decisioni, nota,
+                _state.Config.OperatoreAttivo, _state.EMaster, out errore))
+            return false;
         GeneraMatrice();
         return true;
     }
@@ -321,11 +363,15 @@ public partial class ReportViewModel
     public bool RimuoviInserimentoManuale(IEnumerable<RigaCorrezioneStato> righe, out string? errore)
     {
         errore = null;
-        foreach (var r in righe.Where(x => x.ManualeVincente || x.ManualeSuperato))
-        {
-            if (!StatoFunzionaleManualeService.RimuoviManuale(_state.Master.StatiFunzionalitaEcuVeicolo, r.Funzionalita, r.Componente, r.Veicolo, _state.EMaster, out errore))
-                return false;
-        }
+        if (!_state.EMaster) { errore = StatoFunzionaleManualeService.ErrorePermessoNegato; return false; }
+        var daRimuovere = righe.Where(x => x.ManualeVincente || x.ManualeSuperato)
+            .GroupBy(x => (x.Funzionalita.ToUpperInvariant(), x.Componente.ToUpperInvariant(), x.Veicolo.ToUpperInvariant()))
+            .Select(g => g.First()).ToList();
+        if (daRimuovere.Count == 0) return true;
+        if (!StatoFunzionaleManualeService.RimuoviManuali(
+                _state.Master.StatiFunzionalitaEcuVeicolo,
+                daRimuovere.Select(r => (r.Funzionalita, r.Componente, r.Veicolo)), _state.EMaster, out errore))
+            return false;
         GeneraMatrice();
         return true;
     }

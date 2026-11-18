@@ -349,7 +349,7 @@ public partial class NonConformitaView : UserControl
 
         Control Costruisci(AnomaliaDettaglioViewModel v)
         {
-            var errore = new TextBlock { Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, IsVisible = v.HaErrore, Text = v.Errore ?? "" };
+            var errore = new TextBlock { Foreground = UiTema.Errore, TextWrapping = TextWrapping.Wrap, IsVisible = v.HaErrore, Text = v.Errore ?? "" };
             AutomationProperties.SetAutomationId(errore, "Anomalie_NcModificaRapida_Errore_Text");
 
             var stato = CreaComboRapida(v.StatiWorkflow.Cast<StatoAnomalia>()
@@ -424,7 +424,7 @@ public partial class NonConformitaView : UserControl
             AutomationProperties.SetAutomationId(motivoRiapertura, "Anomalie_Nc_ModificaRapida_MotivoRiapertura_TextBox");
 
             var bannerConflitto = new StackPanel { Spacing = 6, IsVisible = v.ConflittoInAttesa };
-            var testoConflitto = new TextBlock { Text = v.Errore ?? "", Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap };
+            var testoConflitto = new TextBlock { Text = v.Errore ?? "", Foreground = UiTema.Errore, TextWrapping = TextWrapping.Wrap };
             var ricarica = new Button { Content = loc.Scegli("Ricarica", "Reload", "Recharger"), Classes = { "Secondary" } };
             AutomationProperties.SetAutomationId(ricarica, "Anomalie_Nc_ModificaRapida_Ricarica_Button");
             bannerConflitto.Children.Add(testoConflitto);
@@ -711,12 +711,12 @@ public partial class NonConformitaView : UserControl
             }
             contenuto.Children.Add(intestazione);
 
-            var bannerErrore = new TextBlock { Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+            var bannerErrore = new TextBlock { Foreground = UiTema.Errore, TextWrapping = TextWrapping.Wrap, IsVisible = false };
             AutomationProperties.SetAutomationId(bannerErrore, "Anomalie_Cr_ModificaRapida_Errore_Text");
             contenuto.Children.Add(bannerErrore);
 
             var bannerConflitto = new StackPanel { Spacing = 4, IsVisible = false };
-            var testoConflitto = new TextBlock { Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap };
+            var testoConflitto = new TextBlock { Foreground = UiTema.Errore, TextWrapping = TextWrapping.Wrap };
             var btnRicarica = new Button { Content = loc.Scegli("Ricarica", "Reload", "Recharger"), Classes = { "Secondary" } };
             AutomationProperties.SetAutomationId(btnRicarica, "Anomalie_Cr_ModificaRapida_Ricarica_Button");
             bannerConflitto.Children.Add(testoConflitto);
@@ -1013,7 +1013,7 @@ public partial class NonConformitaView : UserControl
     {
         var loc = LocalizationService.Instance;
         var motivo = new TextBox { Text = vm.MotivoChiusura, PlaceholderText = loc.Scegli("Motivo di chiusura obbligatorio", "Closure reason required", "Motif de clôture obligatoire"), AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 72, VerticalContentAlignment = VerticalAlignment.Top };
-        var errore = new TextBlock { Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap };
+        var errore = new TextBlock { Foreground = UiTema.Errore, TextWrapping = TextWrapping.Wrap };
         var chiudi = new Button { Content = loc.Traduci("ChiudiAnomaliaBtn"), Classes = { "Danger" }, IsVisible = vm.PuoChiudere, IsEnabled = vm.PuoChiudere };
         var riapri = new Button { Content = loc.Traduci("RiapriAnomaliaBtn"), IsVisible = vm.PuoRiaprire, IsEnabled = vm.PuoRiaprire };
         var annulla = new Button { Content = loc.Traduci("Annulla") };
@@ -1079,17 +1079,18 @@ public partial class NonConformitaView : UserControl
         if (DataContext is not NonConformitaViewModel vm) return;
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return;
+        var tipo = (sender as Button)?.Tag as string == "cr" ? "cr" : "nc";
 
         try
         {
-            // Dialogo unico di export: sezioni, colonne e filtri (che partono da quelli a video e, confermando, restano applicati alla pagina).
+            // Export separati: NC e CR hanno fogli, colonne e configurazioni salvate indipendenti.
             if (topLevel is not Window finestraProprietaria) return;
-            var opzioni = await EsportaOpzioniDialogo.Apri(finestraProprietaria, vm.StatoPerExport, vm.CreaDescrittoreExport());
+            var opzioni = await EsportaOpzioniDialogo.Apri(finestraProprietaria, vm.StatoPerExport, vm.CreaDescrittoreExport(tipo));
             if (opzioni == null) return;
             var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = LocalizationService.Instance.Scegli("Salva Excel Non Conformità", "Save Non-conformities Excel", "Enregistrer l'Excel des non-conformités"),
-                SuggestedFileName = $"TestLoom_NonConformita_{DateTime.Now:yyyyMMdd_HHmmss}",
+                Title = tipo == "cr" ? "Salva Excel Change Request" : "Salva Excel Non Conformità",
+                SuggestedFileName = $"TestLoom_{(tipo == "cr" ? "ChangeRequest" : "NonConformita")}_{DateTime.Now:yyyyMMdd_HHmmss}",
                 DefaultExtension = "xlsx",
                 FileTypeChoices = new[] { new FilePickerFileType("Excel") { Patterns = new[] { "*.xlsx" } } }
             });

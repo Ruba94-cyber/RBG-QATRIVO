@@ -1108,7 +1108,7 @@
                                 <TextBlock Text="{Binding EtichettaVeicolo}" FontSize="13" FontWeight="SemiBold" />
                                 <TextBlock Text="*" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding VeicoloObbligatorio}" />
                             </StackPanel>
-                            <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding VeicoliDisponibili}" SelectedItem="{Binding VeicoloSelezionato}" IsVisible="{Binding VeicoliDisponibili, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}" AutomationProperties.AutomationId="Editor_Veicolo_ComboBox" />
+                            <ComboBox Classes="Field" HorizontalAlignment="Stretch" PlaceholderText="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=ScegliVeicoloPlaceholder}" ItemsSource="{Binding VeicoliDisponibili}" SelectedItem="{Binding VeicoloSelezionato}" IsVisible="{Binding VeicoliDisponibili, Converter={x:Static local:ListaEntroSogliaConverter.Instance}}" AutomationProperties.AutomationId="Editor_Veicolo_ComboBox" />
                             <Button Classes="Field" Content="{Binding VeicoloSelezionato, Converter={x:Static local:ScegliPlaceholderConverter.Instance}, ConverterParameter=ScegliVeicoloPlaceholder}" Command="{Binding ScegliVeicoloCommand}" IsVisible="{Binding VeicoliDisponibili, Converter={x:Static local:ListaOltreSogliaConverter.Instance}}" />
                             <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding PuoAggiungereCampiSistemaRapidi}">
                                 <TextBox Grid.Column="0" Classes="Field" Text="{Binding NuovoVeicoloNome}" PlaceholderText="{Binding Source={x:Static svc:LocalizationService.Instance}, Path=Lingua, Converter={x:Static svc:TraduciConverter.Instance}, ConverterParameter=AltroVeicoloPlaceholder}" AutomationProperties.AutomationId="Editor_NuovoVeicolo_TextBox" />
@@ -1153,7 +1153,7 @@
                     <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding !VisualizzaStorico}">
                     <StackPanel Grid.Row="{Binding RigaFunzionalita}" Margin="0,0,0,12" Spacing="4" IsEnabled="{Binding InModifica}" IsVisible="{Binding MostraCampoFunzionalita}" svc:Spotlight.TargetId="campo-Funzionalita">
                         <StackPanel Orientation="Horizontal" Spacing="2">
-                            <TextBlock Text="{Binding EtichettaFunzionalita}" FontSize="13" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding EtichettaFunzionalitaVisibile}" FontSize="13" FontWeight="SemiBold" />
                             <TextBlock Text="*" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding FunzionalitaObbligatoria}" />
                         </StackPanel>
                         <ItemsControl ItemsSource="{Binding FunzionalitaVisual}">

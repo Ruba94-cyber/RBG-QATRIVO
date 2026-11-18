@@ -5,6 +5,10 @@ namespace TestLoom.App.Services;
 /// <summary>Esito di una combinazione propagato da un altro veicolo della stessa componente (fonte della propagazione).</summary>
 public sealed record FonteStatoPropagato(string VeicoloSorgente, string TestIdSorgente, Esito EsitoSorgente);
 
+/// <summary>Decisione per una singola triade: manuale oppure propagazione selezionata dal Master.</summary>
+public sealed record DecisioneStatoFunzionale(string Funzionalita, string Componente, string Veicolo,
+    Esito? EsitoManuale = null, FonteStatoPropagato? Fonte = null);
+
 /// <summary>Correzione manuale dello stato delle combinazioni funzionalità × componente × veicolo nel Report (6.6.1, fase 2).
 /// Stessa architettura dell'Audit (<see cref="ValutazioneRequisitoEcuVeicoloService"/>): catalogo master condiviso con Phase D,
 /// scrittura con verifica dello stato atteso (concorrenza ottimistica), consolidamento delle collisioni di chiave prima di ogni
@@ -78,6 +82,94 @@ public static class StatoFunzionaleManualeService
             }
             return true;
         }, out errore);
+    }
+
+    /// <summary>Scrive tutte le decisioni di un pannello in UNA SOLA Save del catalogo Phase D.
+    /// La singola append del journal pubblica un batch unitario: a differenza di più chiamate
+    /// separate, un guasto sulla seconda combinazione non può lasciare confermata solo la prima.
+    /// La fonte viene verificata dal ViewModel immediatamente prima della chiamata.</summary>
+    public static bool ApplicaDecisioni(MasterDataRepository<StatoFunzionalitaEcuVeicolo> repo,
+        IEnumerable<DecisioneStatoFunzionale> richieste, string nota, string operatore, bool isMaster,
+        out string? errore)
+    {
+        if (!isMaster) { errore = ErrorePermessoNegato; return false; }
+        var decisioni = richieste.ToList();
+        if (decisioni.Count == 0 || string.IsNullOrWhiteSpace(nota))
+        {
+            errore = ErroreNotaOppureVeicoli;
+            return false;
+        }
+        var chiavi = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var richiesta in decisioni)
+        {
+            if (string.IsNullOrWhiteSpace(richiesta.Funzionalita) || string.IsNullOrWhiteSpace(richiesta.Componente)
+                || string.IsNullOrWhiteSpace(richiesta.Veicolo)
+                || (richiesta.EsitoManuale.HasValue == (richiesta.Fonte != null))
+                || (richiesta.EsitoManuale is { } esito && !esito.EEseguito())
+                || (richiesta.Fonte is { } fonte && (!fonte.EsitoSorgente.EEseguito()
+                    || string.IsNullOrWhiteSpace(fonte.VeicoloSorgente)
+                    || string.IsNullOrWhiteSpace(fonte.TestIdSorgente)
+                    || string.Equals(fonte.VeicoloSorgente, richiesta.Veicolo, StringComparison.OrdinalIgnoreCase)))
+                || !chiavi.Add(ChiaveStabile(richiesta.Funzionalita, richiesta.Componente, richiesta.Veicolo)))
+            {
+                errore = "Decisioni duplicate o non valide: selezionare un solo esito o una fonte esterna per ogni triade.";
+                return false;
+            }
+        }
+
+        return ProvaAggiorna(repo, valori =>
+        {
+            ConsolidaCollisioni(valori, operatore);
+            var adesso = DateTime.Now;
+            foreach (var richiesta in decisioni)
+            {
+                valori.RemoveAll(v => Corrisponde(v, richiesta.Funzionalita, richiesta.Componente, richiesta.Veicolo));
+                var fonte = richiesta.Fonte;
+                var propagata = fonte != null;
+                valori.Add(new StatoFunzionalitaEcuVeicolo
+                {
+                    Funzionalita = richiesta.Funzionalita, Componente = richiesta.Componente, Veicolo = richiesta.Veicolo,
+                    Esito = fonte?.EsitoSorgente ?? richiesta.EsitoManuale!.Value,
+                    Origine = propagata ? OrigineStatoFunzionalita.Propagata : OrigineStatoFunzionalita.Manuale,
+                    SorgenteVeicolo = fonte?.VeicoloSorgente ?? "",
+                    SorgenteTestId = fonte?.TestIdSorgente ?? "",
+                    SorgenteEsito = fonte?.EsitoSorgente,
+                    Nota = nota.Trim(), Operatore = operatore, DataDecisione = adesso,
+                    UltimaModifica = adesso, ModificatoDa = operatore, CreatoDa = operatore,
+                });
+            }
+            return true;
+        }, out errore);
+    }
+
+    private static string ChiaveStabile(string funzionalita, string componente, string veicolo) =>
+        string.Concat(funzionalita.Length, ":", funzionalita,
+            componente.Length, ":", componente, veicolo.Length, ":", veicolo);
+
+    /// <summary>Elimina in un solo batch del catalogo gli stati manuali richiesti; se uno non
+    /// esiste più, non viene scritta alcuna rimozione.</summary>
+    public static bool RimuoviManuali(MasterDataRepository<StatoFunzionalitaEcuVeicolo> repo,
+        IEnumerable<(string Funzionalita, string Componente, string Veicolo)> richieste, bool isMaster, out string? errore)
+    {
+        if (!isMaster) { errore = ErrorePermessoNegato; return false; }
+        var lista = richieste.ToList();
+        if (lista.Count == 0) { errore = null; return true; }
+        if (lista.Any(x => string.IsNullOrWhiteSpace(x.Funzionalita) || string.IsNullOrWhiteSpace(x.Componente)
+                || string.IsNullOrWhiteSpace(x.Veicolo)))
+        {
+            errore = "Una o più combinazioni da rimuovere non sono valide.";
+            return false;
+        }
+        var riuscita = ProvaAggiorna(repo, valori =>
+        {
+            if (lista.Any(r => !valori.Any(v => Corrisponde(v, r.Funzionalita, r.Componente, r.Veicolo))))
+                return false;
+            foreach (var r in lista)
+                valori.RemoveAll(v => Corrisponde(v, r.Funzionalita, r.Componente, r.Veicolo));
+            return true;
+        }, out errore);
+        if (!riuscita && errore == null) errore = "Uno o più valori manuali non sono più presenti: aggiornare il Report.";
+        return riuscita;
     }
 
     /// <summary>Rimuove il valore manuale di UNA combinazione: torna a valere solo l'esito dei Test (o il "!" se propagabile).</summary>

@@ -239,6 +239,13 @@ public sealed class CellaMatriceReport
     public int ManualiSuperati { get; init; }
     public string? NotaManuale { get; init; }
     public IReadOnlyList<DettaglioValoreManuale> ValoriManuali { get; init; } = [];
+    /// <summary>Motivazioni dell'ultimo esito valido per ciascuna triade e ticket associati al Test.</summary>
+    public IReadOnlyList<string> DettagliDeviazioni { get; init; } = [];
+    public IReadOnlyList<string> AvvisiRegressione { get; init; } = [];
+    public bool HaRegressioni => AvvisiRegressione.Count > 0
+        && !StatiNascostiPresentazione.Contains(StatoCellaMatrice.NonConforme);
+    public bool HaPropagazioniDaDecidere => Stati.DaDecidere > 0
+        && !StatiNascostiPresentazione.Contains(StatoCellaMatrice.DaDecidere);
     public string? TooltipManuale => ValoriManuali.Count == 0 ? null : string.Join(Environment.NewLine, ValoriManuali.Select(v =>
         string.Format(LocalizationService.Instance.Traduci("MatriceValoreManualeTooltipFmt"),
             v.Superato ? LocalizationService.Instance.Traduci("MatriceValoreManualeTooltipSuperato") : "",
@@ -288,6 +295,10 @@ public sealed class CellaMatriceReport
 
     /// <summary>Testo effettivamente mostrato dalla vista e dall'export: N.A. ha la precedenza, poi il modo scelto.</summary>
     public string TestoVisualizzato => NonApplicabile ? "N.A." : ModalitaStato ? TestoStato : Testo;
+    /// <summary>Indicatori solo nella UI: non cambiano il valore numerico esportato.
+    /// "!" indica una propagazione da decidere, "⚠" un peggioramento dell'ultimo esito.</summary>
+    public string TestoInterfaccia => NonApplicabile ? "N.A."
+        : (HaRegressioni ? "⚠ " : "") + (HaPropagazioniDaDecidere ? "! " : "") + TestoVisualizzato;
 
     /// <summary>Codice di stato per colore e legenda (sempre Vuota in modalità Percentuale).</summary>
     public StatoCellaMatrice CodiceStato => Stati.Codice;
@@ -771,6 +782,10 @@ public static partial class ReportMatriceService
         /// per marcare quale dato determina lo stato — nessun effetto sul calcolo.</summary>
         public CandidatoCombinazione? Vincente { get; private set; }
 
+        /// <summary>Penultimo esito realmente eseguito, indipendente dall'ordine di lettura
+        /// dei Test: consente di segnalare le regressioni Conforme -> Non conforme.</summary>
+        public CandidatoCombinazione? Penultimo { get; private set; }
+
         /// <summary>Test da cui derivare gli assi descrittivi della combinazione corrente. Una decisione manuale
         /// cambia lo stato ma non sostituisce i metadati del Test; in assenza di un Test eseguito si usa l'ultimo
         /// Test pianificato.</summary>
@@ -819,6 +834,7 @@ public static partial class ReportMatriceService
             ManualeEsiste = sorgente.ManualeEsiste;
             ValoreManuale = sorgente.ValoreManuale;
             Vincente = sorgente.Vincente;
+            Penultimo = sorgente.Penultimo;
             CandidatoTestEseguito = sorgente.CandidatoTestEseguito;
             CandidatoTestPrevisto = sorgente.CandidatoTestPrevisto;
             _haMiglioreEseguito = sorgente._haMiglioreEseguito;
@@ -871,8 +887,19 @@ public static partial class ReportMatriceService
                     ValoreManuale = c;
             }
             if (_haMiglioreEseguito && !Successivo(c.Data, c.Test.Id, c.RevisioneIndice, c.TentativoIndice,
-                    _dataEseguita, _testEseguito, _revisioneEseguita, _tentativoEseguito)) return;
+                    _dataEseguita, _testEseguito, _revisioneEseguita, _tentativoEseguito))
+            {
+                // Ordinamento di scansione non garantito: conserva la seconda data
+                // piu' recente anche se viene letta dopo il vincitore.
+                if (!(c.Data == _dataEseguita && c.Test.Id == _testEseguito
+                    && c.RevisioneIndice == _revisioneEseguita && c.TentativoIndice == _tentativoEseguito)
+                    && (Penultimo == null || Successivo(c.Data, c.Test.Id, c.RevisioneIndice, c.TentativoIndice,
+                        Penultimo.Data, Penultimo.Test.Id, Penultimo.RevisioneIndice, Penultimo.TentativoIndice)))
+                    Penultimo = c;
+                return;
+            }
 
+            if (_haMiglioreEseguito) Penultimo = Vincente;
             _haMiglioreEseguito = true;
             Vincente = c;
             _vincenteManuale = c.Test.Id.StartsWith(ManualePrefisso, StringComparison.Ordinal);
@@ -1918,6 +1945,17 @@ public static partial class ReportMatriceService
         }
         if (universo != null) AggiungiUniversoNonTestato(universo, config, combinazioni, combinazioniCore);
 
+        // La relazione componente -> veicoli viene letta una sola volta: un avviso di
+        // regressione puo' indicare gli altri veicoli potenzialmente impattati
+        // senza trasformare il suggerimento in una propagazione automatica.
+        var veicoliPerEcu = (ecuCatalogo ?? Array.Empty<Componente>())
+            .GroupBy(x => x.Nome, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key,
+                g => (IReadOnlyList<string>)g.SelectMany(e => e.VeicoliAssociati)
+                    .Where(v => !string.IsNullOrWhiteSpace(v))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                StringComparer.OrdinalIgnoreCase);
+
         var colonneViste = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var perRiga = new Dictionary<string, Dictionary<string, CellaAccumulatore>>(StringComparer.OrdinalIgnoreCase);
         var perRigaTest = new Dictionary<string, Dictionary<string, CellaAccumulatore>>(StringComparer.OrdinalIgnoreCase);
@@ -1941,7 +1979,9 @@ public static partial class ReportMatriceService
                 cella = new CellaAccumulatore();
                 celleRiga[x] = cella;
             }
-            cella.Aggiungi(stato, valutata, conforme, acc.ManualeVincente, acc.ManualeSuperato, acc.NotaManuale, acc.ValoreManuale);
+            veicoliPerEcu.TryGetValue(acc.Componente, out var veicoliCondivisi);
+            cella.Aggiungi(stato, valutata, conforme, acc.ManualeVincente, acc.ManualeSuperato,
+                acc.NotaManuale, acc.ValoreManuale, acc.Vincente, acc.Penultimo, veicoliCondivisi);
 
             if (!celleToccatePerCore.TryGetValue(chiaveCore, out var celle))
             {
@@ -1988,6 +2028,7 @@ public static partial class ReportMatriceService
             combinazioniCore, celleToccatePerCore, entitaTest,
             testIdsVista, testUidsVista, config.CampiX, config.CampiY, dimensione => OrdineDi(config, dimensione),
             modalitaStato, modalitaTestPercentuale, config.StatiNascostiPresentazione, universoAgg, materializzaUniverso, enumeraUniversoExport);
+        preparata.UniversoNonTestatoAttivo = universoAttivo;
         preparata.ConfiguraVisibilita(config);
         // TIME: valori temporali con le stesse chiavi della matrice, solo nelle modalita' temporali (il costo resta fuori dallo Stato).
         if (ModalitaTempo(config.ModalitaCella))
@@ -2027,6 +2068,10 @@ public static partial class ReportMatriceService
     /// sono aggregati per combinazione distinta (una volta sola, col suo ultimo esito).</summary>
     public sealed class MatricePreparata
     {
+        /// <summary>Le combinazioni del catalogo prive di test sono calcolabili solo con assi
+        /// e filtri compatibili. Il valore esposto evita di scambiare un dato non mostrato
+        /// con uno stato nascosto dal solo filtro di presentazione.</summary>
+        public bool UniversoNonTestatoAttivo { get; internal set; }
         private readonly Dictionary<string, Dictionary<string, CellaAccumulatore>> _perRiga;
         private readonly Dictionary<string, Dictionary<string, CellaAccumulatore>> _perRigaTest;
         private readonly Dictionary<string, CombinazioneAccumulatore> _combinazioniCore;
@@ -2340,15 +2385,18 @@ public static partial class ReportMatriceService
                     if (!righeX.Any(y => !cellaNonApplicabile(x, y))) continue; // tutte N.A. in questa colonna: esclusa (punto 3)
                     qualcheCellaNonNaNellaMatrice = true;
                     if (!contatoriColonna.TryGetValue(x, out var c)) { c = new CellaAccumulatore(); contatoriColonna[x] = c; }
-                    c.Aggiungi(stato, valutata, conforme, acc.ManualeVincente, acc.ManualeSuperato, acc.NotaManuale);
+                    c.Aggiungi(stato, valutata, conforme, acc.ManualeVincente, acc.ManualeSuperato,
+                        acc.NotaManuale, vincente: acc.Vincente);
                 }
                 foreach (var (y, colonneY) in colonneToccatePerRiga)
                 {
                     if (!colonneY.Any(x => !cellaNonApplicabile(x, y))) continue;
                     if (!contatoriRiga.TryGetValue(y, out var c)) { c = new CellaAccumulatore(); contatoriRiga[y] = c; }
-                    c.Aggiungi(stato, valutata, conforme, acc.ManualeVincente, acc.ManualeSuperato, acc.NotaManuale);
+                    c.Aggiungi(stato, valutata, conforme, acc.ManualeVincente, acc.ManualeSuperato,
+                        acc.NotaManuale, vincente: acc.Vincente);
                 }
-                if (qualcheCellaNonNaNellaMatrice) generale.Aggiungi(stato, valutata, conforme, acc.ManualeVincente, acc.ManualeSuperato, acc.NotaManuale);
+                if (qualcheCellaNonNaNellaMatrice) generale.Aggiungi(stato, valutata, conforme, acc.ManualeVincente, acc.ManualeSuperato,
+                    acc.NotaManuale, vincente: acc.Vincente);
             }
             if (_universoAgg != null && senzaNonApplicabili)
                 AggiungiUniversoAggregatoAiTotali(_universoAgg, contatoriColonna, contatoriRiga, generale);
@@ -2429,7 +2477,8 @@ public static partial class ReportMatriceService
                             }
                             if (accumulato.UltimoCore == indiceCore) continue; // già contata per questa coppia
                             accumulato.UltimoCore = indiceCore;
-                            accumulato.Cella.Aggiungi(stato, valutata, conforme, acc.ManualeVincente, acc.ManualeSuperato, acc.NotaManuale);
+                            accumulato.Cella.Aggiungi(stato, valutata, conforme, acc.ManualeVincente, acc.ManualeSuperato,
+                                acc.NotaManuale, vincente: acc.Vincente, precedente: acc.Penultimo);
                         }
                     }
                 }
@@ -2567,6 +2616,8 @@ public static partial class ReportMatriceService
                     Tempo = ValoreTempoDi(riga.Chiave, colonna.Chiave), ModalitaTempo = _modalitaTempo,
                     Manuali = accStato?.Manuali ?? 0, ManualiSuperati = accStato?.ManualiSuperati ?? 0,
                     NotaManuale = accStato?.NotaManuale, ValoriManuali = accStato?.ValoriManuali ?? [],
+                    DettagliDeviazioni = accStato?.DettagliDeviazioni ?? [],
+                    AvvisiRegressione = accStato?.AvvisiRegressione ?? [],
                 };
             }
 
@@ -2583,6 +2634,8 @@ public static partial class ReportMatriceService
                 Tempo = ValoreTempoDi(riga.Chiave, colonna.Chiave), ModalitaTempo = _modalitaTempo,
                 Manuali = aggregato?.Manuali ?? 0, ManualiSuperati = aggregato?.ManualiSuperati ?? 0,
                 NotaManuale = aggregato?.NotaManuale, ValoriManuali = aggregato?.ValoriManuali ?? [],
+                DettagliDeviazioni = aggregato?.DettagliDeviazioni ?? [],
+                AvvisiRegressione = aggregato?.AvvisiRegressione ?? [],
             };
         }
 
@@ -3043,13 +3096,56 @@ public static partial class ReportMatriceService
         public int ManualiSuperati;
         public string? NotaManuale;
         public List<DettaglioValoreManuale> ValoriManuali { get; } = [];
+        public List<string> DettagliDeviazioni { get; } = [];
+        public List<string> AvvisiRegressione { get; } = [];
 
         public StatiMatrice Stati => new(Ok, NonConforme, ConformeConDeviazioni, DaEseguire, NonTestato, DaDecidere);
 
         public void Aggiungi(StatoCombinazioneMatrice stato, bool valutata, bool conforme, bool manuale = false,
-            bool superato = false, string? nota = null, CandidatoCombinazione? valoreManuale = null)
+            bool superato = false, string? nota = null, CandidatoCombinazione? valoreManuale = null,
+            CandidatoCombinazione? vincente = null, CandidatoCombinazione? precedente = null,
+            IReadOnlyList<string>? veicoliCondivisi = null)
         {
             Totali++;
+            if (stato == StatoCombinazioneMatrice.NonConforme && vincente?.Esito == Esito.NonConforme
+                && precedente?.Esito == Esito.Conforme)
+            {
+                var avviso = $"Regressione: {vincente.Funzionalita} / {vincente.Componente} / {vincente.Veicolo} — "
+                    + $"{precedente.Test.Id} ({precedente.Data:dd/MM/yyyy}) Conforme → "
+                    + $"{vincente.Test.Id} ({vincente.Data:dd/MM/yyyy}) Non conforme.";
+                var altri = veicoliCondivisi?.Where(v => !string.Equals(v, vincente.Veicolo, StringComparison.OrdinalIgnoreCase))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
+                if (altri.Length > 0)
+                    avviso += " Veicoli associati alla stessa componente potenzialmente impattati: "
+                        + string.Join(", ", altri.Take(8))
+                        + (altri.Length > 8 ? $" (+{altri.Length - 8})" : "")
+                        + ". Nessuno stato propagato automaticamente.";
+                else
+                    avviso += " Verificare possibili impatti trasversali, senza propagazione automatica.";
+                if (!AvvisiRegressione.Contains(avviso, StringComparer.Ordinal)) AvvisiRegressione.Add(avviso);
+            }
+            if (stato == StatoCombinazioneMatrice.ConformeConDeviazioni && vincente != null)
+            {
+                var revisione = vincente.RevisioneIndice >= 0 && vincente.RevisioneIndice < vincente.Test.Esecuzioni.Count
+                    ? vincente.Test.Esecuzioni[vincente.RevisioneIndice] : null;
+                var condizione = revisione?.Condizioni.FirstOrDefault(x =>
+                    x.Uid == vincente.CondizioneUid && x.Esito == Esito.ConformeConDeviazioni);
+                var motivazione = !string.IsNullOrWhiteSpace(condizione?.DescrizioneDeviazione)
+                    ? condizione.DescrizioneDeviazione.Trim()
+                    : vincente.Test.Id.StartsWith(ManualePrefisso, StringComparison.Ordinal)
+                        && !string.IsNullOrWhiteSpace(vincente.Test.Descrizione)
+                        ? vincente.Test.Descrizione.Trim()
+                        : !string.IsNullOrWhiteSpace(vincente.Test.DescrizioneProblema)
+                            ? vincente.Test.DescrizioneProblema.Trim()
+                            : "Motivazione della deviazione non disponibile";
+                var ticket = vincente.Test.TicketCollegati
+                    .Select(x => x.Riferimento).Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var dettaglio = $"{vincente.Test.Id} | {vincente.Veicolo} | {vincente.Componente} | {vincente.Funzionalita}: {motivazione}";
+                if (ticket.Count > 0)
+                    dettaglio += Environment.NewLine + "Ticket collegati (stato esterno non verificato): " + string.Join(", ", ticket);
+                if (!DettagliDeviazioni.Contains(dettaglio, StringComparer.Ordinal)) DettagliDeviazioni.Add(dettaglio);
+            }
             if (valutata) Valutati++;
             if (conforme) Conformi++;
             if (manuale) Manuali++;

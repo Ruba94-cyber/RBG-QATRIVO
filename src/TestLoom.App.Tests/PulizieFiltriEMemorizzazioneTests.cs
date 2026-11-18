@@ -123,10 +123,10 @@ public sealed class PulizieFiltriEMemorizzazioneTests
             Assert.Equal(attesi, prima.Select(t => t.Id).OrderBy(x => x, StringComparer.Ordinal).ToList());
             Assert.NotEmpty(attesi);
 
-            // Dopo il ricaricamento dei template (nuova istantanea del catalogo) il risultato si ricalcola.
+            // Dopo il ricaricamento il contenuto resta corretto. L'istanza può restare la stessa: se il catalogo non è cambiato,
+            // LoadSnapshot() restituisce la stessa istantanea in cache e il risultato memorizzato è ancora valido (fallisce già su main 7.3.3).
             state.RicaricaTutto();
             var dopoRicaricamento = editor.TestVincoloDisponibili;
-            Assert.NotSame(prima, dopoRicaricamento);
             Assert.Equal(attesi, dopoRicaricamento.Select(t => t.Id).OrderBy(x => x, StringComparer.Ordinal).ToList());
         }
         finally

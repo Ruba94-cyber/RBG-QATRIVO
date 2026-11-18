@@ -233,6 +233,9 @@ public partial class ReportView : UserControl
     private void OnMatriceViewportPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
         if (DataContext is not ReportViewModel vm) return;
+        // Ctrl+rotella: scorri la pagina. Senza Ctrl la matrice gestisce il suo
+        // viewport e lascia scorrere la pagina solo quando raggiunge il bordo.
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
         e.Handled = vm.ScorriMatriceDaRotella(e.Delta.X, e.Delta.Y,
             spostaSoloColonne: e.KeyModifiers.HasFlag(KeyModifiers.Shift));
     }

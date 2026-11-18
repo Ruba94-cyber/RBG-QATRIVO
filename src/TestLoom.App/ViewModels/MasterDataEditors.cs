@@ -970,6 +970,7 @@ public class CategoriaViewModel : MasterDataEditorViewModelBase<Categoria>
 
 public class FunzionalitaViewModel : MasterDataEditorViewModelBase<Funzionalita>
 {
+    public Array Ambiti => Enum.GetValues(typeof(AmbitoFunzionalita));
     /// <summary>Categoria non è più testo libero (Addendum §10, feedback QA): gestita qui dentro Funzionalità,
     /// stesso schema di Gamma dentro Veicoli — un elenco proprio, annidato invece che a parte.
     /// Costruito PIGRAMENTE (perf: profilo rivisita Funzionalità 2026-09-25, ~52ms di questo ctor annidato su

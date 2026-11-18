@@ -26,7 +26,9 @@ public static class ExportSelezione
     /// aggiornata, campo rimosso) viene scartata, e una sezione senza piu' colonne valide torna a "tutte".</summary>
     public static ExportConfigurazione Normalizza(ExportConfigurazione c, ExportDescrittore d)
     {
-        var risultato = new ExportConfigurazione { Nome = c.Nome, IgnoraFiltri = c.IgnoraFiltri, PivotFonte = c.PivotFonte, PivotRighe = c.PivotRighe,
+        var risultato = new ExportConfigurazione { Nome = c.Nome, IgnoraFiltri = c.IgnoraFiltri,
+            SoloAperteVeicolo = c.SoloAperteVeicolo, VeicoloRapido = c.VeicoloRapido,
+            PivotFonte = c.PivotFonte, PivotRighe = c.PivotRighe,
             PivotColonne = c.PivotColonne, PivotPercentuale = c.PivotPercentuale,
             PivotMetrica = c.PivotMetrica, PivotCampoValore = c.PivotCampoValore,
             PivotMostraNumeri = c.PivotMostraNumeri, PivotMostraPercentuali = c.PivotMostraPercentuali };
@@ -36,19 +38,23 @@ public static class ExportSelezione
             risultato.Sezioni.Add(s.Id);
             if (s.Colonne == null || c.ColonneDi(s.Id) is not { } scelte) continue;
             var valide = scelte.Where(id => s.Colonne.Any(k => string.Equals(k.Id, id, StringComparison.OrdinalIgnoreCase))).ToList();
-            if (valide.Count > 0 && valide.Count < s.Colonne.Count) risultato.Colonne[s.Id] = valide;
+            // Conserva anche un ordine esplicito con tutte le colonne selezionate.
+            if (valide.Count > 0 && (valide.Count < s.Colonne.Count
+                || !valide.SequenceEqual(s.Colonne.Select(k => k.Id), StringComparer.OrdinalIgnoreCase)))
+                risultato.Colonne[s.Id] = valide;
         }
         return risultato;
     }
 
-    /// <summary>Colonne da esportare di una sezione, nell'ordine del descrittore (la tabella com'e'), oppure tutte.</summary>
+    /// <summary>Colonne esportate nell'ordine scelto dall'operatore, oppure nell'ordine canonico.</summary>
     public static IReadOnlyList<string> ColonneEsportate(ExportConfigurazione c, ExportSezione s)
     {
         if (s.Colonne == null) return Array.Empty<string>();
         var scelte = c.ColonneDi(s.Id);
         return scelte == null
             ? s.Colonne.Select(k => k.Id).ToList()
-            : s.Colonne.Where(k => scelte.Contains(k.Id, StringComparer.OrdinalIgnoreCase)).Select(k => k.Id).ToList();
+            : scelte.Where(id => s.Colonne.Any(k => string.Equals(k.Id, id, StringComparison.OrdinalIgnoreCase)))
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 }
 

@@ -120,7 +120,7 @@ public sealed class RequisitoPolarionDialog : Window
             _contenuto.Children.Add(Riga(L("Commenti", "Comments", "Commentaires") + $" ({snapshot?.Comments.Count ?? 0})", true));
             foreach (var c in (snapshot?.Comments ?? new()).OrderByDescending(x => x.Created ?? DateTimeOffset.MinValue))
             {
-                var b = new Border { BorderThickness = new Thickness(0, 0, 0, 1), BorderBrush = Brushes.Gray, Padding = new Thickness(0, 4) };
+                var b = new Border { BorderThickness = new Thickness(0, 0, 0, 1), BorderBrush = UiTema.Separatore, Padding = new Thickness(0, 4) };
                 var sp = new StackPanel { Spacing = 2 };
                 sp.Children.Add(Riga((c.AuthorId ?? "?") + " · " + (c.Created?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? ""), true));
                 sp.Children.Add(Riga(RequisitoPolarionUi.TestoPuro(c.Text)));

@@ -448,6 +448,12 @@ public static class ReportService
                 var xlCella = ws.Cell(primaRigaDati + r, primaColonnaDati + c);
                 xlCella.Value = cella.TestoVisualizzato;
                 if (!string.IsNullOrWhiteSpace(cella.NotaManuale)) xlCella.GetComment().AddText("Manuale: " + cella.NotaManuale);
+                if (cella.DettagliDeviazioni.Count > 0 || cella.AvvisiRegressione.Count > 0)
+                {
+                    var dettagli = string.Join(Environment.NewLine + Environment.NewLine,
+                        cella.DettagliDeviazioni.Concat(cella.AvvisiRegressione));
+                    xlCella.GetComment().AddText(dettagli.Length > 20000 ? dettagli[..20000] + "…" : dettagli);
+                }
                 if (cella.NonApplicabile)
                 {
                     // Distinta dagli esiti calcolati (grigio, corsivo) e con un commento facoltativo per la
@@ -497,6 +503,12 @@ public static class ReportService
             var xlCella = ws.Cell(riga, campi.Count + 1);
             xlCella.Value = cella?.TestoVisualizzato ?? "";
             if (!string.IsNullOrWhiteSpace(cella?.NotaManuale)) xlCella.GetComment().AddText("Manuale: " + cella.NotaManuale);
+            if (cella != null && (cella.DettagliDeviazioni.Count > 0 || cella.AvvisiRegressione.Count > 0))
+            {
+                var dettagli = string.Join(Environment.NewLine + Environment.NewLine,
+                    cella.DettagliDeviazioni.Concat(cella.AvvisiRegressione));
+                xlCella.GetComment().AddText(dettagli.Length > 20000 ? dettagli[..20000] + "…" : dettagli);
+            }
             if (cella != null)
             {
                 if (cella.NonApplicabile)

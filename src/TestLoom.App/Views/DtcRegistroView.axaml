@@ -49,6 +49,7 @@
         </Grid>
 
         <Grid Grid.Row="3" RowDefinitions="*,Auto,Auto" Margin="0,8,0,0">
+            <TextBlock Grid.Row="0" Classes="Muted" HorizontalAlignment="Center" VerticalAlignment="Center" ZIndex="1" IsVisible="{Binding NessunRisultato}" Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=DtcRegistroNessunaOperazione}" AutomationProperties.AutomationId="DtcRegistro_Vuoto_Text" />
             <DataGrid Grid.Row="0" x:Name="DtcRegistro_Righe_Grid" services:TableLayoutPreferences.TableId="guasto-registro" ItemsSource="{Binding Righe}" SelectedItem="{Binding Selezionata}" SelectionMode="Extended" SelectionChanged="OnSelezioneCambiata"
                       IsReadOnly="True" AutoGenerateColumns="False" CanUserResizeColumns="True"
                       HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"

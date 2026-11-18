@@ -180,6 +180,9 @@ public sealed class Tempo670UiTestsReport : UiTestBase
 
     public Tempo670UiTestsReport() : base(Tempo670Dati.CreaWorkspaceMatrice(nameof(Tempo670UiTestsReport))) { }
 
+    /// <summary>Toglie i marcatori di avviso (⚠ regressione, ! da decidere) dal testo della cella: non fanno parte del valore.</summary>
+    private static string NormalizzaCella(string testo) => testo.Replace("⚠", "").Replace("!", "").Trim();
+
     [Fact]
     public void Matrice_CambioModalitaCambiaIContenutiDelleCelle()
     {
@@ -188,22 +191,23 @@ public sealed class Tempo670UiTestsReport : UiTestBase
             var pagina = new MainShellPage(App.WaitForMainWindow(), App).GoToReport();
 
             pagina.ImpostaModalitaMatrice("Stato");
-            pagina.AttendiTestoCella(Riga, Colonna, t => t == Esito.NonConforme.Label(), "stato = ultimo esito (Non Conforme)");
+            // Il marcatore ⚠ segnala il passaggio Conforme → Non conforme (avviso di regressione) e non fa parte dello stato.
+            pagina.AttendiTestoCella(Riga, Colonna, t => t.Replace("⚠", "").Trim() == Esito.NonConforme.Label(), "stato = ultimo esito (Non Conforme)");
 
             pagina.ImpostaModalitaMatrice("Test %");
             pagina.AttendiTestoCella(Riga, Colonna, t => t.EndsWith("(3 test)", StringComparison.Ordinal), "Test % conta 3 Test");
 
             pagina.ImpostaModalitaMatrice("Tempo totale");
             pagina.ImpostaBaseTempo("Tutte le esecuzioni");
-            pagina.AttendiTestoCella(Riga, Colonna, t => t == "40 min · 2/3", "tempo totale 30+10 min, 2 noti su 3");
+            pagina.AttendiTestoCella(Riga, Colonna, t => NormalizzaCella(t) == "40 min · 2/3", "tempo totale 30+10 min, 2 noti su 3");
 
             pagina.ImpostaModalitaMatrice("Tempo medio");
             // Regola attuale: il tempo medio considera SOLO le operazioni Conformi (NOK e deviazioni non entrano nella media).
-            pagina.AttendiTestoCella(Riga, Colonna, t => t == "30 min · 1/2", "tempo medio sulle sole operazioni conformi: 30 min, 1 nota su 2");
+            pagina.AttendiTestoCella(Riga, Colonna, t => NormalizzaCella(t) == "30 min · 1/2", "tempo medio sulle sole operazioni conformi: 30 min, 1 nota su 2");
 
             pagina.ImpostaModalitaMatrice("Tempo totale");
             pagina.ImpostaBaseTempo("Ultimo stato");
-            pagina.AttendiTestoCella(Riga, Colonna, t => t == "10 min · 1/1", "base Ultimo stato: solo l'operazione che determina lo stato");
+            pagina.AttendiTestoCella(Riga, Colonna, t => NormalizzaCella(t) == "10 min · 1/1", "base Ultimo stato: solo l'operazione che determina lo stato");
         }
         catch (Exception ex) { CaptureFailureAndRethrow(nameof(Matrice_CambioModalitaCambiaIContenutiDelleCelle), ex); }
     }

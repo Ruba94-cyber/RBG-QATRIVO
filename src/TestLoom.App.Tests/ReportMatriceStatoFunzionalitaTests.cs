@@ -336,4 +336,99 @@ public sealed class ReportMatriceStatoFunzionalitaTests
         Assert.Equal(1, cella.Totali);
         Assert.Equal(1, cella.Conformi);
     }
+    [Fact]
+    public void ConformeConDeviazioni_DescriveSoloLultimoEsitoConRiferimentiTicket()
+    {
+        var vecchio = CreaTest("T-OLD", "Guasto", "BCM", "Daily", new DateTime(2026, 1, 1), Esito.Conforme);
+        var corrente = CreaTest("T-NEW", "Guasto", "BCM", "Daily", new DateTime(2026, 1, 2),
+            Esito.ConformeConDeviazioni);
+        corrente.Esecuzioni[0].Condizioni[0].DescrizioneDeviazione = "Guasto memorizzato dopo ritardo di 2 secondi";
+        corrente.TicketCollegati.Add(new TicketRif { Riferimento = "BC-12345" });
+
+        var risultato = ReportMatriceService.Genera([vecchio, corrente], ConfigFunzEcu, [], [], []);
+        var cella = Assert.Single(risultato.Righe.SelectMany(r => r.Celle));
+        Assert.Equal(1, cella.Stati.ConformeConDeviazioni);
+        var dettaglio = Assert.Single(cella.DettagliDeviazioni);
+        Assert.Contains("T-NEW", dettaglio);
+        Assert.Contains("Guasto memorizzato dopo ritardo", dettaglio);
+        Assert.Contains("BC-12345", dettaglio);
+        Assert.Contains("stato esterno non verificato", dettaglio);
+        Assert.Contains("BC-12345", MatriceTooltipService.TooltipCella(cella));
+
+        var risolto = CreaTest("T-RESOLVED", "Guasto", "BCM", "Daily", new DateTime(2026, 1, 3), Esito.Conforme);
+        var dopo = ReportMatriceService.Genera([vecchio, corrente, risolto], ConfigFunzEcu, [], [], []);
+        var finale = Assert.Single(dopo.Righe.SelectMany(r => r.Celle));
+        Assert.Equal(1, finale.Stati.Ok);
+        Assert.Empty(finale.DettagliDeviazioni); // non mostra motivazioni di esiti superati
+    }
+
+    [Fact]
+    public void RegressioneConformeVersoNonConforme_SegnalaSoloIlCambioDellUltimoStato()
+    {
+        var conforme = CreaTest("T-CONFORME", "Lettura guasto", "BCM", "Daily A",
+            new DateTime(2026, 1, 2), Esito.Conforme);
+        var fallito = CreaTest("T-NONCONFORME", "Lettura guasto", "BCM", "Daily A",
+            new DateTime(2026, 1, 3), Esito.NonConforme);
+
+        foreach (var ordine in new[] { new[] { conforme, fallito }, new[] { fallito, conforme } })
+        {
+            var cella = UnicaCella(ReportMatriceService.Genera(ordine, ConfigFunzEcu, [], [], []));
+            Assert.True(cella.HaRegressioni);
+            Assert.StartsWith("⚠ ", cella.TestoInterfaccia);
+            var avviso = Assert.Single(cella.AvvisiRegressione);
+            Assert.Contains("T-CONFORME", avviso);
+            Assert.Contains("T-NONCONFORME", avviso);
+            Assert.Contains("Lettura guasto", avviso);
+            Assert.Contains("Daily A", avviso);
+            Assert.Contains("Regressione", MatriceTooltipService.TooltipCella(cella));
+        }
+
+        var superato = CreaTest("T-NUOVO", "Lettura guasto", "BCM", "Daily A",
+            new DateTime(2026, 1, 4), Esito.Conforme);
+        var finale = UnicaCella(ReportMatriceService.Genera([conforme, fallito, superato], ConfigFunzEcu, [], [], []));
+        Assert.False(finale.HaRegressioni);
+        Assert.Empty(finale.AvvisiRegressione);
+        Assert.DoesNotContain("⚠", finale.TestoInterfaccia);
+    }
+
+    [Fact]
+    public void Regressione_DaEseguirePiuRecenteNonCambiaIlPrecedenteRisultatoEseguito()
+    {
+        var conforme = CreaTest("T-OK", "Funzione", "BCM", "Daily A",
+            new DateTime(2026, 1, 1), Esito.Conforme);
+        var fallito = CreaTest("T-NOK", "Funzione", "BCM", "Daily A",
+            new DateTime(2026, 1, 2), Esito.NonConforme);
+        var previsto = CreaTest("T-PIANIFICATO", "Funzione", "BCM", "Daily A",
+            new DateTime(2026, 1, 3), Esito.DaEseguire);
+
+        var cella = UnicaCella(ReportMatriceService.Genera([fallito, previsto, conforme], ConfigFunzEcu, [], [], []));
+        Assert.True(cella.HaRegressioni);
+        Assert.Equal(1, cella.Stati.NonConforme);
+        Assert.Contains("T-NOK", Assert.Single(cella.AvvisiRegressione));
+    }
+
+    [Fact]
+    public void RegressioneECUCondivisa_MostraVeicoliPotenzialmenteImpattatiSenzaPropagare()
+    {
+        var conforme = CreaTest("T-OK", "Lettura guasto", "BCM", "Daily A",
+            new DateTime(2026, 1, 1), Esito.Conforme);
+        var nonConforme = CreaTest("T-NOK", "Lettura guasto", "BCM", "Daily A",
+            new DateTime(2026, 1, 2), Esito.NonConforme);
+        var componente = new Componente { Nome = "BCM", VeicoliAssociati = ["Daily A", "Daily B"] };
+        var veicoli = new[]
+        {
+            new Veicolo { Nome = "Daily A", GammaNome = "LCV" },
+            new Veicolo { Nome = "Daily B", GammaNome = "LCV" }
+        };
+        var funzione = new Funzionalita { Nome = "Lettura guasto" };
+
+        var r = ReportMatriceService.Genera([conforme, nonConforme], ConfigFunzEcu,
+            veicoli, [funzione], [], null, [componente]);
+        var cella = UnicaCella(r);
+        var avviso = Assert.Single(cella.AvvisiRegressione);
+        Assert.Contains("Daily B", avviso);
+        Assert.Contains("Nessuno stato propagato automaticamente", avviso);
+        Assert.Equal(1, cella.Stati.NonConforme);
+    }
+
 }

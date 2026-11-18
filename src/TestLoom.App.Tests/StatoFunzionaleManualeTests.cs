@@ -99,6 +99,19 @@ public sealed class StatoFunzionaleManualeTests : IDisposable
     }
 
     [Fact]
+    public void ConformeConDeviazioniManuale_MostraLaNotaMasterNeiDettagliMatrice()
+    {
+        const string motivo = "Deviazione accettata in accordo con il Master";
+        var manuale = Manuale("Daily A", Esito.ConformeConDeviazioni,
+            new DateTime(2026, 3, 2), motivo);
+        var cella = Cella(ReportMatriceService.Genera([], ConfigStato(),
+            [V("Daily A")], [F()], [], null, null, [manuale]));
+        Assert.Equal(StatoCellaMatrice.ConformeConDeviazioni, cella.CodiceStato);
+        Assert.Contains(motivo, Assert.Single(cella.DettagliDeviazioni));
+        Assert.Contains(motivo, MatriceTooltipService.TooltipCella(cella));
+    }
+
+    [Fact]
     public void Precedenza_daEseguirePiuRecenteNonSovrascriveIlManuale()
     {
         var tests = new[] { Test("T-2", "Daily A", Esito.DaEseguire, new DateTime(2026, 4, 1)) };
@@ -120,6 +133,9 @@ public sealed class StatoFunzionaleManualeTests : IDisposable
         Assert.Equal(1, cella.Stati.Ok);
         Assert.Equal(1, cella.Stati.DaDecidere);
         Assert.Equal(StatoCellaMatrice.Misto, cella.CodiceStato);
+        Assert.True(cella.HaPropagazioniDaDecidere);
+        Assert.StartsWith("! ", cella.TestoInterfaccia);
+        Assert.Contains("decisione esplicita", MatriceTooltipService.TooltipCella(cella));
 
         var soloB = ConfigStato();
         soloB.Filtri[DimensioniMatrice.Sottoveicolo] = ["Daily B"];
@@ -270,4 +286,37 @@ public sealed class StatoFunzionaleManualeTests : IDisposable
 
     private static string Serializza(IReadOnlyList<StatoFunzionalitaEcuVeicolo> valori) =>
         System.Text.Json.JsonSerializer.Serialize(valori.Select(v => new { v.Uid, v.Funzionalita, v.Componente, v.Veicolo, v.Esito, v.Nota, v.Operatore }));
+    [Fact]
+    public void DecisioniMultiple_UnaSolaAppendPhaseD_ValidaLInteroBatchPrimaDiScrivere()
+    {
+        var repo = Repo();
+        var manuale = new DecisioneStatoFunzionale(Funz, Componente, "Daily A", Esito.Conforme);
+        var propagata = new DecisioneStatoFunzionale(Funz, Componente, "Daily B",
+            Fonte: new FonteStatoPropagato("Daily A", "TC-1", Esito.NonConforme));
+        Assert.True(StatoFunzionaleManualeService.ApplicaDecisioni(repo,
+            [manuale, propagata], "decisione esplicita", "Master", true, out var errore), errore);
+        var salvate = repo.Load();
+        Assert.Equal(2, salvate.Count);
+        Assert.Contains(salvate, x => x.Veicolo == "Daily A" && x.Esito == Esito.Conforme
+            && x.Origine == OrigineStatoFunzionalita.Manuale);
+        Assert.Contains(salvate, x => x.Veicolo == "Daily B" && x.Esito == Esito.NonConforme
+            && x.Origine == OrigineStatoFunzionalita.Propagata && x.SorgenteTestId == "TC-1");
+
+        // Una seconda richiesta con la stessa triade deve fallire prima della Save,
+        // lasciando entrambi i valori precedenti immutati.
+        Assert.False(StatoFunzionaleManualeService.ApplicaDecisioni(repo,
+            [manuale, new DecisioneStatoFunzionale(Funz, Componente, "daily a", Esito.NonConforme)],
+            "errata", "Master", true, out _));
+        Assert.Equal(2, repo.Load().Count);
+
+        // Rimozione massiva: se manca una sola chiave non deve eliminare la prima.
+        Assert.False(StatoFunzionaleManualeService.RimuoviManuali(repo,
+            [(Funz, Componente, "Daily A"), (Funz, Componente, "ASSENTE")], true, out _));
+        Assert.Equal(2, repo.Load().Count);
+
+        Assert.True(StatoFunzionaleManualeService.RimuoviManuali(repo,
+            [(Funz, Componente, "Daily A"), (Funz, Componente, "Daily B")], true, out var erroreRimozione), erroreRimozione);
+        Assert.Empty(repo.Load());
+    }
+
 }

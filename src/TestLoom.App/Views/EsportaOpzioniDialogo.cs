@@ -25,18 +25,24 @@ public sealed class EsportaOpzioniDialogo
     private readonly ExportDescrittore _descrittore;
     private readonly Dictionary<string, CheckBox> _sezioni = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, CheckBox>> _colonne = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<string>> _ordineColonne = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Action> _aggiornaOrdineColonne = new(StringComparer.OrdinalIgnoreCase);
     private readonly ComboBox _elenco = new() { MinWidth = 200, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBox _nome = new() { MaxLength = ExportConfigurazioniService.LunghezzaMassimaNome };
-    private readonly TextBlock _messaggio = new() { Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _messaggio = new() { Foreground = UiTema.Errore, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly ComboBox _pivotFonte = new(), _pivotRighe = new(), _pivotColonne = new(), _pivotPercentuale = new();
     private readonly ComboBox _pivotMetrica = new(), _pivotCampoValore = new();
     private readonly CheckBox _pivotNumeri = new() { IsChecked = true }, _pivotPercentualiStandard = new() { IsChecked = true };
     private readonly CheckBox _ignoraFiltriTest = new();
+    private readonly CheckBox _soloAperteVeicolo = new();
+    private readonly ComboBox _veicoloRapido = new() { MinWidth = 230, HorizontalAlignment = HorizontalAlignment.Stretch };
     private sealed record Scelta(string Id, string Etichetta) { public override string ToString() => Etichetta; }
     private bool _aggiornandoElenco;
 
     public static async Task<ExportConfigurazione?> Apri(Window owner, AppState state, ExportDescrittore descrittore)
     {
+        // Il pulsante che ha aperto il dialogo (ancora sotto il mouse) lascerebbe il suo tooltip sopra la finestra modale.
+        if (owner.FocusManager?.GetFocusedElement() is Control pulsante) ToolTip.SetIsOpen(pulsante, false);
         var dialogo = new EsportaOpzioniDialogo(state, descrittore);
         await dialogo.Finestra.ShowDialog(owner);
         return await dialogo.Risultato;
@@ -48,7 +54,7 @@ public sealed class EsportaOpzioniDialogo
         _descrittore = descrittore;
         Finestra = new Window
         {
-            Title = descrittore.Titolo, Width = 640, Height = 640, MinHeight = 360, MinWidth = 460,
+            Title = descrittore.Titolo, Width = 720, Height = 720, MinHeight = 360, MinWidth = 460,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
         AutomationProperties.SetAutomationId(Finestra, "EsportaOpzioni_Dialogo");
@@ -56,10 +62,18 @@ public sealed class EsportaOpzioniDialogo
         var iniziale = ExportConfigurazioniService.CaricaUltimaSelezione(state, descrittore.Pagina) ?? ExportSelezione.Predefinita(descrittore);
         // Ogni nuovo export parte dai filtri realmente visibili: non si riattiva
         // automaticamente il vecchio "ignora filtri" dell'ultima esportazione.
-        if (string.Equals(descrittore.Pagina, TestCaseExportSelezioneService.Pagina, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(descrittore.Pagina, TestCaseExportSelezioneService.Pagina, StringComparison.OrdinalIgnoreCase)
+            || descrittore.Pagina is "anomalie-nc" or "anomalie-cr")
         {
             iniziale = iniziale.Clona();
             iniziale.IgnoraFiltri = false;
+        }
+        if (descrittore.Pagina is "anomalie-nc" or "anomalie-cr")
+        {
+            _veicoloRapido.ItemsSource = state.Master.Veicoli.Load()
+                .Where(v => !v.Archiviata && !string.IsNullOrWhiteSpace(v.Nome))
+                .Select(v => v.Nome).Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(v => v, StringComparer.CurrentCultureIgnoreCase).ToList();
         }
         var sezioni = CostruisciSezioni(pivot: false);
         var pivot = CostruisciSezioni(pivot: true);
@@ -126,14 +140,47 @@ public sealed class EsportaOpzioniDialogo
         layout.Children.Add(pulsanti);
         var loc = LocalizationService.Instance;
         var filtriContenuto = new StackPanel { Spacing = 8 };
-        if (string.Equals(descrittore.Pagina, "test-list-complete", StringComparison.OrdinalIgnoreCase))
+        if (descrittore.Pagina is "anomalie-nc" or "anomalie-cr")
         {
-            _ignoraFiltriTest.Content = loc.Scegli(
-                "Ignora i filtri ed esporta tutti i Test accessibili",
-                "Ignore filters and export all accessible Tests",
-                "Ignorer les filtres et exporter tous les tests accessibles");
+            _soloAperteVeicolo.Content = loc.Scegli(
+                "Stato attuale: solo NC/CR non chiuse per veicolo (ignora gli altri filtri)",
+                "Current status: only open NC/CR for a vehicle (ignore other filters)",
+                "État actuel : uniquement les NC/CR ouvertes par véhicule (ignorer les autres filtres)");
+            AutomationProperties.SetAutomationId(_soloAperteVeicolo, "EsportaOpzioni_ApertePerVeicolo");
+            AutomationProperties.SetAutomationId(_veicoloRapido, "EsportaOpzioni_VeicoloRapido");
+            var predefinito = descrittore.Filtri?.OfType<ExportFiltroMultiplo>()
+                .FirstOrDefault(f => f.Id == "veicolo")?.Filtro.Selezionati;
+            if (_veicoloRapido.SelectedItem == null && predefinito?.Count == 1)
+                _veicoloRapido.SelectedItem = predefinito[0];
+            filtriContenuto.Children.Add(new Border
+            {
+                Padding = new Thickness(10),
+                Child = new StackPanel
+                {
+                    Spacing = 6,
+                    Children =
+                    {
+                        _soloAperteVeicolo,
+                        new TextBlock { Text = loc.Scegli("Veicolo", "Vehicle", "Véhicule") },
+                        _veicoloRapido,
+                    }
+                }
+            });
+        }
+        if (string.Equals(descrittore.Pagina, "test-list-complete", StringComparison.OrdinalIgnoreCase)
+            || descrittore.Pagina is "anomalie-nc" or "anomalie-cr")
+        {
+            _ignoraFiltriTest.Content = descrittore.Pagina is "anomalie-nc" or "anomalie-cr"
+                ? loc.Scegli("Storico completo: ignora i filtri della pagina (include le voci archiviate)",
+                    "Full history: ignore page filters (includes archived items)",
+                    "Historique complet : ignorer les filtres (éléments archivés inclus)")
+                : loc.Scegli(
+                    "Ignora i filtri ed esporta tutti i Test accessibili",
+                    "Ignore filters and export all accessible Tests",
+                    "Ignorer les filtres et exporter tous les tests accessibles");
             _ignoraFiltriTest.IsChecked = iniziale.IgnoraFiltri;
-            AutomationProperties.SetAutomationId(_ignoraFiltriTest, "EsportaOpzioni_TuttiITest");
+            AutomationProperties.SetAutomationId(_ignoraFiltriTest, descrittore.Pagina is "anomalie-nc" or "anomalie-cr"
+                ? "EsportaOpzioni_StoricoCompleto" : "EsportaOpzioni_TuttiITest");
             filtriContenuto.Children.Add(_ignoraFiltriTest);
         }
         filtriContenuto.Children.Add(new TextBlock
@@ -150,10 +197,25 @@ public sealed class EsportaOpzioniDialogo
         });
         Control editorFiltri = descrittore.Filtri is { Count: > 0 }
             ? CostruisciFiltri(descrittore.Filtri) : filtri;
-        if (string.Equals(descrittore.Pagina, TestCaseExportSelezioneService.Pagina, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(descrittore.Pagina, TestCaseExportSelezioneService.Pagina, StringComparison.OrdinalIgnoreCase)
+            || descrittore.Pagina is "anomalie-nc" or "anomalie-cr")
         {
-            editorFiltri.IsEnabled = _ignoraFiltriTest.IsChecked != true;
-            _ignoraFiltriTest.IsCheckedChanged += (_, _) => editorFiltri.IsEnabled = _ignoraFiltriTest.IsChecked != true;
+            void AggiornaAbilitazione()
+            {
+                editorFiltri.IsEnabled = _ignoraFiltriTest.IsChecked != true && _soloAperteVeicolo.IsChecked != true;
+                _veicoloRapido.IsEnabled = _soloAperteVeicolo.IsChecked == true;
+            }
+            _ignoraFiltriTest.IsCheckedChanged += (_, _) =>
+            {
+                if (_ignoraFiltriTest.IsChecked == true) _soloAperteVeicolo.IsChecked = false;
+                AggiornaAbilitazione();
+            };
+            _soloAperteVeicolo.IsCheckedChanged += (_, _) =>
+            {
+                if (_soloAperteVeicolo.IsChecked == true) _ignoraFiltriTest.IsChecked = false;
+                AggiornaAbilitazione();
+            };
+            AggiornaAbilitazione();
         }
         filtriContenuto.Children.Add(editorFiltri);
         var schede = new TabControl { Margin = new Thickness(0, 12, 0, 0) };
@@ -244,7 +306,7 @@ public sealed class EsportaOpzioniDialogo
                 foreach (var (originale, copia) in m.Filtro.Opzioni.Zip(voci))
                     if (originale.Selezionato != copia.Selezionato) originale.Selezionato = copia.Selezionato;
             }));
-        return new Expander { Header = m.Etichetta, Content = contenuto };
+        return new Expander { Header = m.Etichetta, Content = contenuto, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch };
     }
 
     private Control FiltroSingolo(ExportFiltroSingolo s)
@@ -334,7 +396,24 @@ public sealed class EsportaOpzioniDialogo
                 continue;
             }
             var colonne = new Dictionary<string, CheckBox>(StringComparer.OrdinalIgnoreCase);
-            var elencoColonne = new WrapPanel { Orientation = Orientation.Horizontal };
+            var elencoColonne = new StackPanel { Spacing = 2 };
+            var ordine = s.Colonne.Select(k => k.Id).ToList();
+            var righeColonne = new Dictionary<string, Control>(StringComparer.OrdinalIgnoreCase);
+            _ordineColonne[s.Id] = ordine;
+            void AggiornaOrdine()
+            {
+                elencoColonne.Children.Clear();
+                foreach (var id in ordine) elencoColonne.Children.Add(righeColonne[id]);
+            }
+            _aggiornaOrdineColonne[s.Id] = AggiornaOrdine;
+            void Sposta(string id, int delta)
+            {
+                var indice = ordine.FindIndex(k => string.Equals(k, id, StringComparison.OrdinalIgnoreCase));
+                var destinazione = indice + delta;
+                if (indice < 0 || destinazione < 0 || destinazione >= ordine.Count) return;
+                (ordine[indice], ordine[destinazione]) = (ordine[destinazione], ordine[indice]);
+                AggiornaOrdine();
+            }
             var conteggio = new TextBlock { Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
             void AggiornaConteggio() => conteggio.Text = string.Format(
                 LocalizationService.Instance.Scegli("{0} di {1} selezionati",
@@ -346,8 +425,19 @@ public sealed class EsportaOpzioniDialogo
                 AutomationProperties.SetAutomationId(c, $"EsportaOpzioni_Colonna_{s.Id}_{k.Id}");
                 c.IsCheckedChanged += (_, _) => AggiornaConteggio();
                 colonne[k.Id] = c;
-                elencoColonne.Children.Add(c);
+                var su = new Button { Content = "↑", MinWidth = 30, Padding = new Thickness(4, 0) };
+                var giu = new Button { Content = "↓", MinWidth = 30, Padding = new Thickness(4, 0) };
+                AutomationProperties.SetAutomationId(su, $"EsportaOpzioni_ColonnaSu_{s.Id}_{k.Id}");
+                AutomationProperties.SetAutomationId(giu, $"EsportaOpzioni_ColonnaGiu_{s.Id}_{k.Id}");
+                su.Click += (_, _) => Sposta(k.Id, -1);
+                giu.Click += (_, _) => Sposta(k.Id, 1);
+                righeColonne[k.Id] = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal, Spacing = 4,
+                    Children = { su, giu, c }
+                };
             }
+            AggiornaOrdine();
             _colonne[s.Id] = colonne;
             AggiornaConteggio();
 
@@ -404,7 +494,7 @@ public sealed class EsportaOpzioniDialogo
             }
             contenuto.Children.Add(azioni);
             contenuto.Children.Add(elencoColonne);
-            pannello.Children.Add(new Expander { Header = casella, Content = contenuto });
+            pannello.Children.Add(new Expander { Header = casella, Content = contenuto, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch });
         }
         if (pivot && pannello.Children.Count == 0)
             pannello.Children.Add(new TextBlock { Text = LocalizationService.Instance.Scegli(
@@ -494,6 +584,8 @@ public sealed class EsportaOpzioniDialogo
         Seleziona(_pivotMetrica, c.PivotMetrica);
         Seleziona(_pivotCampoValore, c.PivotCampoValore);
         _ignoraFiltriTest.IsChecked = c.IgnoraFiltri;
+        _soloAperteVeicolo.IsChecked = c.SoloAperteVeicolo;
+        _veicoloRapido.SelectedItem = c.VeicoloRapido;
         _pivotNumeri.IsChecked = c.PivotMostraNumeri;
         _pivotPercentualiStandard.IsChecked = c.PivotMostraPercentuali;
         foreach (var s in _descrittore.Sezioni)
@@ -503,6 +595,15 @@ public sealed class EsportaOpzioniDialogo
             var scelte = c.ColonneDi(s.Id);
             foreach (var (id, casella) in colonne)
                 casella.IsChecked = scelte == null || scelte.Contains(id, StringComparer.OrdinalIgnoreCase);
+            if (_ordineColonne.TryGetValue(s.Id, out var ordine))
+            {
+                var richiesto = scelte ?? Array.Empty<string>();
+                var canonico = s.Colonne!.Select(k => k.Id);
+                ordine.Clear();
+                ordine.AddRange(richiesto.Where(id => colonne.ContainsKey(id)).Distinct(StringComparer.OrdinalIgnoreCase));
+                ordine.AddRange(canonico.Where(id => !ordine.Contains(id, StringComparer.OrdinalIgnoreCase)));
+                _aggiornaOrdineColonne[s.Id]();
+            }
         }
     }
 
@@ -516,6 +617,8 @@ public sealed class EsportaOpzioniDialogo
         c.PivotMetrica = (_pivotMetrica.SelectedItem as Scelta)?.Id;
         c.PivotCampoValore = (_pivotCampoValore.SelectedItem as Scelta)?.Id;
         c.IgnoraFiltri = _ignoraFiltriTest.IsChecked == true;
+        c.SoloAperteVeicolo = _soloAperteVeicolo.IsChecked == true;
+        c.VeicoloRapido = _veicoloRapido.SelectedItem as string;
         c.PivotMostraNumeri = _pivotNumeri.IsChecked == true;
         c.PivotMostraPercentuali = _pivotPercentualiStandard.IsChecked == true;
         foreach (var s in _descrittore.Sezioni)
@@ -523,8 +626,12 @@ public sealed class EsportaOpzioniDialogo
             if (_sezioni[s.Id].IsChecked != true) continue;
             c.Sezioni.Add(s.Id);
             if (!_colonne.TryGetValue(s.Id, out var colonne)) continue;
-            var scelte = s.Colonne!.Where(k => colonne[k.Id].IsChecked == true).Select(k => k.Id).ToList();
-            if (scelte.Count > 0 && scelte.Count < s.Colonne!.Count) c.Colonne[s.Id] = scelte;
+            var ordine = _ordineColonne[s.Id];
+            var scelte = ordine.Where(id => colonne[id].IsChecked == true).ToList();
+            // Persisti anche una selezione completa riordinata.
+            if (scelte.Count > 0 && (scelte.Count < s.Colonne!.Count
+                || !scelte.SequenceEqual(s.Colonne.Select(k => k.Id), StringComparer.OrdinalIgnoreCase)))
+                c.Colonne[s.Id] = scelte;
         }
         return c;
     }
@@ -549,7 +656,7 @@ public sealed class EsportaOpzioniDialogo
 
     private void SalvaConfigurazione()
     {
-        if (!VerificaColonne() || !VerificaPivot()) return;
+        if (!VerificaColonne() || !VerificaPivot() || !VerificaVeicoloRapido()) return;
         var corrente = Corrente();
         if (!VerificaFogliTest(corrente)) return;
         switch (ExportConfigurazioniService.Salva(_state, _descrittore.Pagina, corrente))
@@ -580,15 +687,25 @@ public sealed class EsportaOpzioniDialogo
     {
         var scelta = Corrente();
         if (scelta.Sezioni.Count == 0) { Messaggio(T("ExpDlgNessunaSezione")); return; }
-        if (!VerificaColonne() || !VerificaPivot() || !VerificaFogliTest(scelta)) return;
+        if (!VerificaColonne() || !VerificaPivot() || !VerificaFogliTest(scelta) || !VerificaVeicoloRapido()) return;
         ExportConfigurazioniService.SalvaUltimaSelezione(_state, _descrittore.Pagina, scelta);
-        if (!scelta.IgnoraFiltri)
+        if (!scelta.IgnoraFiltri && !scelta.SoloAperteVeicolo)
         {
             if (_descrittore.ApplicaFiltriInBlocco is { } inBlocco) inBlocco(ApplicaFiltri);
             else ApplicaFiltri();
         }
         _risultato.TrySetResult(scelta);
         Finestra.Close();
+    }
+
+    private bool VerificaVeicoloRapido()
+    {
+        if (_soloAperteVeicolo.IsChecked != true || _veicoloRapido.SelectedItem is string { Length: > 0 }) return true;
+        Messaggio(LocalizationService.Instance.Scegli(
+            "Seleziona un veicolo per la fotografia delle NC/CR aperte.",
+            "Select a vehicle for the open NC/CR snapshot.",
+            "Sélectionnez un véhicule pour l'état des NC/CR ouvertes."));
+        return false;
     }
 
     private bool VerificaFogliTest(ExportConfigurazione scelta)

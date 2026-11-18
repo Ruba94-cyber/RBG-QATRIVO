@@ -14,38 +14,38 @@
             <UniformGrid x:Name="GrigliaKpi" Columns="{Binding #GrigliaKpi.Bounds.Width, Converter={x:Static local:ColonneDaLarghezzaConverter.Instance}, ConverterParameter=120|7}">
                 <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
                     <StackPanel Spacing="2">
-                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditValutate}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditValutate}" Classes="Muted" FontSize="12" TextWrapping="Wrap" TextTrimming="None" />
                         <TextBlock Text="{Binding TotaleCoppieValutate}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" />
                     </StackPanel>
                 </Border>
                 <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
                     <StackPanel Spacing="2">
-                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditTestCreato}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditTestCreato}" Classes="Muted" FontSize="12" TextWrapping="Wrap" TextTrimming="None" />
                         <TextBlock Text="{Binding TotaleCoppieTestCreato}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" />
                     </StackPanel>
                 </Border>
                 <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
                     <StackPanel Spacing="2">
-                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditDaTestare}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditDaTestare}" Classes="Muted" FontSize="12" TextWrapping="Wrap" TextTrimming="None" />
                         <TextBlock Text="{Binding TotaleCoppieDaTestare}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" />
                     </StackPanel>
                 </Border>
                 <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
                     <StackPanel Spacing="2">
-                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditConflitti}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditConflitti}" Classes="Muted" FontSize="12" TextWrapping="Wrap" TextTrimming="None" />
                         <TextBlock Text="{Binding TotaleCoppieInConflitto}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding HaConflitti}" />
                         <TextBlock Text="{Binding TotaleCoppieInConflitto}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" IsVisible="{Binding !HaConflitti}" />
                     </StackPanel>
                 </Border>
                 <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
                     <StackPanel Spacing="2">
-                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPercentuale}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPercentuale}" Classes="Muted" FontSize="12" TextWrapping="Wrap" TextTrimming="None" />
                         <TextBlock Text="{Binding PercentualeValutato, StringFormat={}{0:0}%}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" />
                     </StackPanel>
                 </Border>
                 <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
                     <StackPanel Spacing="2">
-                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPunteggioMedio}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPunteggioMedio}" Classes="Muted" FontSize="12" TextWrapping="Wrap" TextTrimming="None" />
                         <TextBlock Text="{Binding PunteggioMedio, StringFormat={}{0:0.0}}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" IsVisible="{Binding HaPunteggioMedio}" />
                         <TextBlock Text="—" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" IsVisible="{Binding !HaPunteggioMedio}" />
                     </StackPanel>
@@ -55,7 +55,7 @@
                      nella matrice sotto — contatore aggiuntivo, non ridefinisce i numeri delle altre card. -->
                 <Border Margin="0,0,12,12" Classes="Card" Padding="{DynamicResource CardPadding}">
                     <StackPanel Spacing="2">
-                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPropagabili}" Classes="Muted" FontSize="12" />
+                        <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AuditPropagabili}" Classes="Muted" FontSize="12" TextWrapping="Wrap" TextTrimming="None" />
                         <TextBlock Text="{Binding TotaleCoppiePropagabili}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" Foreground="{DynamicResource OrangeStrongBrush}" IsVisible="{Binding HaPropagabili}" />
                         <TextBlock Text="{Binding TotaleCoppiePropagabili}" FontSize="{DynamicResource KpiNumeroPiccolo}" FontWeight="Bold" IsVisible="{Binding !HaPropagabili}" />
                     </StackPanel>

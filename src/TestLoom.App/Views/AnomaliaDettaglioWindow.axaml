@@ -33,7 +33,7 @@
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="12" Margin="0,0,12,0" IsEnabled="{Binding PuoModificare}">
-                <WrapPanel Classes="ColonneEditor" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=2}">
+                <WrapPanel Classes="ColonneEditor" LineSpacing="14" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=2}">
                     <StackPanel Grid.Column="0" Grid.Row="0" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=WorkflowLabel}" Classes="Muted" />
     <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding StatiWorkflow}" SelectedItem="{Binding Nc.StatoWorkflow}" IsEnabled="{Binding Aperta}" AutomationProperties.AutomationId="AnomaliaDettaglio_Stato_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
                     <StackPanel Grid.Column="1" Grid.Row="0" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SeveritaObblLabel}" Classes="Muted" />
@@ -44,7 +44,7 @@
     <TextBox Classes="Field" Text="{Binding Nc.Owner}" AutomationProperties.AutomationId="AnomaliaDettaglio_Owner_TextBox" /></StackPanel>
                 </WrapPanel>
 
-                <WrapPanel Classes="ColonneEditor" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=3}">
+                <WrapPanel Classes="ColonneEditor" LineSpacing="14" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=3}">
                     <StackPanel Grid.Column="0" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcDestinatarioPlaceholder}" Classes="Muted" />
     <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding Destinatari}" SelectedItem="{Binding Nc.Destinatario}" AutomationProperties.AutomationId="AnomaliaDettaglio_Destinatario_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:DestinatarioLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
                     <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=NcCausaProbabilePlaceholder}" Classes="Muted" />
@@ -105,7 +105,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <WrapPanel Classes="ColonneEditor" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=2}">
+                        <WrapPanel Classes="ColonneEditor" LineSpacing="14" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=2}">
                             <StackPanel Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaStatoLavoroTestLabel}" Classes="Muted" />
     <ComboBox Classes="Field" HorizontalAlignment="Stretch" ItemsSource="{Binding StatiLavoro}" SelectedItem="{Binding StatoLavoroNuovo}" AutomationProperties.AutomationId="AnomaliaDettaglio_StatoTest_Combo"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Converter={x:Static local:WorkflowLabelConverter.Instance}}" /></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
                             <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=AnomaliaOrigineLabel}" Classes="Muted" />

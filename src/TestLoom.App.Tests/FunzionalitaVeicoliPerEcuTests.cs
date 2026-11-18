@@ -560,6 +560,91 @@ public sealed class FunzionalitaVeicoliPerEcuTests : IDisposable
     }
 
     [Fact]
+    public void TestCaseEditor_FunzionalitaDisponibili_EcuPoiVeicolo_StessoRisultatoDiVeicoloPoiEcu()
+    {
+        var state = TestStateFactory.Create();
+        Directory.CreateDirectory(_dir);
+        state.InizializzaCartella(_dir);
+        state.Master.Componente.Save(new List<Componente> { new() { Nome = "BCM", VeicoliAssociati = ["V1", "V2"] } });
+        state.Master.Veicoli.Save(new List<Veicolo> { new() { Nome = "V1" }, new() { Nome = "V2" } });
+        state.Master.Funzionalita.Save(new List<Funzionalita>
+        {
+            F("Solo-V1", false, new[] { "BCM" }, Voce("BCM", "V1")),
+            F("Generica", true, null),
+        });
+
+        var ecuPrima = new TestCaseEditorViewModel(state, testCaseId: null, tornaAllaLista: () => { }, navigaATest: _ => { });
+        ecuPrima.AggiungiEcuCommand.Execute("BCM");
+        ecuPrima.VeicoloSelezionato = "V1";
+
+        var veicoloPrima = new TestCaseEditorViewModel(state, testCaseId: null, tornaAllaLista: () => { }, navigaATest: _ => { });
+        veicoloPrima.VeicoloSelezionato = "V1";
+        veicoloPrima.AggiungiEcuCommand.Execute("BCM");
+
+        Assert.Contains("Solo-V1", ecuPrima.FunzionalitaDisponibili);
+        Assert.Contains("Generica", ecuPrima.FunzionalitaDisponibili);
+        Assert.Equal(veicoloPrima.FunzionalitaDisponibili, ecuPrima.FunzionalitaDisponibili);
+    }
+
+    [Fact]
+    public void TestCaseEditor_FunzionalitaDiAmbitoVeicoloEUdt_RestanoProponibiliConEcuScelta()
+    {
+        var state = TestStateFactory.Create();
+        Directory.CreateDirectory(_dir);
+        state.InizializzaCartella(_dir);
+        state.Master.Componente.Save(new List<Componente> { new() { Nome = "BCM", VeicoliAssociati = ["V1"] }, new() { Nome = "EBS", VeicoliAssociati = ["V1"] } });
+        state.Master.Funzionalita.Save(new List<Funzionalita>
+        {
+            F("Solo-EBS", false, new[] { "EBS" }),
+            new() { Nome = "Solo-Veicolo", Ambito = AmbitoFunzionalita.Veicolo, TutteLeEcu = false },
+            new() { Nome = "Solo-UnitLogger", Ambito = AmbitoFunzionalita.UnitLogger, TutteLeEcu = false },
+        });
+        var vm = new TestCaseEditorViewModel(state, testCaseId: null, tornaAllaLista: () => { }, navigaATest: _ => { });
+        vm.AggiungiEcuCommand.Execute("BCM");
+
+        Assert.DoesNotContain("Solo-EBS", vm.FunzionalitaDisponibili);
+        Assert.Contains("Solo-Veicolo", vm.FunzionalitaDisponibili);
+        Assert.Contains("Solo-UnitLogger", vm.FunzionalitaDisponibili);
+    }
+
+    [Fact]
+    public void TestCaseEditor_TutteLeEcu_SiEspandeAlleEcuMontateSuiVeicoliScelti()
+    {
+        var state = TestStateFactory.Create();
+        Directory.CreateDirectory(_dir);
+        state.InizializzaCartella(_dir);
+        state.Master.Componente.Save(new List<Componente>
+        {
+            new() { Nome = "BCM", VeicoliAssociati = ["V1"] },
+            new() { Nome = "EBS", VeicoliAssociati = ["V1", "V2"] },
+            new() { Nome = "ADAS", VeicoliAssociati = ["V2"] },
+        });
+        var vm = new TestCaseEditorViewModel(state, testCaseId: null, tornaAllaLista: () => { }, navigaATest: _ => { });
+        vm.TestCase.Veicoli = new List<string> { "V1" };
+
+        vm.AggiungiEcuCommand.Execute(TestCaseEditorViewModel.EcuVeicoloIntero);
+
+        Assert.Equal(new[] { "BCM", "EBS" }, vm.TestCase.Componente.OrderBy(e => e).ToArray());
+        Assert.False(vm.TestCase.Componente.Contains(TestCaseEditorViewModel.EcuVeicoloIntero, StringComparer.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void TestCaseEditor_TutteLeEcu_ConVeicoloSenzaEcuAssociate_AvvisaEMantieneLaVoceVeicoloIntero()
+    {
+        var state = TestStateFactory.Create();
+        Directory.CreateDirectory(_dir);
+        state.InizializzaCartella(_dir);
+        state.Master.Componente.Save(new List<Componente> { new() { Nome = "BCM", VeicoliAssociati = ["V2"] } });
+        var vm = new TestCaseEditorViewModel(state, testCaseId: null, tornaAllaLista: () => { }, navigaATest: _ => { });
+        vm.TestCase.Veicoli = new List<string> { "V1" };
+
+        vm.AggiungiEcuCommand.Execute(TestCaseEditorViewModel.EcuVeicoloIntero);
+
+        Assert.Equal(new[] { TestCaseEditorViewModel.EcuVeicoloIntero }, vm.TestCase.Componente.ToArray());
+        Assert.Single(vm.Avvisi);
+    }
+
+    [Fact]
     public void SegnalazioneRete_FunzionalitaDisponibili_ConVeicoliScelti_RispettaLaRestrizione()
     {
         var state = TestStateFactory.Create();

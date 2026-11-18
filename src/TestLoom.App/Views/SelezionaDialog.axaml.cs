@@ -82,7 +82,7 @@ public partial class SelezionaDialog : Window
         var loc = LocalizationService.Instance;
         if (risultato.Voci.Count == 0) return loc.Traduci("PickerNessunRisultato");
         return string.IsNullOrWhiteSpace(risultato.Query)
-            ? string.Format(loc.Traduci("PickerVociFmt"), risultato.TotaleSorgente)
+            ? (risultato.TotaleSorgente == 1 ? loc.Traduci("PickerVoceSingola") : string.Format(loc.Traduci("PickerVociFmt"), risultato.TotaleSorgente))
             : string.Format(loc.Traduci("PickerRisultatiFmt"), risultato.Voci.Count);
     }
 

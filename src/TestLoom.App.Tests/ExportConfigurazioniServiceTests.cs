@@ -72,4 +72,35 @@ public sealed class ExportConfigurazioniServiceTests : IDisposable
         Assert.Empty(letta.Configurazioni);
         Assert.Equal(EsitoSalvataggioExport.Salvata, ExportConfigurazioniService.Salva(_state, "report", Cfg("Nuova", "dati")));
     }
+    [Fact]
+    public void ColonneEsplicite_MantengonoOrdineAncheQuandoSonoTutte()
+    {
+        var descriptor = new ExportDescrittore("test", "Export",
+            [new ExportSezione("vista", "Vista",
+                [new ExportColonna("id", "ID"), new ExportColonna("stato", "Stato"), new ExportColonna("veicolo", "Veicolo")])], "");
+        var config = Cfg("Ordine", "vista");
+        config.Colonne["vista"] = ["veicolo", "id", "stato"];
+
+        var normalizzata = ExportSelezione.Normalizza(config, descriptor);
+        Assert.Equal(new[] { "veicolo", "id", "stato" }, normalizzata.ColonneDi("vista"));
+        Assert.Equal(new[] { "veicolo", "id", "stato" }, ExportSelezione.ColonneEsportate(normalizzata, descriptor.Sezioni[0]));
+        Assert.Equal(new[] { 2, 0, 1 },
+            ExportColonneSelezione.Indici(["id", "stato", "veicolo"], normalizzata.ColonneDi("vista")));
+
+        ExportConfigurazioniService.Salva(_state, "anomalie-nc", normalizzata);
+        var riletta = Assert.Single(ExportConfigurazioniService.Carica(_state, "anomalie-nc").Configurazioni);
+        Assert.Equal(new[] { "veicolo", "id", "stato" }, riletta.ColonneDi("vista"));
+        Assert.Empty(ExportConfigurazioniService.Carica(_state, "anomalie-cr").Configurazioni);
+    }
+
+    [Fact]
+    public void ColonneDupeOInesistenti_NonRipetonoColonne()
+    {
+        Assert.Equal(new[] { 2, 0 },
+            ExportColonneSelezione.Indici(["id", "stato", "veicolo"],
+                ["veicolo", "non-esiste", "id", "veicolo"]));
+        Assert.Equal(new[] { 0, 1, 2 },
+            ExportColonneSelezione.Indici(["id", "stato", "veicolo"], ["non-esiste"]));
+    }
+
 }

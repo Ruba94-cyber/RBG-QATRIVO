@@ -206,6 +206,16 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColAmbito}" Width="100" MinWidth="95">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="models:Funzionalita">
+                            <ComboBox Classes="Field" ItemsSource="{Binding #Root.((vm:FunzionalitaViewModel)DataContext).Ambiti}"
+                                      SelectedItem="{Binding Ambito, Mode=TwoWay}" HorizontalAlignment="Stretch" Margin="2" MinHeight="32"
+                                      IsEnabled="{Binding #Root.((vm:FunzionalitaViewModel)DataContext).InModifica}"
+                                      AutomationProperties.AutomationId="Funz_Ambito_Combo" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColUltimaModifica}" Binding="{Binding UltimaModifica, Mode=OneWay, StringFormat={}{0:dd/MM/yy HH:mm}}" Width="150" IsReadOnly="True" />
                 <DataGridTextColumn Header="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=ColDa}" Binding="{Binding ModificatoDa}" Width="100" IsReadOnly="True" />
                 <DataGridTemplateColumn Width="90">

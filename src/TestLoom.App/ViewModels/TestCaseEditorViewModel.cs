@@ -2071,6 +2071,8 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
         get
         {
             var attive = _tutteLeFunzionalita.Where(f => !f.Archiviata);
+            // Funzionalità di ambito Veicolo/UnitLogger non dipendono dai componenti: restano sempre proponibili.
+            var senzaEcu = attive.Where(f => f.Ambito != AmbitoFunzionalita.Componente).Select(f => f.Nome).ToList();
             if (MostraTutteLeFunzionalita || TestCase.Componente.Count == 0)
                 return attive.Select(f => f.Nome).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 
@@ -2091,7 +2093,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
                     : veicoliScelti.Any(veicolo => ValeSuCoppia(f, componente, veicolo))))
                 .Select(f => f.Nome)
                 .ToList();
-            foreach (var nome in TestCase.Funzionalita)
+            foreach (var nome in TestCase.Funzionalita.Concat(senzaEcu))
                 if (!filtrate.Contains(nome, StringComparer.OrdinalIgnoreCase)) filtrate.Add(nome);
             return filtrate.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
         }
@@ -2525,6 +2527,20 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     public bool EcuObbligatorio => CampoObbligatorio(CampiSistema.Componente);
     public bool VeicoloObbligatorio => CampoObbligatorio(CampiSistema.Veicolo);
     public bool FunzionalitaObbligatoria => CampoObbligatorio(CampiSistema.Funzionalita);
+
+    /// <summary>Etichetta del campo senza il suffisso "(opzionale)/(optional)" quando il campo è in realtà obbligatorio,
+    /// così titolo e asterisco rosso non si contraddicono.</summary>
+    public string EtichettaFunzionalitaVisibile
+    {
+        get
+        {
+            if (!FunzionalitaObbligatoria) return EtichettaFunzionalita;
+            var testo = EtichettaFunzionalita;
+            foreach (var suffisso in new[] { " (opzionale)", " (optional)", " (facultatif)" })
+                testo = testo.Replace(suffisso, "", StringComparison.OrdinalIgnoreCase);
+            return testo;
+        }
+    }
     public bool DescrizioneBreveObbligatoria => CampoObbligatorio(CampiSistema.DescrizioneBreve);
     public bool DescrizioneObbligatoria => CampoObbligatorio(CampiSistema.Descrizione);
     public bool DescrizioneProblemaObbligatoria => CampoObbligatorio(CampiSistema.DescrizioneProblema);
@@ -2538,7 +2554,7 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
     private void NotificaObbligatorieta()
     {
         OnPropertyChanged(nameof(EcuObbligatorio)); OnPropertyChanged(nameof(VeicoloObbligatorio));
-        OnPropertyChanged(nameof(FunzionalitaObbligatoria)); OnPropertyChanged(nameof(DescrizioneBreveObbligatoria));
+        OnPropertyChanged(nameof(FunzionalitaObbligatoria)); OnPropertyChanged(nameof(EtichettaFunzionalitaVisibile)); OnPropertyChanged(nameof(DescrizioneBreveObbligatoria));
         OnPropertyChanged(nameof(DescrizioneObbligatoria)); OnPropertyChanged(nameof(DescrizioneProblemaObbligatoria));
         OnPropertyChanged(nameof(VinObbligatorio)); OnPropertyChanged(nameof(BaselineSwObbligatorio));
         OnPropertyChanged(nameof(BaselineHwObbligatorio)); OnPropertyChanged(nameof(ScadenzaObbligatoria));
@@ -6975,6 +6991,28 @@ public partial class TestCaseEditorViewModel : ViewModelBase, IDisposable, IScor
 
     [RelayCommand]
     private void AggiungiEcu(string? valore)
+    {
+        // "Veicolo (tutti i componenti)" non resta come componente fittizia: si espande ai componenti montate sui veicoli scelti
+        // (catalogo intero se nessun veicolo), così Report, matrice ed export vedono i componenti effettive.
+        if (!string.IsNullOrWhiteSpace(valore) && valore.Trim().Equals(EcuVeicoloIntero, StringComparison.OrdinalIgnoreCase))
+        {
+            var daAggiungere = EcuAnagraficaPerVeicoli(TestCase.VeicoliEffettivi).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (daAggiungere.Count == 0)
+            {
+                // Nessuna componente associata ai veicoli scelti: resta la voce "intero veicolo" (comportamento storico), che soddisfa
+                // l'obbligo componente; un avviso spiega perché non è stata espansa.
+                AggiungiAvvisoErrore(LocalizationService.Instance.Traduci("EcuTutteNessunaAssociata"));
+                AggiungiEcuSingola(valore);
+                return;
+            }
+            foreach (var componente in daAggiungere)
+                AggiungiEcuSingola(componente);
+            return;
+        }
+        AggiungiEcuSingola(valore);
+    }
+
+    private void AggiungiEcuSingola(string? valore)
     {
         if (string.IsNullOrWhiteSpace(valore) || TestCase.Componente.Contains(valore, StringComparer.OrdinalIgnoreCase)) return;
         var vecchioElenco = new EcuSelection(TestCase.Componente);

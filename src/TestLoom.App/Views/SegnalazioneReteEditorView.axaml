@@ -65,7 +65,7 @@
       </Border>
 
       <Border x:Name="OrigineSegnalazione" Classes="Card" IsEnabled="{Binding PuoModificare}"><StackPanel Spacing="10"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SegEdSezOrigine}" Classes="SectionTitle"/>
-        <WrapPanel Classes="ColonneEditor" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=3}">
+        <WrapPanel Classes="ColonneEditor" LineSpacing="14" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=3}">
           <StackPanel Grid.Column="0" Spacing="6">
             <TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SegEdNumeroPraticaLabel}" FontWeight="SemiBold"/>
             <ItemsControl ItemsSource="{Binding NumeriPratica}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Border Classes="Badge" Background="{DynamicResource WarningBackgroundBrush}" Margin="0,0,6,6"><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding}"/><Button Content="x" Classes="Link" Command="{Binding #Root.((vm:SegnalazioneReteEditorViewModel)DataContext).RimuoviNumeroPraticaCommand}" CommandParameter="{Binding}"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
@@ -97,7 +97,7 @@
       <Border x:Name="DescrizioneSegnalata" Classes="Card" IsEnabled="{Binding PuoModificare}"><StackPanel Spacing="10"><TextBlock Text="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SegEdSezDescrizione}" Classes="SectionTitle"/>
         <TextBox Text="{Binding DescrizioneBreve}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SegEdSintesiPlaceholder}" AutomationProperties.AutomationId="Segnalazione_DescrizioneBreve_TextBox"/>
         <TextBox Text="{Binding Descrizione}" AcceptsReturn="True" MinHeight="100" TextWrapping="Wrap" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SegEdDescrizioneDettagliataPlaceholder}" AutomationProperties.AutomationId="Segnalazione_Descrizione_TextBox"/>
-        <WrapPanel Classes="ColonneEditor" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=4}">
+        <WrapPanel Classes="ColonneEditor" LineSpacing="14" ItemWidth="{Binding $self.Bounds.Width, Converter={x:Static local:LarghezzaColonnaConverter.Instance}, ConverterParameter=4}">
           <StackPanel Grid.Column="0" Spacing="6">
             <ComboBox ItemsSource="{Binding SeveritaDisponibili}" SelectedItem="{Binding Severita}" PlaceholderText="{Binding Source={x:Static services:LocalizationService.Instance}, Path=Lingua, Converter={x:Static services:TraduciConverter.Instance}, ConverterParameter=SegEdSeveritaPlaceholder}" AutomationProperties.AutomationId="Segnalazione_Severita_Combo"/>
           </StackPanel>
